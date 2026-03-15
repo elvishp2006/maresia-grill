@@ -8,9 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Cardápio do Dia',
-        short_name: 'Cardápio',
-        description: 'Cardápio do restaurante',
+        name: 'Menu do Dia',
+        short_name: 'Menu',
+        description: 'Menu do restaurante',
         theme_color: '#15160f',
         background_color: '#15160f',
         display: 'standalone',

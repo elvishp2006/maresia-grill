@@ -23,7 +23,7 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
   return (
     <header className="app-header">
       <div className="header-brand">
-        <h1>Cardápio do Dia</h1>
+        <h1>Menu do Dia</h1>
         <span className="header-meta">{activeCount} iten{activeCount !== 1 ? 's' : ''} • {dateShort}</span>
       </div>
       <button
@@ -31,7 +31,7 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
         onClick={handleCopy}
         type="button"
       >
-        {copied ? '✓ Copiado!' : 'Copiar Cardápio'}
+        {copied ? '✓ Copiado!' : 'Copiar Menu'}
       </button>
     </header>
   );
