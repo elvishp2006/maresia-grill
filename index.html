@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#15160f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Cardápio" />
+
+    <title>Cardápio do Dia</title>
+
+    <!-- PWA Manifest inline -->
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Card%C3%A1pio+do+Dia%22%2C%22short_name%22%3A%22Card%C3%A1pio%22%2C%22description%22%3A%22Card%C3%A1pio+do+restaurante%22%2C%22theme_color%22%3A%22%2315160f%22%2C%22background_color%22%3A%22%2315160f%22%2C%22display%22%3A%22standalone%22%2C%22start_url%22%3A%22%2F%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22icon-192.png%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22icon-512.png%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%2C%22purpose%22%3A%22any+maskable%22%7D%5D%7D" />
+
+    <!-- Apple touch icon (inline SVG as data URI) -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%231e2017'/%3E%3Ctext x='96' y='130' font-size='96' text-anchor='middle' fill='%23d4a843'%3E%F0%9F%8D%BD%3C/text%3E%3C/svg%3E" />
+
+    <!-- Service Worker (inline via Blob URL) -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        const code = `
+          const CACHE = 'cardapio-v1';
+          self.addEventListener('install', () => self.skipWaiting());
+          self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+          self.addEventListener('fetch', e => {
+            if (e.request.method !== 'GET') return;
+            e.respondWith(
+              caches.open(CACHE).then(c =>
+                c.match(e.request).then(r => r || fetch(e.request).then(res => {
+                  if (res.ok) c.put(e.request, res.clone());
+                  return res;
+                }).catch(() => r))
+              )
+            );
+          });
+        `;
+        const blob = new Blob([code], { type: 'text/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
