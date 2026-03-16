@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import './App.css';
-import { formatMenuText } from './utils';
+import { formatMenuText, normalize } from './utils';
 import { useMenuState } from './hooks/useMenuState';
 import Header from './components/Header';
 import CategoryCard from './components/CategoryCard';
@@ -51,11 +51,11 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const visibleCategories = useMemo(() => {
     if (!search.trim()) return categories;
 
-    const normalized = search.trim().toLowerCase();
+    const normalized = normalize(search.trim());
     return categories.filter(categoria => {
-      if (categoria.toLowerCase().includes(normalized)) return true;
+      if (normalize(categoria).includes(normalized)) return true;
       return complements.some(
-        item => item.categoria === categoria && item.nome.toLowerCase().includes(normalized)
+        item => item.categoria === categoria && normalize(item.nome).includes(normalized)
       );
     });
   }, [categories, complements, search]);

@@ -81,6 +81,13 @@ describe('CategoryCard', () => {
     expect(screen.queryByText('Beterraba')).not.toBeInTheDocument();
   });
 
+  it('filters items without diacritics matching accented names', () => {
+    const accentedItems = [{ id: '4', nome: 'Açaí', categoria: 'Saladas' }, ...items];
+    renderWithProviders(<CategoryCard {...defaultProps} items={accentedItems} search="acai" />);
+    expect(screen.getByText('Açaí')).toBeInTheDocument();
+    expect(screen.queryByText('Alface')).not.toBeInTheDocument();
+  });
+
   it('calls onToggleCollapse when header is clicked', () => {
     const onToggleCollapse = vi.fn();
     renderWithProviders(<CategoryCard {...defaultProps} onToggleCollapse={onToggleCollapse} />);

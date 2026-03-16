@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Categoria, Item } from '../types';
+import { normalize } from '../utils';
 import ItemRow from './ItemRow';
 import AddForm from './AddForm';
 import BottomSheet from './BottomSheet';
@@ -58,8 +59,8 @@ export default function CategoryCard({
 
   const filteredItems = useMemo(() => {
     if (!search.trim()) return items;
-    const normalized = search.trim().toLowerCase();
-    return items.filter(item => item.nome.toLowerCase().includes(normalized));
+    const normalized = normalize(search.trim());
+    return items.filter(item => normalize(item.nome).includes(normalized));
   }, [items, search]);
 
   const sortedItems = useMemo(() => {

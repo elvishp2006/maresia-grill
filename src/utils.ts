@@ -1,5 +1,8 @@
 import type { Item } from './types';
 
+export const normalize = (str: string): string =>
+  str.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
 export const formatMenuText = (complements: Item[], daySelection: string[], categories: string[]): string => {
   const now = new Date();
   const weekdays = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
