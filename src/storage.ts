@@ -4,6 +4,11 @@ import type { Item } from './types';
 
 const getDateKey = () => new Date().toISOString().slice(0, 10);
 
+export interface SelectionHistoryEntry {
+  dateKey: string;
+  ids: string[];
+}
+
 export const loadCategories = async (): Promise<string[]> => {
   const snap = await getDoc(doc(db, 'config', 'categories'));
   return snap.exists() ? (snap.data().items as string[]) : [];
@@ -33,18 +38,30 @@ export const saveDaySelection = (ids: string[]): Promise<void> => {
 
 export const loadRecentSelections = async (days: number): Promise<Record<string, number>> => {
   const counts: Record<string, number> = {};
-  const today = new Date();
-  const snaps = await Promise.all(
-    Array.from({ length: days }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      return getDoc(doc(db, 'selections', d.toISOString().slice(0, 10)));
-    })
-  );
+  const snaps = await loadSelectionHistory(days);
   for (const snap of snaps) {
-    if (!snap.exists()) continue;
-    for (const id of snap.data().ids as string[])
+    for (const id of snap.ids)
       counts[id] = (counts[id] ?? 0) + 1;
   }
   return counts;
+};
+
+export const loadSelectionHistory = async (days: number): Promise<SelectionHistoryEntry[]> => {
+  const today = new Date();
+  const refs = Array.from({ length: days }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateKey = d.toISOString().slice(0, 10);
+    return { dateKey, ref: doc(db, 'selections', dateKey) };
+  });
+
+  const snaps = await Promise.all(refs.map(({ ref }) => getDoc(ref)));
+
+  return snaps.flatMap((snap, index) => {
+    if (!snap.exists()) return [];
+    return [{
+      dateKey: refs[index].dateKey,
+      ids: (snap.data().ids as string[]) ?? [],
+    }];
+  });
 };
