@@ -2,20 +2,32 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 export default function InstallBanner() {
-  const { canInstall, install, dismiss } = usePWAInstall();
+  const { canInstall, installMode, install, dismiss } = usePWAInstall();
   const { lightTap, success } = useHapticFeedback();
 
   if (!canInstall) return null;
 
   const handleInstall = () => {
+    if (installMode !== 'prompt') {
+      lightTap();
+      dismiss();
+      return;
+    }
+
     success();
-    install();
+    void install();
   };
 
   const handleDismiss = () => {
     lightTap();
     dismiss();
   };
+
+  const title = installMode === 'ios-manual' ? 'Instalar no iPhone' : 'Instalar o app';
+  const description = installMode === 'ios-manual'
+    ? 'Toque em Compartilhar no Safari e depois em Adicionar a Tela de Inicio.'
+    : 'Acesse mais rápido pela tela inicial';
+  const actionLabel = installMode === 'ios-manual' ? 'Entendi' : 'Instalar';
 
   return (
     <div
@@ -25,10 +37,10 @@ export default function InstallBanner() {
       <div className="mx-auto flex max-w-[960px] items-center gap-[12px] rounded-[22px] border border-[var(--border-strong)] bg-[rgba(29,31,23,0.96)] px-[14px] py-[12px] shadow-[0_16px_38px_rgba(0,0,0,0.24)] backdrop-blur-[18px]">
         <div className="flex-1 min-w-0">
           <p className="text-[14px] font-semibold text-[var(--text)] truncate">
-            Instalar o app
+            {title}
           </p>
           <p className="text-[13px] text-[var(--text-dim)]">
-            Acesse mais rápido pela tela inicial
+            {description}
           </p>
         </div>
         <button
@@ -36,7 +48,7 @@ export default function InstallBanner() {
           className="min-h-[44px] shrink-0 rounded-[14px] bg-[var(--accent)] px-[14px] py-[10px] text-[14px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
           onClick={handleInstall}
         >
-          Instalar
+          {actionLabel}
         </button>
         <button
           type="button"
