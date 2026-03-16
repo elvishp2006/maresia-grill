@@ -10,6 +10,8 @@ import AddForm from './components/AddForm';
 import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
 import InstallBanner from './components/InstallBanner';
+import InsightsPanel from './components/InsightsPanel';
+import { useMenuInsights } from './hooks/useMenuInsights';
 
 export default function App() {
   const {
@@ -31,8 +33,10 @@ export default function App() {
 
   useUpdateNotification();
 
+  const insights = useMenuInsights(complements, daySelection);
+
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'select' | 'manage'>('select');
+  const [viewMode, setViewMode] = useState<'menu' | 'stats' | 'manage'>('menu');
   const [manualExpandedCategory, setManualExpandedCategory] = useState<string | null | undefined>(undefined);
   const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(188);
@@ -73,7 +77,7 @@ export default function App() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="mx-auto min-h-dvh max-w-[960px] px-[16px] pb-[max(24px,env(safe-area-inset-bottom))]">
+    <div className="app-shell">
       <Header
         activeCount={daySelection.length}
         dateShort={dateShort}
@@ -83,29 +87,47 @@ export default function App() {
         onHeightChange={setHeaderHeight}
       />
 
-      <Toolbar
-        search={search}
-        onSearchChange={setSearch}
-        sortMode={sortMode}
-        onToggleSort={toggleSortMode}
-        viewMode={viewMode}
-        stickyTop={headerHeight}
-      />
+      {viewMode !== 'stats' ? (
+        <Toolbar
+          search={search}
+          onSearchChange={setSearch}
+          sortMode={sortMode}
+          onToggleSort={toggleSortMode}
+          viewMode={viewMode}
+          stickyTop={headerHeight}
+        />
+      ) : null}
 
       <main className="pb-[24px]">
-        <section className="mb-[16px] rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px]">
+        <section className="section-card mb-[18px]">
           <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            {viewMode === 'select' ? 'Fluxo principal' : 'Modo administrativo'}
+            {viewMode === 'menu' ? 'Fluxo principal' : viewMode === 'stats' ? 'Area analitica' : 'Modo administrativo'}
           </p>
-          <p className="mt-[6px] text-[15px] leading-[1.5] text-[var(--text)]">
-            {viewMode === 'select'
+          <p className="mt-[8px] max-w-[56ch] text-[15px] leading-[1.6] text-[var(--text)]">
+            {viewMode === 'menu'
               ? 'Toque nos itens para montar rapidamente o menu de hoje.'
-              : 'Organize categorias e mantenha o catalogo atualizado sem poluir a tela principal.'}
+              : viewMode === 'stats'
+                ? 'Consulte sugestoes e historico sem interferir no fluxo principal de selecao.'
+                : 'Organize categorias e mantenha o catalogo atualizado sem poluir a tela principal.'}
           </p>
         </section>
 
-        {visibleCategories.length === 0 ? (
-          <section className="rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--bg-card)] px-[18px] py-[24px] text-center">
+        {viewMode === 'stats' ? (
+          <InsightsPanel
+            loading={insights.loading}
+            error={insights.error}
+            trackedDays={insights.trackedDays}
+            weekdayLabel={insights.weekdayLabel}
+            topItems={insights.topItems}
+            weekdayAverages={insights.weekdayAverages}
+            categoryLeaders={insights.categoryLeaders}
+            streakItems={insights.streakItems}
+            neglectedItems={insights.neglectedItems}
+            suggestedItems={insights.suggestedItems}
+            onSelectSuggestion={toggleItem}
+          />
+        ) : visibleCategories.length === 0 ? (
+          <section className="section-card border-dashed text-center">
             <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
               Nada encontrado
             </h2>
@@ -114,7 +136,7 @@ export default function App() {
             </p>
           </section>
         ) : (
-          <div className="grid grid-cols-1 gap-[14px] md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-[16px] md:grid-cols-2">
             {visibleCategories.map(categoria => (
               <CategoryCard
                 key={`${categoria}-${viewMode}-${search ? 'filtered' : 'default'}`}
@@ -133,7 +155,7 @@ export default function App() {
                 onRemoveCategory={() => removeCategory(categoria)}
                 isFirst={categories.indexOf(categoria) === 0}
                 isLast={categories.indexOf(categoria) === categories.length - 1}
-                viewMode={viewMode}
+                viewMode={viewMode === 'menu' ? 'select' : 'manage'}
                 expanded={expandedCategory === categoria}
                 onToggleCollapse={() => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
               />
@@ -144,7 +166,7 @@ export default function App() {
         {viewMode === 'manage' ? (
           <button
             type="button"
-            className="mt-[16px] min-h-[56px] w-full rounded-[20px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
+            className="mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
             onClick={() => setShowAddCategorySheet(true)}
           >
             + Nova categoria

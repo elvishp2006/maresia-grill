@@ -34,10 +34,10 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
 
   if (mode === 'select') {
     return (
-      <li className={`item rounded-[20px] border px-[12px] py-[12px] transition-colors ${active ? 'active border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--border)] bg-[var(--bg-elevated)]'}`}>
+      <li className={`item rounded-[22px] border px-[14px] py-[13px] transition-colors ${active ? 'active border-[var(--accent)] bg-[var(--accent-soft)] shadow-[0_8px_18px_rgba(0,0,0,0.08)]' : 'border-[var(--border)] bg-[var(--bg-elevated)]'}`}>
         <button
           type="button"
-          className="flex w-full items-center gap-[12px] text-left"
+          className="flex w-full items-center gap-[14px] text-left"
           onClick={handleToggle}
           aria-pressed={active}
           aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
@@ -48,7 +48,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           >
             ✓
           </span>
-          <span className={`flex-1 text-[15px] leading-[1.45] ${active ? 'font-semibold text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
+          <span className={`flex-1 text-[15px] leading-[1.5] ${active ? 'font-semibold text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
             {item.nome}
           </span>
         </button>
@@ -58,8 +58,8 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
 
   return (
     <>
-      <li className="item rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[12px]">
-        <div className="flex items-center gap-[12px]">
+      <li className="item rounded-[22px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[14px]">
+        <div className="flex items-center gap-[14px]">
           <span
             className={`flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border text-[15px] font-bold transition-colors ${active ? 'border-[var(--green)] bg-[var(--green)] text-[var(--bg)]' : 'border-[var(--border-strong)] text-transparent'}`}
             aria-hidden="true"
@@ -75,10 +75,10 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
             </p>
           </div>
         </div>
-        <div className="mt-[12px] flex gap-[8px]">
+        <div className="mt-[14px] flex gap-[10px]">
           <button
             type="button"
-            className="min-h-[42px] flex-1 rounded-[14px] border border-[var(--border)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
             onClick={() => {
               lightTap();
               setShowRenameSheet(true);
@@ -89,7 +89,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           </button>
           <button
             type="button"
-            className="min-h-[42px] flex-1 rounded-[14px] border border-[var(--accent-red)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
+            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
             onClick={handleRemove}
             aria-label={`Remover ${item.nome}`}
           >

@@ -115,15 +115,15 @@ export default function CategoryCard({
 
   return (
     <>
-      <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+      <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-card)] p-[16px] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
         <button
           type="button"
-          className="w-full rounded-[18px] bg-transparent text-left"
+          className="w-full rounded-[20px] bg-transparent text-left"
           onClick={handleExpandToggle}
           aria-expanded={expanded}
           aria-label={expanded ? `Colapsar ${categoria}` : `Expandir ${categoria}`}
         >
-          <div className="flex items-start gap-[12px]">
+          <div className="flex items-start gap-[14px]">
             <div className="min-w-0 flex-1">
               <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
                 {viewMode === 'select' ? 'Categoria' : 'Edicao'}
@@ -131,11 +131,11 @@ export default function CategoryCard({
               <h2 className="mt-[4px] overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
                 {categoria}
               </h2>
-              <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+              <p className="mt-[10px] text-[14px] leading-[1.6] text-[var(--text-dim)]">
                 {selectedCount} de {items.length} itens no menu de hoje
               </p>
             </div>
-            <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] text-[18px] text-[var(--text-dim)]">
+            <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
               <svg
                 className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
                 viewBox="0 0 20 20"
@@ -155,12 +155,12 @@ export default function CategoryCard({
         </button>
 
         {expanded ? (
-          <div className="mt-[14px] border-t border-[var(--border)] pt-[14px]">
+          <div className="mt-[16px] border-t border-[var(--border)] pt-[16px]">
             {viewMode === 'manage' ? (
-              <div className="mb-[14px] grid grid-cols-2 gap-[8px]">
+              <div className="mb-[16px] grid grid-cols-2 gap-[10px]">
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[16px] border border-[var(--border)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
+                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
                   onClick={onMoveUp}
                   disabled={isFirst}
                   aria-label={`Mover ${categoria} para cima`}
@@ -169,7 +169,7 @@ export default function CategoryCard({
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[16px] border border-[var(--border)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
+                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
                   onClick={onMoveDown}
                   disabled={isLast}
                   aria-label={`Mover ${categoria} para baixo`}
@@ -178,7 +178,7 @@ export default function CategoryCard({
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[16px] bg-[var(--accent)] px-[12px] text-[13px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
+                  className="min-h-[44px] rounded-[18px] bg-[var(--accent)] px-[12px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
                   onClick={handleShowAddSheet}
                   aria-label={`Adicionar item em ${categoria}`}
                 >
@@ -186,7 +186,7 @@ export default function CategoryCard({
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[16px] border border-[var(--accent-red)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
+                  className="min-h-[44px] rounded-[18px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
                   onClick={handleRemoveCategory}
                   aria-label={`Remover categoria ${categoria}`}
                 >
@@ -196,14 +196,14 @@ export default function CategoryCard({
             ) : null}
 
             {sortedItems.length === 0 ? (
-              <p className="rounded-[18px] border border-dashed border-[var(--border)] px-[14px] py-[18px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+              <p className="rounded-[20px] border border-dashed border-[var(--border)] px-[14px] py-[18px] text-[14px] leading-[1.6] text-[var(--text-dim)]">
                 {viewMode === 'manage'
                   ? 'Nenhum item nesta categoria. Use "Novo item" para preencher.'
                   : 'Nenhum item encontrado nesta categoria.'}
               </p>
             ) : (
               <>
-                <ul className="flex list-none flex-col gap-[8px]">
+                <ul className="flex list-none flex-col gap-[10px]">
                   {itemsToRender.map(item => (
                     <ItemRow
                       key={item.id}
@@ -220,7 +220,7 @@ export default function CategoryCard({
                 {hasHiddenItems ? (
                   <button
                     type="button"
-                    className="mt-[12px] min-h-[44px] w-full rounded-[16px] border border-[var(--border)] px-[14px] text-[14px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+                    className="mt-[14px] min-h-[44px] w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] text-[14px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
                     onClick={handleShowMore}
                   >
                     Ver mais {Math.min(INITIAL_VISIBLE_ITEMS, sortedItems.length - itemsToRender.length)} itens
