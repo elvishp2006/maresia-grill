@@ -93,13 +93,24 @@ export const useMenuState = () => {
   };
 
   const removeCategory = (nome: string) => {
+    const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
     setCategories(prev => {
-      const hasItems = complements.some(item => item.categoria === nome);
-      if (hasItems) return prev;
       const next = prev.filter(c => c !== nome);
       saveCategories(next);
       return next;
     });
+    if (removedIds.length > 0) {
+      setComplements(prev => {
+        const next = prev.filter(item => item.categoria !== nome);
+        saveComplements(next);
+        return next;
+      });
+      setDaySelection(prev => {
+        const next = prev.filter(id => !removedIds.includes(id));
+        saveDaySelection(next);
+        return next;
+      });
+    }
   };
 
   const moveCategory = (nome: string, direction: 'up' | 'down') => {

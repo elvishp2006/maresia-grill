@@ -16,6 +16,7 @@ interface CategoryCardProps {
   usageCounts: Record<string, number>;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onRemoveCategory: () => void;
   isFirst: boolean;
   isLast: boolean;
 }
@@ -33,6 +34,7 @@ export default function CategoryCard({
   usageCounts,
   onMoveUp,
   onMoveDown,
+  onRemoveCategory,
   isFirst,
   isLast,
 }: CategoryCardProps) {
@@ -56,6 +58,13 @@ export default function CategoryCard({
   const sortedItems = [...activeItems, ...inactiveItems];
 
   const selectedCount = items.filter(item => daySelection.includes(item.id)).length;
+
+  const handleRemoveCategory = () => {
+    const msg = items.length > 0
+      ? `Remover categoria "${categoria}" e todos os seus ${items.length} itens?`
+      : `Remover categoria "${categoria}"?`;
+    if (window.confirm(msg)) onRemoveCategory();
+  };
 
   return (
     <div className="category-card">
@@ -96,6 +105,14 @@ export default function CategoryCard({
             aria-label={`Adicionar item em ${categoria}`}
           >
             +
+          </button>
+          <button
+            type="button"
+            className="remove-category-btn"
+            onClick={handleRemoveCategory}
+            aria-label={`Remover categoria ${categoria}`}
+          >
+            ×
           </button>
         </div>
       </div>

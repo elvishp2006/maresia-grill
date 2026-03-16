@@ -497,6 +497,33 @@ body {
   color: var(--accent);
 }
 
+/* ===== Remove category button ===== */
+.remove-category-btn {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  opacity: 0.4;
+  touch-action: manipulation;
+  transition: opacity 150ms, color 150ms;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+
+@media (hover: hover) {
+  .remove-category-btn { opacity: 0; }
+  .category-header:hover .remove-category-btn { opacity: 0.4; }
+}
+
+.remove-category-btn:hover {
+  opacity: 1;
+  color: var(--accent-red);
+}
+
 /* ===== Add category button ===== */
 .add-category-btn {
   font-family: 'Courier New', Courier, monospace;

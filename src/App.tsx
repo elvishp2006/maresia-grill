@@ -21,6 +21,7 @@ export default function App() {
     removeItem,
     renameItem,
     addCategory,
+    removeCategory,
     moveCategory,
   } = useMenuState();
 
@@ -70,6 +71,7 @@ export default function App() {
             usageCounts={usageCounts}
             onMoveUp={() => moveCategory(categoria, 'up')}
             onMoveDown={() => moveCategory(categoria, 'down')}
+            onRemoveCategory={() => removeCategory(categoria)}
             isFirst={idx === 0}
             isLast={idx === categories.length - 1}
           />
