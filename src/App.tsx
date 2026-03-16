@@ -6,7 +6,7 @@ import Header from './components/Header';
 import CategoryCard from './components/CategoryCard';
 
 export default function App() {
-  const { complements, daySelection, toggleItem, addItem, removeItem } = useMenuState();
+  const { complements, daySelection, loading, toggleItem, addItem, removeItem } = useMenuState();
 
   const now = new Date();
   const dateShort = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -19,6 +19,8 @@ export default function App() {
       alert(text);
     }
   };
+
+  if (loading) return <div className="app" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Carregando...</div>;
 
   return (
     <div className="app">

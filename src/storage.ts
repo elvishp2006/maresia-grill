@@ -1,32 +1,23 @@
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import type { Item } from './types';
 
-const KEY_COMPLEMENTS = 'restaurante_complementos';
+const getDateKey = () => new Date().toISOString().slice(0, 10);
 
-const getDateKey = () =>
-  `restaurante_selecao_${new Date().toISOString().slice(0, 10)}`;
-
-export const loadComplements = (): Item[] => {
-  try {
-    const raw = localStorage.getItem(KEY_COMPLEMENTS);
-    return raw ? (JSON.parse(raw) as Item[]) : [];
-  } catch {
-    return [];
-  }
+export const loadComplements = async (): Promise<Item[]> => {
+  const snap = await getDoc(doc(db, 'config', 'complements'));
+  return snap.exists() ? (snap.data().items as Item[]) : [];
 };
 
 export const saveComplements = (items: Item[]): void => {
-  localStorage.setItem(KEY_COMPLEMENTS, JSON.stringify(items));
+  void setDoc(doc(db, 'config', 'complements'), { items });
 };
 
-export const loadDaySelection = (): string[] => {
-  try {
-    const raw = localStorage.getItem(getDateKey());
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
+export const loadDaySelection = async (): Promise<string[]> => {
+  const snap = await getDoc(doc(db, 'selections', getDateKey()));
+  return snap.exists() ? (snap.data().ids as string[]) : [];
 };
 
 export const saveDaySelection = (ids: string[]): void => {
-  localStorage.setItem(getDateKey(), JSON.stringify(ids));
+  void setDoc(doc(db, 'selections', getDateKey()), { ids });
 };
