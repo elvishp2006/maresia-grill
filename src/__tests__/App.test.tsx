@@ -23,10 +23,10 @@ vi.mock('../components/UpdateBanner', () => ({
 }));
 
 const useAuthSessionMock = vi.fn(() => ({
-  user: { email: 'chef@maresia.com' },
+  user: { email: 'chef@maresia.com' } as { email: string } | null,
   loading: false,
   isAuthorized: true,
-  authError: null,
+  authError: null as string | null,
   signInPending: false,
   signIn: vi.fn(),
   signOut: vi.fn(),
