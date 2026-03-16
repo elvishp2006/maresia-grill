@@ -42,6 +42,7 @@ describe('useMenuState', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.toggleItem('2'));
     expect(result.current.daySelection).toContain('2');
+    expect(result.current.usageCounts['2']).toBe(1);
   });
 
   it('toggleItem removes item from selection if already selected', async () => {
@@ -49,6 +50,7 @@ describe('useMenuState', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.toggleItem('1'));
     expect(result.current.daySelection).not.toContain('1');
+    expect(result.current.usageCounts['1']).toBe(2);
   });
 
   it('addItem creates new item and auto-selects it', async () => {
@@ -58,6 +60,7 @@ describe('useMenuState', () => {
     expect(result.current.complements.some(i => i.nome === 'Tomate')).toBe(true);
     const tomate = result.current.complements.find(i => i.nome === 'Tomate');
     expect(result.current.daySelection).toContain(tomate?.id);
+    expect(result.current.usageCounts[tomate!.id]).toBe(1);
   });
 
   it('removeItem removes item from complements and daySelection', async () => {
