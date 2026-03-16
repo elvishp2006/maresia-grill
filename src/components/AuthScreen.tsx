@@ -1,27 +1,16 @@
 interface AuthScreenProps {
-  email?: string | null;
   error?: string | null;
-  mode: 'sign-in' | 'unauthorized';
   onPrimaryAction: () => void;
-  onSecondaryAction?: () => void;
   primaryActionLabel: string;
   primaryDisabled?: boolean;
 }
 
 export default function AuthScreen({
-  email,
   error,
-  mode,
   onPrimaryAction,
-  onSecondaryAction,
   primaryActionLabel,
   primaryDisabled = false,
 }: AuthScreenProps) {
-  const title = mode === 'sign-in' ? 'Acesso restrito' : 'Conta sem acesso';
-  const description = mode === 'sign-in'
-    ? 'Entre com sua conta Google autorizada para acessar o catálogo e o histórico do restaurante.'
-    : 'Sua conta Google foi reconhecida, mas ainda nao esta na allowlist de usuarios autorizados.';
-
   return (
     <div className="app-shell flex min-h-dvh items-center">
       <section className="section-card w-full">
@@ -29,17 +18,11 @@ export default function AuthScreen({
           Firebase protegido
         </p>
         <h1 className="mt-[8px] font-[Georgia,'Times_New_Roman',serif] text-[34px] font-bold leading-[1.1] text-[var(--text)]">
-          {title}
+          Acesso restrito
         </h1>
         <p className="mt-[12px] max-w-[52ch] text-[15px] leading-[1.7] text-[var(--text-dim)]">
-          {description}
+          Entre com sua conta Google autorizada para acessar o catálogo e o histórico do restaurante.
         </p>
-
-        {email ? (
-          <p className="mt-[18px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] px-[14px] py-[12px] text-[14px] text-[var(--text)]">
-            Conta atual: <span className="font-semibold">{email}</span>
-          </p>
-        ) : null}
 
         {error ? (
           <p className="mt-[18px] rounded-[18px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)] px-[14px] py-[12px] text-[14px] leading-[1.6] text-[var(--text)]">
@@ -56,20 +39,10 @@ export default function AuthScreen({
           >
             {primaryActionLabel}
           </button>
-
-          {onSecondaryAction ? (
-            <button
-              type="button"
-              className="min-h-[50px] flex-1 rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] px-[16px] py-[12px] text-[14px] font-medium text-[var(--text-dim)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text)]"
-              onClick={onSecondaryAction}
-            >
-              Sair
-            </button>
-          ) : null}
         </div>
 
         <p className="mt-[16px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
-          Administre os acessos atualizando a allowlist de emails do app e as regras do Firestore.
+          O acesso é gerenciado pelas regras de segurança do Firestore.
         </p>
       </section>
     </div>

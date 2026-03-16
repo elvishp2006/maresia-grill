@@ -22,7 +22,7 @@ describe('useAuthSession', () => {
     vi.clearAllMocks();
   });
 
-  it('marks a user as authorized when the email is in the allowlist', async () => {
+  it('sets user when onAuthStateChanged fires with an authenticated user', async () => {
     onAuthStateChangedMock.mockImplementation((_auth, callback) => {
       void callback({ uid: 'user-1', email: 'elvishp2006@gmail.com' });
       return vi.fn();
@@ -32,21 +32,20 @@ describe('useAuthSession', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.user?.email).toBe('elvishp2006@gmail.com');
-    expect(result.current.isAuthorized).toBe(true);
     expect(result.current.authError).toBeNull();
   });
 
-  it('exposes an authorization error when the email is outside the allowlist', async () => {
+  it('clears user when onAuthStateChanged fires with null', async () => {
     onAuthStateChangedMock.mockImplementation((_auth, callback) => {
-      void callback({ uid: 'user-2', email: 'outsider@maresia.com' });
+      void callback(null);
       return vi.fn();
     });
 
     const { result } = renderHook(() => useAuthSession());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.isAuthorized).toBe(false);
-    expect(result.current.authError).toBe('Sua conta nao esta autorizada para usar este app.');
+    expect(result.current.user).toBeNull();
+    expect(result.current.authError).toBeNull();
   });
 
   it('runs Google sign-in through Firebase Auth', async () => {

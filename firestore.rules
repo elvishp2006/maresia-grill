@@ -1,8 +1,49 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAuthorizedUser() {
+      return isSignedIn()
+        && request.auth.token.email in [
+          "elvishp2006@gmail.com",
+          "regianegoncalvesm@gmail.com"
+        ];
+    }
+
+    function hasOnlyKeys(keys) {
+      return request.resource.data.keys().hasOnly(keys);
+    }
+
+    match /config/categories {
+      allow read: if isAuthorizedUser();
+      allow create, update: if isAuthorizedUser()
+        && hasOnlyKeys(['items'])
+        && request.resource.data.items is list;
+      allow delete: if false;
+    }
+
+    match /config/complements {
+      allow read: if isAuthorizedUser();
+      allow create, update: if isAuthorizedUser()
+        && hasOnlyKeys(['items'])
+        && request.resource.data.items is list;
+      allow delete: if false;
+    }
+
+    match /selections/{dateKey} {
+      allow read: if isAuthorizedUser();
+      allow create, update: if isAuthorizedUser()
+        && hasOnlyKeys(['ids'])
+        && request.resource.data.ids is list;
+      allow delete: if false;
+    }
+
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }
