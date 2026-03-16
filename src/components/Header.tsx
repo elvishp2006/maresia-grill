@@ -24,7 +24,7 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
   };
 
   return (
-    <header className="flex items-center justify-between gap-3 py-4 pb-5 border-b border-[var(--border)] mb-5 flex-wrap max-[480px]:flex-col max-[480px]:items-start">
+    <header className="flex items-center justify-between gap-[12px] pt-[16px] pb-[20px] border-b border-[var(--border)] mb-[20px] flex-wrap max-[480px]:flex-col max-[480px]:items-start">
       <div>
         <h1 className="font-[Georgia,'Times_New_Roman',serif] text-[28px] font-bold text-[var(--accent)] tracking-[-0.5px]">
           Menu do Dia
@@ -34,7 +34,7 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
         </span>
       </div>
       <button
-        className={`font-mono text-[13px] font-semibold text-[var(--bg)] border-none rounded px-[18px] py-[10px] min-h-[44px] cursor-pointer touch-manipulation transition-colors whitespace-nowrap max-[480px]:w-full ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
+        className={`font-mono text-[13px] font-semibold text-[var(--bg)] border-none rounded-[4px] px-[18px] py-[10px] min-h-[44px] cursor-pointer touch-manipulation transition-colors whitespace-nowrap max-[480px]:w-full ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
         onClick={handleCopy}
         type="button"
       >

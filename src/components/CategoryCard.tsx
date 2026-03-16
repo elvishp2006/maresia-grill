@@ -111,10 +111,10 @@ export default function CategoryCard({
             {collapsed ? '▸' : '▾'}
           </span>
         </button>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-[4px] shrink-0">
           <button
             type="button"
-            className="move-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-1 rounded opacity-40 disabled:opacity-15 disabled:cursor-default hover:not-disabled:opacity-100 hover:not-disabled:text-[var(--accent)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color]"
+            className="move-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 disabled:opacity-15 disabled:cursor-default hover:not-disabled:opacity-100 hover:not-disabled:text-[var(--accent)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color]"
             onClick={handleMoveUp}
             disabled={isFirst}
             aria-label={`Mover ${categoria} para cima`}
@@ -123,7 +123,7 @@ export default function CategoryCard({
           </button>
           <button
             type="button"
-            className="move-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-1 rounded opacity-40 disabled:opacity-15 disabled:cursor-default hover:not-disabled:opacity-100 hover:not-disabled:text-[var(--accent)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color]"
+            className="move-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 disabled:opacity-15 disabled:cursor-default hover:not-disabled:opacity-100 hover:not-disabled:text-[var(--accent)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color]"
             onClick={handleMoveDown}
             disabled={isLast}
             aria-label={`Mover ${categoria} para baixo`}
@@ -132,7 +132,7 @@ export default function CategoryCard({
           </button>
           <button
             type="button"
-            className="font-mono text-[20px] leading-none text-[var(--accent)] bg-transparent border border-[var(--border)] rounded w-8 h-8 flex items-center justify-center cursor-pointer hover:border-[var(--accent)] shrink-0 touch-manipulation transition-colors"
+            className="font-mono text-[20px] leading-none text-[var(--accent)] bg-transparent border border-[var(--border)] rounded-[4px] w-[32px] h-[32px] flex items-center justify-center cursor-pointer hover:border-[var(--accent)] shrink-0 touch-manipulation transition-colors"
             onClick={handleShowForm}
             aria-label={`Adicionar item em ${categoria}`}
           >
@@ -140,7 +140,7 @@ export default function CategoryCard({
           </button>
           <button
             type="button"
-            className="remove-category-btn text-[18px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-1 rounded opacity-40 hover:opacity-100 hover:text-[var(--accent-red)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color]"
+            className="remove-category-btn text-[18px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 hover:opacity-100 hover:text-[var(--accent-red)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color]"
             onClick={handleRemoveCategory}
             aria-label={`Remover categoria ${categoria}`}
           >
@@ -159,7 +159,7 @@ export default function CategoryCard({
           )}
 
           {sortedItems.length === 0 && !showForm ? (
-            <p className="text-[11px] text-[var(--text-dim)] italic py-2 px-1">
+            <p className="text-[11px] text-[var(--text-dim)] italic py-[8px] px-[4px]">
               Nenhum item. Use + para adicionar.
             </p>
           ) : (
