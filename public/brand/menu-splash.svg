@@ -1,49 +1,49 @@
-<svg width="2048" height="2732" viewBox="0 0 2048 2732" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="1290" height="2796" viewBox="0 0 1290 2796" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="splashBg" x1="316" y1="210" x2="1742" y2="2480" gradientUnits="userSpaceOnUse">
+    <linearGradient id="splashBg" x1="198" y1="224" x2="1098" y2="2508" gradientUnits="userSpaceOnUse">
       <stop stop-color="#22251B" />
       <stop offset="1" stop-color="#11120D" />
     </linearGradient>
-    <radialGradient id="splashGlowTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(780 566) rotate(52.8) scale(706 806)">
+    <radialGradient id="splashGlowTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(486 580) rotate(54.2) scale(520 724)">
       <stop stop-color="#E7C77E" stop-opacity="0.22" />
       <stop offset="1" stop-color="#E7C77E" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="splashGlowBottom" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1024 2010) rotate(90) scale(722 1000)">
+    <radialGradient id="splashGlowBottom" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(646 2048) rotate(90) scale(776 888)">
       <stop stop-color="#8B642A" stop-opacity="0.14" />
       <stop offset="1" stop-color="#8B642A" stop-opacity="0" />
     </radialGradient>
-    <linearGradient id="goldGradient" x1="764" y1="1034" x2="1288" y2="1650" gradientUnits="userSpaceOnUse">
+    <linearGradient id="goldGradient" x1="482" y1="1080" x2="818" y2="1600" gradientUnits="userSpaceOnUse">
       <stop stop-color="#F1D491" />
       <stop offset="0.52" stop-color="#D7B05C" />
       <stop offset="1" stop-color="#B78633" />
     </linearGradient>
-    <linearGradient id="ringGradient" x1="728" y1="928" x2="1324" y2="1632" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ringGradient" x1="444" y1="972" x2="856" y2="1650" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFF0C5" />
       <stop offset="1" stop-color="#D7B05C" />
     </linearGradient>
   </defs>
 
-  <rect width="2048" height="2732" fill="url(#splashBg)" />
-  <rect width="2048" height="2732" fill="url(#splashGlowTop)" />
-  <rect width="2048" height="2732" fill="url(#splashGlowBottom)" />
+  <rect width="1290" height="2796" fill="url(#splashBg)" />
+  <rect width="1290" height="2796" fill="url(#splashGlowTop)" />
+  <rect width="1290" height="2796" fill="url(#splashGlowBottom)" />
 
-  <circle cx="1024" cy="1296" r="388" fill="#171912" stroke="url(#ringGradient)" stroke-opacity="0.26" stroke-width="24" />
+  <circle cx="645" cy="1266" r="326" fill="#171912" stroke="url(#ringGradient)" stroke-opacity="0.26" stroke-width="22" />
 
-  <path d="M812 1454C826.5 1334 914 1246 1024 1246C1134 1246 1221.5 1334 1236 1454" stroke="url(#goldGradient)" stroke-width="58" stroke-linecap="round" />
-  <path d="M765 1506H1283" stroke="url(#goldGradient)" stroke-width="54" stroke-linecap="round" />
-  <path d="M911 1176C911 1115.8 959.8 1067 1020 1067H1028C1088.2 1067 1137 1115.8 1137 1176V1184H911V1176Z" fill="url(#goldGradient)" />
-  <circle cx="1024" cy="1028" r="44" fill="#F5E5B4" stroke="#D7B05C" stroke-width="16" />
+  <path d="M470 1398C482 1298 554 1224 645 1224C736 1224 808 1298 820 1398" stroke="url(#goldGradient)" stroke-width="50" stroke-linecap="round" />
+  <path d="M430 1444H860" stroke="url(#goldGradient)" stroke-width="48" stroke-linecap="round" />
+  <path d="M548 1160C548 1108.1 590.095 1066 642 1066H648C699.905 1066 742 1108.1 742 1160V1168H548V1160Z" fill="url(#goldGradient)" />
+  <circle cx="645" cy="1030" r="38" fill="#F5E5B4" stroke="#D7B05C" stroke-width="15" />
 
-  <path d="M904 930C918 896 916 861 894 826" stroke="#F6E3B0" stroke-width="28" stroke-linecap="round" opacity="0.88" />
-  <path d="M1025 892C1042 859 1041 821 1016 786" stroke="#F6E3B0" stroke-width="28" stroke-linecap="round" opacity="0.88" />
-  <path d="M1146 930C1164 898 1167 860 1148 826" stroke="#F6E3B0" stroke-width="28" stroke-linecap="round" opacity="0.88" />
+  <path d="M545 948C559 918 558 887 540 858" stroke="#F6E3B0" stroke-width="24" stroke-linecap="round" opacity="0.88" />
+  <path d="M646 910C662 881 661 846 641 818" stroke="#F6E3B0" stroke-width="24" stroke-linecap="round" opacity="0.88" />
+  <path d="M747 948C763 919 765 886 748 858" stroke="#F6E3B0" stroke-width="24" stroke-linecap="round" opacity="0.88" />
 
-  <path d="M1383 1022L1401 1068L1447 1086L1401 1104L1383 1150L1365 1104L1319 1086L1365 1068L1383 1022Z" fill="#F3D28C" />
+  <path d="M922 1028L939 1070L981 1087L939 1104L922 1146L905 1104L863 1087L905 1070L922 1028Z" fill="#F3D28C" />
 
-  <text x="1024" y="1758" text-anchor="middle" fill="#F5EFDF" font-family="Georgia, 'Times New Roman', serif" font-size="116" font-weight="700" letter-spacing="-3">
+  <text x="645" y="1778" text-anchor="middle" fill="#F5EFDF" font-family="Georgia, 'Times New Roman', serif" font-size="104" font-weight="700" letter-spacing="-3">
     Menu do Dia
   </text>
-  <text x="1024" y="1852" text-anchor="middle" fill="rgba(245,239,223,0.7)" font-family="Inter, system-ui, sans-serif" font-size="46" font-weight="500" letter-spacing="10">
+  <text x="645" y="1862" text-anchor="middle" fill="rgba(245,239,223,0.7)" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="500" letter-spacing="9">
     OPERACAO DO DIA
   </text>
 </svg>
