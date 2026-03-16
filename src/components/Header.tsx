@@ -59,33 +59,35 @@ export default function Header({
       ref={headerRef}
       className="sticky top-0 z-30 -mx-[16px] mb-[14px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[14px] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[18px]"
     >
-      <div className="flex items-start justify-between gap-[14px]">
-        <div className="flex min-w-0 items-start gap-[12px]">
+      <div className="flex flex-col items-center">
+        <div className="flex w-full justify-center">
+          <div className="flex items-center justify-center md:hidden">
+            <img
+              src="/brand/menu-mark.svg"
+              alt="Logo do Menu do Dia"
+              className="h-[52px] w-[52px] max-w-none shrink-0 object-cover object-top drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)]"
+            />
+          </div>
           <img
             src="/brand/menu-mark.svg"
-            alt="Logo do Menu do Dia"
-            className="mt-[2px] h-[76px] w-[120px] shrink-0 object-contain px-[2px] py-[2px] drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] md:h-[84px] md:w-[132px]"
+            alt=""
+            aria-hidden="true"
+            className="hidden h-[84px] w-[132px] shrink-0 object-contain px-[2px] py-[2px] drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] md:block"
           />
-          <div className="min-w-0">
-            <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--text-dim)]">
-              Operacao do dia
-            </p>
-            <h1 className="mt-[4px] font-[Georgia,'Times_New_Roman',serif] text-[31px] font-bold leading-[0.98] tracking-[-0.04em] text-[var(--text)]">
-              Menu do Dia
-            </h1>
-            <span className="mt-[10px] block text-[14px] text-[var(--text-dim)]">
-              {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
-            </span>
-          </div>
         </div>
-        <button
-          className={`min-h-[48px] shrink-0 rounded-[18px] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_20px_rgba(0,0,0,0.16)] transition-colors ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
-          onClick={handleCopy}
-          type="button"
-          aria-label="Copiar menu do dia"
-        >
-          {copied ? 'Copiado' : 'Copiar'}
-        </button>
+        <div className="mt-[10px] flex w-full items-center justify-between gap-[12px]">
+          <span className="min-w-0 text-[13px] text-[var(--text-dim)] md:text-[14px]">
+            {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
+          </span>
+          <button
+            className={`min-h-[44px] shrink-0 rounded-[16px] px-[15px] py-[10px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_20px_rgba(0,0,0,0.16)] transition-colors md:min-h-[48px] md:rounded-[18px] md:px-[16px] md:py-[12px] md:text-[14px] ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
+            onClick={handleCopy}
+            type="button"
+            aria-label="Copiar menu do dia"
+          >
+            {copied ? 'Copiado' : 'Copiar'}
+          </button>
+        </div>
       </div>
 
       <div className="subtle-panel mt-[16px] grid grid-cols-3 gap-[6px] p-[4px]">
