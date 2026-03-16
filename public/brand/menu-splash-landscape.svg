@@ -1,0 +1,49 @@
+<svg width="2796" height="1290" viewBox="0 0 2796 1290" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="splashBg" x1="314" y1="96" x2="2464" y2="1368" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22251B" />
+      <stop offset="1" stop-color="#11120D" />
+    </linearGradient>
+    <radialGradient id="splashGlowLeft" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(940 286) rotate(24.4) scale(926 598)">
+      <stop stop-color="#E7C77E" stop-opacity="0.22" />
+      <stop offset="1" stop-color="#E7C77E" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="splashGlowRight" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(2050 980) rotate(180) scale(764 486)">
+      <stop stop-color="#8B642A" stop-opacity="0.16" />
+      <stop offset="1" stop-color="#8B642A" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="goldGradient" x1="1160" y1="382" x2="1640" y2="952" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F1D491" />
+      <stop offset="0.52" stop-color="#D7B05C" />
+      <stop offset="1" stop-color="#B78633" />
+    </linearGradient>
+    <linearGradient id="ringGradient" x1="1120" y1="292" x2="1676" y2="970" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF0C5" />
+      <stop offset="1" stop-color="#D7B05C" />
+    </linearGradient>
+  </defs>
+
+  <rect width="2796" height="1290" fill="url(#splashBg)" />
+  <rect width="2796" height="1290" fill="url(#splashGlowLeft)" />
+  <rect width="2796" height="1290" fill="url(#splashGlowRight)" />
+
+  <circle cx="1398" cy="582" r="280" fill="#171912" stroke="url(#ringGradient)" stroke-opacity="0.26" stroke-width="20" />
+
+  <path d="M1246 696C1256 608 1320 544 1398 544C1476 544 1540 608 1550 696" stroke="url(#goldGradient)" stroke-width="42" stroke-linecap="round" />
+  <path d="M1212 734H1584" stroke="url(#goldGradient)" stroke-width="40" stroke-linecap="round" />
+  <path d="M1315 494C1315 449.265 1351.26 413 1396 413H1400C1444.73 413 1481 449.265 1481 494V500H1315V494Z" fill="url(#goldGradient)" />
+  <circle cx="1398" cy="384" r="32" fill="#F5E5B4" stroke="#D7B05C" stroke-width="14" />
+
+  <path d="M1314 335C1326 310 1325 285 1310 260" stroke="#F6E3B0" stroke-width="20" stroke-linecap="round" opacity="0.88" />
+  <path d="M1398 304C1411 279 1410 252 1394 228" stroke="#F6E3B0" stroke-width="20" stroke-linecap="round" opacity="0.88" />
+  <path d="M1482 335C1496 311 1497 286 1484 262" stroke="#F6E3B0" stroke-width="20" stroke-linecap="round" opacity="0.88" />
+
+  <path d="M1714 408L1727 442L1761 455L1727 468L1714 502L1701 468L1667 455L1701 442L1714 408Z" fill="#F3D28C" />
+
+  <text x="1398" y="986" text-anchor="middle" fill="#F5EFDF" font-family="Georgia, 'Times New Roman', serif" font-size="104" font-weight="700" letter-spacing="-3">
+    Menu do Dia
+  </text>
+  <text x="1398" y="1062" text-anchor="middle" fill="rgba(245,239,223,0.7)" font-family="Inter, system-ui, sans-serif" font-size="40" font-weight="500" letter-spacing="9">
+    OPERACAO DO DIA
+  </text>
+</svg>

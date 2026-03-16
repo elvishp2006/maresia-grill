@@ -65,6 +65,8 @@ describe('App', () => {
       </ModalProvider>
     );
 
+    expect(screen.getByRole('img', { name: 'Logo do Menu do Dia' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Menu do Dia' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Colapsar Saladas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expandir Carnes' })).toBeInTheDocument();
     expect(screen.queryByText('Sugestoes inteligentes')).not.toBeInTheDocument();

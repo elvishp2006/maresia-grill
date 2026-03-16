@@ -60,16 +60,23 @@ export default function Header({
       className="sticky top-0 z-30 -mx-[16px] mb-[14px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[14px] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[18px]"
     >
       <div className="flex items-start justify-between gap-[14px]">
-        <div className="min-w-0">
-          <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--text-dim)]">
-            Operacao do dia
-          </p>
-          <h1 className="mt-[4px] font-[Georgia,'Times_New_Roman',serif] text-[31px] font-bold leading-[0.98] tracking-[-0.04em] text-[var(--text)]">
-            Menu do Dia
-          </h1>
-          <span className="mt-[10px] block text-[14px] text-[var(--text-dim)]">
-            {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
-          </span>
+        <div className="flex min-w-0 items-start gap-[12px]">
+          <img
+            src="/brand/menu-mark.svg"
+            alt="Logo do Menu do Dia"
+            className="mt-[2px] h-[76px] w-[120px] shrink-0 object-contain px-[2px] py-[2px] drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] md:h-[84px] md:w-[132px]"
+          />
+          <div className="min-w-0">
+            <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--text-dim)]">
+              Operacao do dia
+            </p>
+            <h1 className="mt-[4px] font-[Georgia,'Times_New_Roman',serif] text-[31px] font-bold leading-[0.98] tracking-[-0.04em] text-[var(--text)]">
+              Menu do Dia
+            </h1>
+            <span className="mt-[10px] block text-[14px] text-[var(--text-dim)]">
+              {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
+            </span>
+          </div>
         </div>
         <button
           className={`min-h-[48px] shrink-0 rounded-[18px] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_20px_rgba(0,0,0,0.16)] transition-colors ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
