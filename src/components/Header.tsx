@@ -34,9 +34,10 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
         </span>
       </div>
       <button
-        className={`font-mono text-[13px] font-semibold text-[var(--bg)] border-none rounded-[4px] px-[18px] py-[10px] min-h-[44px] cursor-pointer touch-manipulation transition-colors whitespace-nowrap max-[480px]:w-full ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
+        className={`font-mono text-[13px] font-semibold text-[var(--bg)] border-none rounded-[4px] px-[18px] py-[10px] min-h-[44px] cursor-pointer touch-manipulation transition-colors whitespace-nowrap max-[480px]:w-full active:scale-95 ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
         onClick={handleCopy}
         type="button"
+        aria-label="Copiar menu do dia"
       >
         {copied ? '✓ Copiado!' : 'Copiar Menu'}
       </button>

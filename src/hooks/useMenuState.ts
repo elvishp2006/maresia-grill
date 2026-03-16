@@ -10,6 +10,7 @@ import {
   saveDaySelection,
   loadRecentSelections,
 } from '../storage';
+import { useToast } from '../contexts/ToastContext';
 
 let nextId = Date.now();
 const genId = () => String(nextId++);
@@ -21,6 +22,7 @@ export const useMenuState = () => {
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [sortMode, setSortMode] = useState<'alpha' | 'usage'>('alpha');
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -34,15 +36,18 @@ export const useMenuState = () => {
       setDaySelection(ids);
       setUsageCounts(counts);
       setLoading(false);
+    }).catch(() => {
+      showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+      setLoading(false);
     });
-  }, []);
+  }, [showToast]);
 
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
 
   const toggleItem = (id: string) => {
     setDaySelection(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      saveDaySelection(next);
+      saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -51,12 +56,12 @@ export const useMenuState = () => {
     const item: Item = { id: genId(), nome: nome.trim(), categoria };
     setComplements(prev => {
       const next = [...prev, item];
-      saveComplements(next);
+      saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
     setDaySelection(prev => {
       const next = [...prev, item.id];
-      saveDaySelection(next);
+      saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -64,12 +69,12 @@ export const useMenuState = () => {
   const removeItem = (id: string) => {
     setComplements(prev => {
       const next = prev.filter(x => x.id !== id);
-      saveComplements(next);
+      saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
     setDaySelection(prev => {
       const next = prev.filter(x => x !== id);
-      saveDaySelection(next);
+      saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -79,7 +84,7 @@ export const useMenuState = () => {
       const next = prev.map(item =>
         item.id === id ? { ...item, nome: newNome.trim() } : item
       );
-      saveComplements(next);
+      saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -87,7 +92,7 @@ export const useMenuState = () => {
   const addCategory = (nome: string) => {
     setCategories(prev => {
       const next = [...prev, nome.trim()];
-      saveCategories(next);
+      saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -96,18 +101,18 @@ export const useMenuState = () => {
     const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
     setCategories(prev => {
       const next = prev.filter(c => c !== nome);
-      saveCategories(next);
+      saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
     if (removedIds.length > 0) {
       setComplements(prev => {
         const next = prev.filter(item => item.categoria !== nome);
-        saveComplements(next);
+        saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
         return next;
       });
       setDaySelection(prev => {
         const next = prev.filter(id => !removedIds.includes(id));
-        saveDaySelection(next);
+        saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
         return next;
       });
     }
@@ -121,7 +126,7 @@ export const useMenuState = () => {
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
       if (swapIdx < 0 || swapIdx >= next.length) return prev;
       [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      saveCategories(next);
+      saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
