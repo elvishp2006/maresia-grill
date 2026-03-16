@@ -6,9 +6,16 @@ interface ToolbarProps {
   onSearchChange: (value: string) => void;
   sortMode: 'alpha' | 'usage';
   onToggleSort: () => void;
+  viewMode: 'select' | 'manage';
 }
 
-export default function Toolbar({ search, onSearchChange, sortMode, onToggleSort }: ToolbarProps) {
+export default function Toolbar({
+  search,
+  onSearchChange,
+  sortMode,
+  onToggleSort,
+  viewMode,
+}: ToolbarProps) {
   const { lightTap } = useHapticFeedback();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -23,13 +30,26 @@ export default function Toolbar({ search, onSearchChange, sortMode, onToggleSort
   };
 
   return (
-    <div className="flex gap-[8px] mb-[16px] items-center">
-      <div className="relative flex-1">
+    <div className="sticky top-[148px] z-20 mb-[16px] rounded-[22px] border border-[var(--border)] bg-[rgba(30,32,23,0.92)] p-[10px] shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur-[18px]">
+      <div className="mb-[8px] flex items-center justify-between gap-[8px]">
+        <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
+          {viewMode === 'select' ? 'Selecao rapida' : 'Busca e organizacao'}
+        </p>
+        <button
+          type="button"
+          className="min-h-[40px] rounded-[14px] border border-[var(--border)] px-[14px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+          onClick={handleToggleSort}
+          title={sortMode === 'alpha' ? 'Ordenar por uso recente' : 'Ordenar A-Z'}
+        >
+          {sortMode === 'alpha' ? 'A-Z' : 'Mais usados'}
+        </button>
+      </div>
+      <div className="relative">
         <input
           ref={searchInputRef}
           type="search"
-          className="font-mono text-[16px] text-[var(--text)] bg-[rgba(240,235,224,0.05)] border border-[var(--border)] rounded-[4px] px-[10px] py-[8px] pr-[38px] w-full outline-none focus:border-[var(--accent)] placeholder:text-[var(--text-dim)] transition-colors"
-          placeholder="Filtrar itens..."
+          className="w-full rounded-[16px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] pr-[52px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+          placeholder={viewMode === 'select' ? 'Buscar item para o menu de hoje' : 'Buscar item ou categoria'}
           value={search}
           onChange={e => onSearchChange(e.target.value)}
         />
@@ -37,21 +57,13 @@ export default function Toolbar({ search, onSearchChange, sortMode, onToggleSort
           <button
             type="button"
             aria-label="Limpar busca"
-            className="absolute right-[6px] top-1/2 -translate-y-1/2 w-[28px] h-[28px] rounded-[4px] border border-transparent bg-transparent text-[var(--text-dim)] cursor-pointer touch-manipulation transition-colors hover:text-[var(--text)] hover:border-[var(--border)]"
+            className="absolute right-[8px] top-1/2 flex h-[36px] w-[36px] -translate-y-1/2 items-center justify-center rounded-full border border-transparent bg-transparent text-[var(--text-dim)] transition-colors hover:border-[var(--border)] hover:text-[var(--text)]"
             onClick={handleClearSearch}
           >
             ×
           </button>
         ) : null}
       </div>
-      <button
-        type="button"
-        className="font-mono text-[12px] font-semibold text-[var(--accent)] bg-transparent border border-[var(--border)] rounded-[4px] px-[14px] py-[8px] cursor-pointer min-h-[44px] whitespace-nowrap touch-manipulation hover:border-[var(--accent)] transition-colors"
-        onClick={handleToggleSort}
-        title={sortMode === 'alpha' ? 'Ordenar por uso recente' : 'Ordenar A–Z'}
-      >
-        {sortMode === 'alpha' ? 'A–Z' : 'Uso'}
-      </button>
     </div>
   );
 }
