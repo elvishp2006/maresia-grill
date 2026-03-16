@@ -49,9 +49,25 @@ src/
 **Firestore schema:**
 - `config/categories` → `{ items: string[] }`
 - `config/complements` → `{ items: Item[] }`
-- `selections/YYYY-MM-DD` → `{ ids: string[] }`
+- `selections/YYYY-MM-DD` → `{ ids: string[] }` — one doc per day; `loadSelectionHistory(n)` fetches `n` docs in parallel (7 days for `usageCounts`, 90 days for insights)
 
-`daySelection` is per-day: ids of items selected for today's menu. `usageCounts` aggregates the last 7 days' selections for usage-based sorting.
+### Auth
+
+`useAuthSession` gates the whole app. `App.tsx` renders `<AuthScreen>` until `isAuthorized` is true.
+
+- Google Sign-In via `signInWithPopup` (Firebase Auth)
+- Allowed accounts are listed in `src/authConfig.ts` (`AUTHORIZED_EMAILS`)
+- All state and Firestore access only begins after a successful authorized sign-in
+
+### Insights
+
+`useMenuInsights(complements, daySelection, enabled)` loads 90 days of history then calls `buildInsightMetrics` (pure function in `src/insights.ts`). `InsightsPanel` renders the result.
+
+`insights.ts` has no side effects — unit-test logic there, not in the component.
+
+### Offline guard
+
+`useOnlineStatus` returns a boolean. `useMenuState` uses it to block write operations while offline, showing a toast error instead.
 
 ### Feedback system
 

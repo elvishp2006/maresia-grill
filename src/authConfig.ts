@@ -6,4 +6,4 @@ export const normalizeEmail = (email: string | null | undefined) =>
   (email ?? '').trim().toLowerCase();
 
 export const isAuthorizedEmail = (email: string | null | undefined) =>
-  AUTHORIZED_EMAILS.includes(normalizeEmail(email));
+  (AUTHORIZED_EMAILS as readonly string[]).includes(normalizeEmail(email));
