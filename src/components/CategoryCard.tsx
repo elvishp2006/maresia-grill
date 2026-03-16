@@ -100,18 +100,20 @@ export default function CategoryCard({
       <div className="category-header group flex items-center justify-between mb-[10px]">
         <button
           type="button"
-          className="flex items-center gap-[6px] bg-transparent border-none cursor-pointer p-0 text-left flex-1 min-h-[44px] active:scale-95 transition-transform"
+          className="flex min-w-0 flex-1 items-center gap-[6px] bg-transparent border-none p-0 text-left cursor-pointer min-h-[44px] active:scale-95 transition-transform"
           onClick={handleCollapse}
           aria-expanded={!collapsed}
           aria-label={collapsed ? `Expandir ${categoria}` : `Colapsar ${categoria}`}
         >
-          <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[18px] font-bold text-[var(--text)] tracking-[0.2px]">
-            {categoria}
-          </h2>
-          <span className="text-[11px] text-[var(--text-dim)] font-mono font-normal">
+          <div className="min-w-0 flex-1">
+            <h2 className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[18px] font-bold text-[var(--text)] tracking-[0.2px]">
+              {categoria}
+            </h2>
+          </div>
+          <span className="shrink-0 text-[11px] text-[var(--text-dim)] font-mono font-normal">
             ({selectedCount}/{items.length})
           </span>
-          <span className="text-[12px] text-[var(--text-dim)] leading-none">
+          <span className="shrink-0 text-[12px] text-[var(--text-dim)] leading-none">
             {collapsed ? '▸' : '▾'}
           </span>
         </button>

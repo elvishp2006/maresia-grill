@@ -39,6 +39,23 @@ describe('CategoryCard', () => {
     expect(screen.getByText('Saladas')).toBeInTheDocument();
   });
 
+  it('keeps the title truncatable in narrow layouts', () => {
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        categoria="Categoria com um nome extremamente longo para telas pequenas"
+      />
+    );
+
+    const title = screen.getByRole('heading', {
+      name: 'Categoria com um nome extremamente longo para telas pequenas',
+    });
+
+    expect(title.className).toContain('overflow-hidden');
+    expect(title.className).toContain('text-ellipsis');
+    expect(title.className).toContain('whitespace-nowrap');
+  });
+
   it('shows count badge with selected/total', () => {
     renderWithProviders(<CategoryCard {...defaultProps} daySelection={['1']} />);
     expect(screen.getByText('(1/3)')).toBeInTheDocument();
