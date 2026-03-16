@@ -64,7 +64,7 @@ export default function Header({
           <div className="flex items-center justify-center md:hidden">
             <img
               src="/brand/menu-mark.svg"
-              alt="Logo do Menu do Dia"
+              alt="Logo do Maresia Grill"
               className="h-[52px] w-[52px] max-w-none shrink-0 object-cover object-top drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)]"
             />
           </div>

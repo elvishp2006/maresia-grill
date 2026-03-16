@@ -10,9 +10,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Menu do Dia',
-        short_name: 'Menu',
-        description: 'Menu do restaurante',
+        name: 'Maresia Grill',
+        short_name: 'Maresia Grill',
+        description: 'Aplicativo do Maresia Grill',
         theme_color: '#15160f',
         background_color: '#15160f',
         display: 'standalone',
