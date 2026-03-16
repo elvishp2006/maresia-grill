@@ -9,8 +9,8 @@ export const loadCategories = async (): Promise<string[]> => {
   return snap.exists() ? (snap.data().items as string[]) : [];
 };
 
-export const saveCategories = (items: string[]): void => {
-  void setDoc(doc(db, 'config', 'categories'), { items });
+export const saveCategories = (items: string[]): Promise<void> => {
+  return setDoc(doc(db, 'config', 'categories'), { items });
 };
 
 export const loadComplements = async (): Promise<Item[]> => {
@@ -18,8 +18,8 @@ export const loadComplements = async (): Promise<Item[]> => {
   return snap.exists() ? (snap.data().items as Item[]) : [];
 };
 
-export const saveComplements = (items: Item[]): void => {
-  void setDoc(doc(db, 'config', 'complements'), { items });
+export const saveComplements = (items: Item[]): Promise<void> => {
+  return setDoc(doc(db, 'config', 'complements'), { items });
 };
 
 export const loadDaySelection = async (): Promise<string[]> => {
@@ -27,8 +27,8 @@ export const loadDaySelection = async (): Promise<string[]> => {
   return snap.exists() ? (snap.data().ids as string[]) : [];
 };
 
-export const saveDaySelection = (ids: string[]): void => {
-  void setDoc(doc(db, 'selections', getDateKey()), { ids });
+export const saveDaySelection = (ids: string[]): Promise<void> => {
+  return setDoc(doc(db, 'selections', getDateKey()), { ids });
 };
 
 export const loadRecentSelections = async (days: number): Promise<Record<string, number>> => {
