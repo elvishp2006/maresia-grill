@@ -40,10 +40,14 @@ export default function App() {
     }
   };
 
-  if (loading) return <div className="app" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Carregando...</div>;
+  if (loading) return (
+    <div className="max-w-[960px] mx-auto px-[16px] pt-[16px] flex justify-center items-center h-screen">
+      Carregando...
+    </div>
+  );
 
   return (
-    <div className="app">
+    <div className="max-w-[960px] mx-auto px-[16px] pt-[16px] pb-[env(safe-area-inset-bottom,16px)]">
       <Header
         activeCount={daySelection.length}
         dateShort={dateShort}
@@ -55,7 +59,7 @@ export default function App() {
         sortMode={sortMode}
         onToggleSort={toggleSortMode}
       />
-      <main className="grid">
+      <main className="grid grid-cols-1 md:grid-cols-2 gap-[16px] items-start">
         {categories.map((categoria, idx) => (
           <CategoryCard
             key={categoria}
@@ -78,7 +82,7 @@ export default function App() {
         ))}
 
         {showAddCategory ? (
-          <div className="category-card add-category-card">
+          <div className="bg-[var(--bg-card)] border border-dashed border-[var(--border)] rounded-[6px] p-[14px]">
             <AddForm
               onAdd={(nome) => { addCategory(nome); setShowAddCategory(false); }}
               onClose={() => setShowAddCategory(false)}
@@ -88,7 +92,7 @@ export default function App() {
         ) : (
           <button
             type="button"
-            className="add-category-btn"
+            className="font-mono text-[13px] font-semibold text-[var(--accent)] bg-transparent border border-dashed border-[var(--border)] rounded-[6px] p-[14px] cursor-pointer w-full text-center touch-manipulation transition-colors hover:border-[var(--accent)] min-h-[60px]"
             onClick={() => setShowAddCategory(true)}
           >
             + Nova categoria
