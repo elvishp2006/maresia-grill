@@ -2,10 +2,13 @@ import { useState } from 'react';
 import './App.css';
 import { formatMenuText } from './utils';
 import { useMenuState } from './hooks/useMenuState';
+import { useUpdateNotification } from './hooks/useUpdateNotification';
 import Header from './components/Header';
 import CategoryCard from './components/CategoryCard';
 import Toolbar from './components/Toolbar';
 import AddForm from './components/AddForm';
+import LoadingSpinner from './components/LoadingSpinner';
+import InstallBanner from './components/InstallBanner';
 
 export default function App() {
   const {
@@ -25,6 +28,8 @@ export default function App() {
     moveCategory,
   } = useMenuState();
 
+  useUpdateNotification();
+
   const [search, setSearch] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
 
@@ -40,11 +45,7 @@ export default function App() {
     }
   };
 
-  if (loading) return (
-    <div className="max-w-[960px] mx-auto px-[16px] pt-[16px] flex justify-center items-center h-screen">
-      Carregando...
-    </div>
-  );
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="max-w-[960px] mx-auto px-[16px] pt-[16px] pb-[env(safe-area-inset-bottom,16px)]">
@@ -92,13 +93,14 @@ export default function App() {
         ) : (
           <button
             type="button"
-            className="font-mono text-[13px] font-semibold text-[var(--accent)] bg-transparent border border-dashed border-[var(--border)] rounded-[6px] p-[14px] cursor-pointer w-full text-center touch-manipulation transition-colors hover:border-[var(--accent)] min-h-[60px]"
+            className="font-mono text-[13px] font-semibold text-[var(--accent)] bg-transparent border border-dashed border-[var(--border)] rounded-[6px] p-[14px] cursor-pointer w-full text-center touch-manipulation transition-colors hover:border-[var(--accent)] min-h-[60px] active:scale-95"
             onClick={() => setShowAddCategory(true)}
           >
             + Nova categoria
           </button>
         )}
       </main>
+      <InstallBanner />
     </div>
   );
 }

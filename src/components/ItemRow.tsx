@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Item } from '../types';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
+import { useModal } from '../contexts/ModalContext';
 
 interface ItemRowProps {
   item: Item;
@@ -15,6 +16,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename }: 
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const { lightTap, mediumTap } = useHapticFeedback();
+  const { confirm } = useModal();
 
   useEffect(() => {
     if (editing) {
@@ -41,8 +43,9 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename }: 
     setEditing(false);
   };
 
-  const handleRemove = () => {
-    if (window.confirm(`Remover "${item.nome}"?`)) {
+  const handleRemove = async () => {
+    const ok = await confirm('Remover item', `Remover "${item.nome}"?`);
+    if (ok) {
       mediumTap();
       onRemove();
     }
@@ -87,7 +90,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename }: 
 
       <button
         type="button"
-        className="edit-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[5px] py-[4px] rounded-[4px] opacity-40 hover:opacity-100 hover:text-[var(--accent)] shrink-0 touch-manipulation transition-[opacity,color]"
+        className="edit-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[5px] py-[4px] rounded-[4px] opacity-40 hover:opacity-100 hover:text-[var(--accent)] shrink-0 touch-manipulation transition-[opacity,color] active:scale-95"
         onClick={startEdit}
         aria-label={`Renomear ${item.nome}`}
       >
@@ -95,7 +98,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename }: 
       </button>
       <button
         type="button"
-        className="remove-btn text-[18px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 hover:opacity-100 hover:text-[var(--accent-red)] shrink-0 touch-manipulation transition-[opacity,color]"
+        className="remove-btn text-[18px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 hover:opacity-100 hover:text-[var(--accent-red)] shrink-0 touch-manipulation transition-[opacity,color] active:scale-95"
         onClick={handleRemove}
         aria-label={`Remover ${item.nome}`}
       >
