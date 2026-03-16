@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface HeaderProps {
   activeCount: number;
@@ -8,6 +9,7 @@ interface HeaderProps {
 
 export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) {
   const [copied, setCopied] = useState(false);
+  const { success } = useHapticFeedback();
 
   useEffect(() => {
     if (!copied) return;
@@ -18,16 +20,21 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
   const handleCopy = () => {
     onCopy();
     setCopied(true);
+    success();
   };
 
   return (
-    <header className="app-header">
-      <div className="header-brand">
-        <h1>Menu do Dia</h1>
-        <span className="header-meta">{activeCount} iten{activeCount !== 1 ? 's' : ''} • {dateShort}</span>
+    <header className="flex items-center justify-between gap-3 py-4 pb-5 border-b border-[var(--border)] mb-5 flex-wrap max-[480px]:flex-col max-[480px]:items-start">
+      <div>
+        <h1 className="font-[Georgia,'Times_New_Roman',serif] text-[28px] font-bold text-[var(--accent)] tracking-[-0.5px]">
+          Menu do Dia
+        </h1>
+        <span className="block text-[11px] text-[var(--text-dim)] mt-[2px] font-mono">
+          {activeCount} iten{activeCount !== 1 ? 's' : ''} • {dateShort}
+        </span>
       </div>
       <button
-        className={`copy-btn${copied ? ' copied' : ''}`}
+        className={`font-mono text-[13px] font-semibold text-[var(--bg)] border-none rounded px-[18px] min-h-[44px] cursor-pointer touch-manipulation transition-colors whitespace-nowrap max-[480px]:w-full ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
         onClick={handleCopy}
         type="button"
       >
