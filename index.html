@@ -44,6 +44,25 @@
     <link rel="apple-touch-startup-image" href="/splash/apple-splash-2388-1668.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
     <link rel="apple-touch-startup-image" href="/splash/apple-splash-2732-2048.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
     <!-- manifest and service worker injected by vite-plugin-pwa at build time -->
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+      }
+
+      html,
+      body {
+        margin: 0;
+        background: #15160f;
+      }
+
+      body,
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
