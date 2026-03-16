@@ -6,7 +6,7 @@ export const formatMenuText = (complements: Item[], daySelection: string[], cate
   const dayName = weekdays[now.getDay()];
   const date = now.toLocaleDateString('pt-BR');
 
-  let text = `Menu de Hoje — ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, ${date}\n`;
+  let text = `Maresia Grill — Menu de Hoje — ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, ${date}\n`;
 
   const selectedItems = complements.filter(item => daySelection.includes(item.id));
 
