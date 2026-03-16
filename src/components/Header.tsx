@@ -6,6 +6,8 @@ interface HeaderProps {
   dateShort: string;
   onCopy: () => void;
   isOnline: boolean;
+  onSignOut?: () => void;
+  userEmail?: string | null;
   viewMode: 'menu' | 'stats' | 'manage';
   onViewModeChange: (mode: 'menu' | 'stats' | 'manage') => void;
   onHeightChange?: (height: number) => void;
@@ -16,6 +18,8 @@ export default function Header({
   dateShort,
   onCopy,
   isOnline,
+  onSignOut,
+  userEmail,
   viewMode,
   onViewModeChange,
   onHeightChange,
@@ -127,6 +131,21 @@ export default function Header({
           Editar catalogo
         </button>
       </div>
+
+      {onSignOut ? (
+        <div className="mt-[12px] flex items-center justify-between gap-[12px]">
+          <span className="min-w-0 truncate text-[12px] text-[var(--text-dim)]">
+            {userEmail ?? 'Sessao autenticada'}
+          </span>
+          <button
+            type="button"
+            className="min-h-[38px] shrink-0 rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[12px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+            onClick={onSignOut}
+          >
+            Sair
+          </button>
+        </div>
+      ) : null}
     </header>
   );
 }

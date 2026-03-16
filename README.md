@@ -71,3 +71,16 @@ export default defineConfig([
   },
 ])
 ```
+
+## Firebase Access
+
+- The app requires Firebase Auth with Google Sign-In before loading Firestore data.
+- Firestore rules live in `firestore.rules`.
+- Access is granted only when the authenticated Google email is present in the allowlist.
+- The app allowlist lives in `src/authConfig.ts` and must stay aligned with `firestore.rules`.
+- When adding or removing someone, update both places and republish the Firestore rules.
+
+## Firestore Safety
+
+- Client-side document deletes are denied by the rules.
+- Configure scheduled Firestore exports in Firebase/GCP to protect against permanent data loss. Security rules do not replace backups.

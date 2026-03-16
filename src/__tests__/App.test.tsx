@@ -22,6 +22,20 @@ vi.mock('../components/UpdateBanner', () => ({
   default: () => null,
 }));
 
+const useAuthSessionMock = vi.fn(() => ({
+  user: { email: 'chef@maresia.com' },
+  loading: false,
+  isAuthorized: true,
+  authError: null,
+  signInPending: false,
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+vi.mock('../hooks/useAuthSession', () => ({
+  useAuthSession: () => useAuthSessionMock(),
+}));
+
 const useOnlineStatusMock = vi.fn(() => ({ isOnline: true }));
 
 vi.mock('../hooks/useOnlineStatus', () => ({
@@ -56,6 +70,15 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     toggleItem.mockReset();
+    useAuthSessionMock.mockReturnValue({
+      user: { email: 'chef@maresia.com' },
+      loading: false,
+      isAuthorized: true,
+      authError: null,
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
     useOnlineStatusMock.mockReturnValue({ isOnline: true });
     vi.stubGlobal('alert', vi.fn());
     Object.assign(navigator, {
@@ -171,5 +194,48 @@ describe('App', () => {
 
     expect(screen.getByText('Estatisticas indisponiveis')).toBeInTheDocument();
     expect(screen.getByText(/Conecte-se a internet para consultar sugestoes e historico/i)).toBeInTheDocument();
+  });
+
+  it('renders the sign-in screen when there is no session', () => {
+    useAuthSessionMock.mockReturnValue({
+      user: null,
+      loading: false,
+      isAuthorized: false,
+      authError: null,
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ModalProvider>
+        <App />
+      </ModalProvider>
+    );
+
+    expect(screen.getByText('Acesso restrito')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument();
+  });
+
+  it('renders the unauthorized screen for users outside the allowlist', () => {
+    useAuthSessionMock.mockReturnValue({
+      user: { email: 'outsider@maresia.com' },
+      loading: false,
+      isAuthorized: false,
+      authError: 'Sua conta nao esta autorizada para usar este app.',
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ModalProvider>
+        <App />
+      </ModalProvider>
+    );
+
+    expect(screen.getByText('Conta sem acesso')).toBeInTheDocument();
+    expect(screen.getByText('outsider@maresia.com')).toBeInTheDocument();
+    expect(screen.getByText('Sua conta nao esta autorizada para usar este app.')).toBeInTheDocument();
   });
 });

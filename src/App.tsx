@@ -8,13 +8,20 @@ import Toolbar from './components/Toolbar';
 import AddForm from './components/AddForm';
 import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
+import AuthScreen from './components/AuthScreen';
 import InstallBanner from './components/InstallBanner';
 import InsightsPanel from './components/InsightsPanel';
 import UpdateBanner from './components/UpdateBanner';
+import { useAuthSession } from './hooks/useAuthSession';
 import { useMenuInsights } from './hooks/useMenuInsights';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 
-export default function App() {
+interface AuthenticatedAppProps {
+  onSignOut: () => void;
+  userEmail?: string | null;
+}
+
+function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
   const {
     categories,
@@ -83,6 +90,8 @@ export default function App() {
         dateShort={dateShort}
         onCopy={copyMenu}
         isOnline={isOnline}
+        onSignOut={onSignOut}
+        userEmail={userEmail}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onHeightChange={setHeaderHeight}
@@ -220,4 +229,44 @@ export default function App() {
       <InstallBanner />
     </div>
   );
+}
+
+export default function App() {
+  const {
+    user,
+    loading,
+    isAuthorized,
+    authError,
+    signInPending,
+    signIn,
+    signOut,
+  } = useAuthSession();
+
+  if (loading) return <LoadingSpinner />;
+
+  if (!user) {
+    return (
+      <AuthScreen
+        mode="sign-in"
+        error={authError}
+        onPrimaryAction={() => { void signIn(); }}
+        primaryActionLabel={signInPending ? 'Entrando...' : 'Entrar com Google'}
+        primaryDisabled={signInPending}
+      />
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <AuthScreen
+        mode="unauthorized"
+        email={user.email}
+        error={authError}
+        onPrimaryAction={() => { void signOut(); }}
+        primaryActionLabel="Sair"
+      />
+    );
+  }
+
+  return <AuthenticatedApp onSignOut={() => { void signOut(); }} userEmail={user.email} />;
 }
