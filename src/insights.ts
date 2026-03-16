@@ -45,6 +45,21 @@ interface BuildInsightMetricsParams {
   now?: Date;
 }
 
+const isValidHistoryEntry = (entry: SelectionHistoryEntry | null | undefined): entry is SelectionHistoryEntry =>
+  Boolean(entry)
+  && typeof entry?.dateKey === 'string'
+  && Array.isArray(entry.ids)
+  && entry.ids.every(id => typeof id === 'string');
+
+const sanitizeHistory = (history: SelectionHistoryEntry[]) =>
+  history.filter(isValidHistoryEntry).map(entry => ({
+    dateKey: entry.dateKey,
+    ids: [...entry.ids],
+  }));
+
+const sanitizeDaySelection = (daySelection: string[]) =>
+  daySelection.filter(id => typeof id === 'string');
+
 const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
 const getWeekdayFromDateKey = (dateKey: string) => {
@@ -130,7 +145,9 @@ export const buildInsightMetrics = ({
   daySelection,
   now = new Date(),
 }: BuildInsightMetricsParams): InsightMetrics => {
-  const mergedHistory = mergeCurrentDay(history, daySelection, now);
+  const safeHistory = sanitizeHistory(history);
+  const safeDaySelection = sanitizeDaySelection(daySelection);
+  const mergedHistory = mergeCurrentDay(safeHistory, safeDaySelection, now);
   const complementsById = new Map(complements.map(item => [item.id, item]));
   const totalCounts = buildCounts(mergedHistory);
   const lastSeen = buildLastSeen(mergedHistory);
@@ -208,7 +225,7 @@ export const buildInsightMetrics = ({
 
   const sameWeekdayHistory = mergedHistory.filter(entry => getWeekdayFromDateKey(entry.dateKey) === weekday).slice(0, 8);
   const sameWeekdayCounts = buildCounts(sameWeekdayHistory);
-  const selectedToday = new Set(daySelection);
+  const selectedToday = new Set(safeDaySelection);
 
   const suggestedItems = complements
     .filter(item => !selectedToday.has(item.id))

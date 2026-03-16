@@ -63,4 +63,24 @@ describe('buildInsightMetrics', () => {
     });
     expect(metrics.neglectedItems.at(-1)?.id).toBe('1');
   });
+
+  it('ignores malformed history rows instead of crashing', () => {
+    const malformedHistory = [
+      ...history,
+      { dateKey: '2026-03-15', ids: undefined },
+      { dateKey: 42, ids: ['1'] },
+    ] as unknown as SelectionHistoryEntry[];
+
+    const metrics = buildInsightMetrics({
+      complements,
+      history: malformedHistory,
+      daySelection: ['1'],
+      now: new Date('2026-03-16T12:00:00Z'),
+    });
+
+    expect(metrics.topItems[0]).toMatchObject({ id: '1', count: 3 });
+    expect(metrics.weekdayAverages.find(entry => entry.label === 'Dom')).toMatchObject({
+      sampleSize: 1,
+    });
+  });
 });
