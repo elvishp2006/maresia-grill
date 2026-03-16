@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Item, Categoria } from '../types';
 import {
   loadComplements,
@@ -11,8 +11,17 @@ let nextId = Date.now();
 const genId = () => String(nextId++);
 
 export const useMenuState = () => {
-  const [complements, setComplements] = useState<Item[]>(() => loadComplements());
-  const [daySelection, setDaySelection] = useState<string[]>(() => loadDaySelection());
+  const [complements, setComplements] = useState<Item[]>([]);
+  const [daySelection, setDaySelection] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([loadComplements(), loadDaySelection()]).then(([items, ids]) => {
+      setComplements(items);
+      setDaySelection(ids);
+      setLoading(false);
+    });
+  }, []);
 
   const toggleItem = (id: string) => {
     setDaySelection(prev => {
@@ -44,5 +53,5 @@ export const useMenuState = () => {
     });
   };
 
-  return { complements, daySelection, toggleItem, addItem, removeItem };
+  return { complements, daySelection, loading, toggleItem, addItem, removeItem };
 };
