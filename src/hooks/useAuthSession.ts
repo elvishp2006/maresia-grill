@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
-import { isAuthorizedEmail } from '../authConfig';
 import { auth, googleProvider } from '../firebase';
 
 const getSignInErrorMessage = (error: unknown) => {
@@ -16,7 +15,6 @@ const getSignInErrorMessage = (error: unknown) => {
 export function useAuthSession() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [signInPending, setSignInPending] = useState(false);
 
@@ -27,18 +25,7 @@ export function useAuthSession() {
       if (!active) return;
       setLoading(true);
       setAuthError(null);
-
-      if (!nextUser) {
-        setUser(null);
-        setIsAuthorized(false);
-        setLoading(false);
-        return;
-      }
-
       setUser(nextUser);
-      const canAccess = isAuthorizedEmail(nextUser.email);
-      setIsAuthorized(canAccess);
-      setAuthError(canAccess ? null : 'Sua conta nao esta autorizada para usar este app.');
       setLoading(false);
     });
 
@@ -68,7 +55,6 @@ export function useAuthSession() {
   return {
     user,
     loading,
-    isAuthorized,
     authError,
     signInPending,
     signIn,

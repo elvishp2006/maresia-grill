@@ -237,7 +237,6 @@ export default function App() {
   const {
     user,
     loading,
-    isAuthorized,
     authError,
     signInPending,
     signIn,
@@ -249,23 +248,10 @@ export default function App() {
   if (!user) {
     return (
       <AuthScreen
-        mode="sign-in"
         error={authError}
         onPrimaryAction={() => { void signIn(); }}
         primaryActionLabel={signInPending ? 'Entrando...' : 'Entrar com Google'}
         primaryDisabled={signInPending}
-      />
-    );
-  }
-
-  if (!isAuthorized) {
-    return (
-      <AuthScreen
-        mode="unauthorized"
-        email={user.email}
-        error={authError}
-        onPrimaryAction={() => { void signOut(); }}
-        primaryActionLabel="Sair"
       />
     );
   }
