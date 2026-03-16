@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "ci": "npm run lint && npm run test && npm run build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "seed": "node scripts/seed.js"
   },
   "dependencies": {
     "firebase": "^12.10.0",
@@ -38,6 +39,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "firebase-admin": "^13.7.0",
     "globals": "^17.4.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.0",
