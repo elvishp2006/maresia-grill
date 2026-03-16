@@ -20,8 +20,8 @@ describe('Toolbar', () => {
 
   it('changes helper copy based on mode', () => {
     const { rerender } = render(<Toolbar {...defaultProps} />);
-    expect(screen.getByText('Selecao rapida')).toBeInTheDocument();
-    expect(screen.getByText('Ordem alfabetica')).toBeInTheDocument();
+    expect(screen.getByText('Seleção rápida')).toBeInTheDocument();
+    expect(screen.getByText('Ordem alfabética')).toBeInTheDocument();
 
     rerender(<Toolbar {...defaultProps} viewMode="manage" />);
     expect(screen.getByText('Busca e organizacao')).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe('Toolbar', () => {
   it('shows "A-Z" label when sortMode is usage', () => {
     render(<Toolbar {...defaultProps} sortMode="usage" />);
     expect(screen.getByRole('button', { name: 'A-Z' })).toBeInTheDocument();
-    expect(screen.getByText('Prioridade por frequencia')).toBeInTheDocument();
+    expect(screen.getByText('Prioridade por frequência')).toBeInTheDocument();
   });
 
   it('calls onSearchChange when typing', () => {
@@ -64,6 +64,6 @@ describe('Toolbar', () => {
 
   it('applies the provided sticky offset', () => {
     render(<Toolbar {...defaultProps} stickyTop={212} />);
-    expect(screen.getByText('Selecao rapida').closest('div.sticky')).toHaveStyle({ top: '212px' });
+    expect(screen.getByText('Seleção rápida').closest('div.sticky')).toHaveStyle({ top: '212px' });
   });
 });

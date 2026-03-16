@@ -19,7 +19,7 @@ export default function AuthScreen({
 }: AuthScreenProps) {
   const title = mode === 'sign-in' ? 'Acesso restrito' : 'Conta sem acesso';
   const description = mode === 'sign-in'
-    ? 'Entre com sua conta Google autorizada para acessar o catalogo e o historico do restaurante.'
+    ? 'Entre com sua conta Google autorizada para acessar o catálogo e o histórico do restaurante.'
     : 'Sua conta Google foi reconhecida, mas ainda nao esta na allowlist de usuarios autorizados.';
 
   return (
