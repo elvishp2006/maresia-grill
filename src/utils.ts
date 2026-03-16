@@ -1,7 +1,6 @@
-import { CATEGORIES } from './types';
 import type { Item } from './types';
 
-export const formatMenuText = (complements: Item[], daySelection: string[]): string => {
+export const formatMenuText = (complements: Item[], daySelection: string[], categories: string[]): string => {
   const now = new Date();
   const weekdays = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
   const dayName = weekdays[now.getDay()];
@@ -11,7 +10,7 @@ export const formatMenuText = (complements: Item[], daySelection: string[]): str
 
   const selectedItems = complements.filter(item => daySelection.includes(item.id));
 
-  for (const categoria of CATEGORIES) {
+  for (const categoria of categories) {
     const items = selectedItems
       .filter(item => item.categoria === categoria)
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));

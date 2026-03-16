@@ -3,9 +3,10 @@ import { useState, useRef, useEffect } from 'react';
 interface AddFormProps {
   onAdd: (nome: string) => void;
   onClose: () => void;
+  placeholder?: string;
 }
 
-export default function AddForm({ onAdd, onClose }: AddFormProps) {
+export default function AddForm({ onAdd, onClose, placeholder = 'Nome do item...' }: AddFormProps) {
   const [nome, setNome] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -27,7 +28,7 @@ export default function AddForm({ onAdd, onClose }: AddFormProps) {
         ref={inputRef}
         type="text"
         className="add-input"
-        placeholder="Nome do item..."
+        placeholder={placeholder}
         value={nome}
         onChange={e => setNome(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') onClose(); }}

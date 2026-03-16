@@ -151,7 +151,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
+
+.item-list::-webkit-scrollbar { width: 4px; }
+.item-list::-webkit-scrollbar-track { background: transparent; }
+.item-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* ===== Item Row ===== */
 .item {
@@ -339,4 +347,206 @@ body {
     width: 100%;
     text-align: center;
   }
+}
+
+/* ===== Toolbar ===== */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.toolbar-search {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 16px;
+  color: var(--text);
+  background: rgba(240, 235, 224, 0.05);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  flex: 1;
+  outline: none;
+  transition: border-color 150ms;
+}
+
+.toolbar-search:focus { border-color: var(--accent); }
+.toolbar-search::placeholder { color: var(--text-dim); }
+
+.sort-btn {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: border-color 150ms;
+}
+
+.sort-btn:hover { border-color: var(--accent); }
+
+/* ===== Collapsible category ===== */
+.category-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  flex: 1;
+  min-height: 44px;
+}
+
+.category-count {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 400;
+}
+
+.collapse-arrow {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.category-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ===== Move buttons ===== */
+.move-btn {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  opacity: 0.4;
+  touch-action: manipulation;
+  transition: opacity 150ms, color 150ms;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+
+.move-btn:disabled {
+  opacity: 0.15;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .move-btn:not(:disabled) { opacity: 0; }
+  .category-header:hover .move-btn:not(:disabled) { opacity: 0.4; }
+}
+
+.move-btn:not(:disabled):hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ===== Inline item edit input ===== */
+.item-edit-input {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: var(--text);
+  background: rgba(240, 235, 224, 0.08);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 2px 6px;
+  flex: 1;
+  outline: none;
+  min-width: 0;
+}
+
+/* ===== Edit button ===== */
+.edit-btn {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: var(--radius);
+  opacity: 0.4;
+  touch-action: manipulation;
+  transition: opacity 150ms, color 150ms;
+  flex-shrink: 0;
+}
+
+@media (hover: hover) {
+  .edit-btn { opacity: 0; }
+  .item:hover .edit-btn { opacity: 0.4; }
+}
+
+.edit-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ===== Remove category button ===== */
+.remove-category-btn {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  opacity: 0.4;
+  touch-action: manipulation;
+  transition: opacity 150ms, color 150ms;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+
+@media (hover: hover) {
+  .remove-category-btn { opacity: 0; }
+  .category-header:hover .remove-category-btn { opacity: 0.4; }
+}
+
+.remove-category-btn:hover {
+  opacity: 1;
+  color: var(--accent-red);
+}
+
+/* ===== Add category button ===== */
+.add-category-btn {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  touch-action: manipulation;
+  transition: border-color 150ms;
+  min-height: 60px;
+}
+
+.add-category-btn:hover { border-color: var(--accent); }
+
+.add-category-card {
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 14px;
 }
