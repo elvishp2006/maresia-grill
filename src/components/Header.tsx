@@ -5,6 +5,7 @@ interface HeaderProps {
   activeCount: number;
   dateShort: string;
   onCopy: () => void;
+  isOnline: boolean;
   viewMode: 'menu' | 'stats' | 'manage';
   onViewModeChange: (mode: 'menu' | 'stats' | 'manage') => void;
   onHeightChange?: (height: number) => void;
@@ -14,6 +15,7 @@ export default function Header({
   activeCount,
   dateShort,
   onCopy,
+  isOnline,
   viewMode,
   onViewModeChange,
   onHeightChange,
@@ -103,11 +105,14 @@ export default function Header({
         </button>
         <button
           type="button"
-          className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors ${viewMode === 'stats' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'stats' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('stats');
           }}
+          disabled={!isOnline}
+          aria-disabled={!isOnline}
+          title={isOnline ? undefined : 'Estatisticas indisponiveis sem internet'}
         >
           Estatisticas
         </button>

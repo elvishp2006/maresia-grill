@@ -12,8 +12,10 @@ import InstallBanner from './components/InstallBanner';
 import InsightsPanel from './components/InsightsPanel';
 import UpdateBanner from './components/UpdateBanner';
 import { useMenuInsights } from './hooks/useMenuInsights';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 
 export default function App() {
+  const { isOnline } = useOnlineStatus();
   const {
     categories,
     complements,
@@ -29,9 +31,9 @@ export default function App() {
     addCategory,
     removeCategory,
     moveCategory,
-  } = useMenuState();
+  } = useMenuState(isOnline);
 
-  const insights = useMenuInsights(complements, daySelection);
+  const insights = useMenuInsights(complements, daySelection, isOnline);
 
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'menu' | 'stats' | 'manage'>('menu');
@@ -80,10 +82,22 @@ export default function App() {
         activeCount={daySelection.length}
         dateShort={dateShort}
         onCopy={copyMenu}
+        isOnline={isOnline}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onHeightChange={setHeaderHeight}
       />
+
+      {!isOnline ? (
+        <section className="section-card mb-[18px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)]">
+          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent-red)]">
+            Sem internet
+          </p>
+          <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
+            Edicao, selecao do menu e estatisticas estao indisponiveis ate a conexao voltar.
+          </p>
+        </section>
+      ) : null}
 
       {viewMode !== 'stats' ? (
         <Toolbar
@@ -111,19 +125,30 @@ export default function App() {
         </section>
 
         {viewMode === 'stats' ? (
-          <InsightsPanel
-            loading={insights.loading}
-            error={insights.error}
-            trackedDays={insights.trackedDays}
-            weekdayLabel={insights.weekdayLabel}
-            topItems={insights.topItems}
-            weekdayAverages={insights.weekdayAverages}
-            categoryLeaders={insights.categoryLeaders}
-            streakItems={insights.streakItems}
-            neglectedItems={insights.neglectedItems}
-            suggestedItems={insights.suggestedItems}
-            onSelectSuggestion={toggleItem}
-          />
+          isOnline ? (
+            <InsightsPanel
+              loading={insights.loading}
+              error={insights.error}
+              trackedDays={insights.trackedDays}
+              weekdayLabel={insights.weekdayLabel}
+              topItems={insights.topItems}
+              weekdayAverages={insights.weekdayAverages}
+              categoryLeaders={insights.categoryLeaders}
+              streakItems={insights.streakItems}
+              neglectedItems={insights.neglectedItems}
+              suggestedItems={insights.suggestedItems}
+              onSelectSuggestion={toggleItem}
+            />
+          ) : (
+            <section className="section-card border-dashed text-center">
+              <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                Estatisticas indisponiveis
+              </h2>
+              <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
+                Conecte-se a internet para consultar sugestoes e historico.
+              </p>
+            </section>
+          )
         ) : visibleCategories.length === 0 ? (
           <section className="section-card border-dashed text-center">
             <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
@@ -156,6 +181,7 @@ export default function App() {
                 viewMode={viewMode === 'menu' ? 'select' : 'manage'}
                 expanded={expandedCategory === categoria}
                 onToggleCollapse={() => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
+                isOnline={isOnline}
               />
             ))}
           </div>
@@ -164,8 +190,9 @@ export default function App() {
         {viewMode === 'manage' ? (
           <button
             type="button"
-            className="mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
+            className="mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={() => setShowAddCategorySheet(true)}
+            disabled={!isOnline}
           >
             + Nova categoria
           </button>
@@ -185,6 +212,7 @@ export default function App() {
           }}
           onClose={() => setShowAddCategorySheet(false)}
           placeholder="Nome da categoria"
+          disabled={!isOnline}
         />
       </BottomSheet>
 

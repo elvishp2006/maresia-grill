@@ -3,13 +3,19 @@ import { loadSelectionHistory, type SelectionHistoryEntry } from '../storage';
 import type { Item } from '../types';
 import { buildInsightMetrics } from '../insights';
 
-export const useMenuInsights = (complements: Item[], daySelection: string[]) => {
+export const useMenuInsights = (complements: Item[], daySelection: string[], enabled = true) => {
   const [history, setHistory] = useState<SelectionHistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
+    });
 
     loadSelectionHistory(90)
       .then(entries => {
@@ -26,7 +32,7 @@ export const useMenuInsights = (complements: Item[], daySelection: string[]) => 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   const metrics = useMemo(
     () => buildInsightMetrics({ complements, history, daySelection }),

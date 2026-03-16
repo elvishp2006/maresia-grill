@@ -22,6 +22,12 @@ vi.mock('../components/UpdateBanner', () => ({
   default: () => null,
 }));
 
+const useOnlineStatusMock = vi.fn(() => ({ isOnline: true }));
+
+vi.mock('../hooks/useOnlineStatus', () => ({
+  useOnlineStatus: () => useOnlineStatusMock(),
+}));
+
 const toggleItem = vi.fn();
 
 vi.mock('../hooks/useMenuState', () => ({
@@ -50,6 +56,7 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     toggleItem.mockReset();
+    useOnlineStatusMock.mockReturnValue({ isOnline: true });
     vi.stubGlobal('alert', vi.fn());
     Object.assign(navigator, {
       clipboard: {
@@ -128,5 +135,41 @@ describe('App', () => {
     expect(screen.queryByPlaceholderText('Buscar item para o menu de hoje')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Colapsar Saladas' })).not.toBeInTheDocument();
     expect(screen.getByText('Leitura do cardapio')).toBeInTheDocument();
+  });
+
+  it('shows the offline warning and disables statistics when offline', () => {
+    useOnlineStatusMock.mockReturnValue({ isOnline: false });
+
+    render(
+      <ModalProvider>
+        <App />
+      </ModalProvider>
+    );
+
+    expect(screen.getByText('Sem internet')).toBeInTheDocument();
+    expect(screen.getByText(/Edicao, selecao do menu e estatisticas estao indisponiveis/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Estatisticas' })).toBeDisabled();
+  });
+
+  it('renders an offline empty state when the statistics view is open and connection drops', () => {
+    const { rerender } = render(
+      <ModalProvider>
+        <App />
+      </ModalProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Estatisticas' }));
+    expect(screen.getByText('Sugestoes inteligentes')).toBeInTheDocument();
+
+    useOnlineStatusMock.mockReturnValue({ isOnline: false });
+
+    rerender(
+      <ModalProvider>
+        <App />
+      </ModalProvider>
+    );
+
+    expect(screen.getByText('Estatisticas indisponiveis')).toBeInTheDocument();
+    expect(screen.getByText(/Conecte-se a internet para consultar sugestoes e historico/i)).toBeInTheDocument();
   });
 });

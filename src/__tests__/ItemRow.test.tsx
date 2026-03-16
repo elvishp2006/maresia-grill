@@ -79,4 +79,36 @@ describe('ItemRow', () => {
     });
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
+
+  it('disables selection and management actions when offline', () => {
+    const onToggle = vi.fn();
+    const onRemove = vi.fn();
+
+    const { rerender } = renderWithProviders(
+      <ItemRow {...defaultProps} onToggle={onToggle} isOnline={false} />
+    );
+
+    const toggleButton = screen.getByRole('button', { name: 'Adicionar Arroz do menu do dia' });
+    expect(toggleButton).toBeDisabled();
+    fireEvent.click(toggleButton);
+    expect(onToggle).not.toHaveBeenCalled();
+
+    rerender(
+      <ModalProvider>
+        <ItemRow {...defaultProps} mode="manage" onRemove={onRemove} isOnline={false} />
+      </ModalProvider>
+    );
+
+    const renameButton = screen.getByRole('button', { name: 'Renomear Arroz' });
+    const removeButton = screen.getByRole('button', { name: 'Remover Arroz' });
+
+    expect(renameButton).toBeDisabled();
+    expect(removeButton).toBeDisabled();
+
+    fireEvent.click(renameButton);
+    fireEvent.click(removeButton);
+
+    expect(screen.queryByRole('dialog', { name: 'Renomear Arroz' })).not.toBeInTheDocument();
+    expect(onRemove).not.toHaveBeenCalled();
+  });
 });

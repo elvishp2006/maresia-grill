@@ -12,9 +12,10 @@ interface ItemRowProps {
   onRemove: () => void;
   onRename: (newNome: string) => void;
   mode: 'select' | 'manage';
+  isOnline?: boolean;
 }
 
-export default function ItemRow({ item, active, onToggle, onRemove, onRename, mode }: ItemRowProps) {
+export default function ItemRow({ item, active, onToggle, onRemove, onRename, mode, isOnline = true }: ItemRowProps) {
   const [showRenameSheet, setShowRenameSheet] = useState(false);
   const { lightTap, mediumTap } = useHapticFeedback();
   const { confirm } = useModal();
@@ -39,6 +40,8 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           type="button"
           className="flex w-full items-center gap-[14px] text-left"
           onClick={handleToggle}
+          disabled={!isOnline}
+          aria-disabled={!isOnline}
           aria-pressed={active}
           aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
         >
@@ -78,20 +81,23 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
         <div className="mt-[14px] flex gap-[10px]">
           <button
             type="button"
-            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={() => {
+              if (!isOnline) return;
               lightTap();
               setShowRenameSheet(true);
             }}
             aria-label={`Renomear ${item.nome}`}
+            disabled={!isOnline}
           >
             Renomear
           </button>
           <button
             type="button"
-            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
+            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             onClick={handleRemove}
             aria-label={`Remover ${item.nome}`}
+            disabled={!isOnline}
           >
             Remover
           </button>
@@ -113,6 +119,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           initialValue={item.nome}
           placeholder={item.nome}
           submitLabel="Salvar"
+          disabled={!isOnline}
         />
       </BottomSheet>
     </>
