@@ -25,7 +25,6 @@ export function useAuthSession() {
 
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       if (!active) return;
-
       setLoading(true);
       setAuthError(null);
 

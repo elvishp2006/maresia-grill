@@ -1,86 +1,74 @@
-# React + TypeScript + Vite
+# Maresia Grill
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+PWA de cardápio do restaurante Maresia Grill — gerencia categorias, complementos e seleções diárias.
 
-Currently, two official plugins are available:
+## Pré-requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node 20+
+- Firebase CLI: `npm i -g firebase-tools`
 
-## React Compiler
+## Início rápido
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev:local   # sobe emuladores Firebase + servidor Vite
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Comandos
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Script | O que faz |
+|---|---|
+| `dev` | Servidor Vite (produção Firebase) |
+| `dev:local` | Emuladores Firebase + Vite em paralelo |
+| `emulators` | Apenas emuladores Firebase |
+| `build` | `tsc` + Vite build |
+| `lint` | ESLint (deve passar antes do commit) |
+| `lint:fix` | ESLint com correção automática |
+| `test` | Vitest (todos os testes, uma vez) |
+| `test:watch` | Vitest em modo watch |
+| `test:coverage` | Vitest com cobertura v8 |
+| `ci` | `lint` + `test` + `build` |
+| `preview` | Serve o build de `dist/` |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Ambiente de desenvolvimento
 
-## Firebase Access
+`npm run dev:local` sobe dois processos com labels coloridos (`[emulators]` / `[vite]`):
 
-- The app requires Firebase Auth with Google Sign-In before loading Firestore data.
-- Firestore rules live in `firestore.rules`.
-- Access is granted only when the authenticated Google email is present in the allowlist.
-- The app allowlist lives in `src/authConfig.ts` and must stay aligned with `firestore.rules`.
-- When adding or removing someone, update both places and republish the Firestore rules.
+| Emulador | Porta |
+|---|---|
+| Auth | 9099 |
+| Firestore | 8080 |
+| UI dos emuladores | http://localhost:4000 |
 
-## Firestore Safety
+`src/firebase.ts` detecta `import.meta.env.DEV` e conecta automaticamente aos emuladores — nenhuma configuração manual é necessária. O Google Sign-In no dev funciona via popup contra o emulador de Auth.
 
-- Client-side document deletes are denied by the rules.
-- Configure scheduled Firestore exports in Firebase/GCP to protect against permanent data loss. Security rules do not replace backups.
+## Autenticação e allowlist
+
+Fluxo: Google Sign-In → `isAuthorizedEmail()` em `src/authConfig.ts`.
+
+Para adicionar ou remover alguém:
+1. Atualize `AUTHORIZED_EMAILS` em `src/authConfig.ts`
+2. Mantenha `firestore.rules` alinhado (regras de leitura/escrita por email)
+3. Publique as regras: `firebase deploy --only firestore:rules`
+
+## Schema do Firestore
+
+| Documento | Formato |
+|---|---|
+| `config/categories` | `{ items: string[] }` |
+| `config/complements` | `{ items: Item[] }` |
+| `selections/YYYY-MM-DD` | `{ ids: string[] }` — um doc por dia |
+
+## Deploy
+
+Hospedado no Render como static site:
+
+- **Build command:** `npm run build`
+- **Publish directory:** `dist`
+- **Rewrite:** todas as rotas → `/index.html` (SPA)
+
+## Segurança do Firestore
+
+- Regras exigem autenticação para leitura e escrita
+- Deletes pelo cliente são bloqueados pelas regras
+- Configure exports agendados no GCP para backup contra perda permanente de dados
