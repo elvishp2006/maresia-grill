@@ -5,16 +5,28 @@ interface AddFormProps {
   onAdd: (nome: string) => void;
   onClose: () => void;
   placeholder?: string;
+  initialValue?: string;
+  submitLabel?: string;
 }
 
-export default function AddForm({ onAdd, onClose, placeholder = 'Nome do item...' }: AddFormProps) {
-  const [nome, setNome] = useState('');
+export default function AddForm({
+  onAdd,
+  onClose,
+  placeholder = 'Nome do item...',
+  initialValue = '',
+  submitLabel = 'Adicionar',
+}: AddFormProps) {
+  const [nome, setNome] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
   const { lightTap, success } = useHapticFeedback();
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    setNome(initialValue);
+  }, [initialValue]);
 
   const handleSubmit = () => {
     const trimmed = nome.trim();
@@ -31,27 +43,27 @@ export default function AddForm({ onAdd, onClose, placeholder = 'Nome do item...
   };
 
   return (
-    <div className="mb-[10px] flex flex-col gap-[6px]">
+    <div className="flex flex-col gap-[12px]">
       <input
         ref={inputRef}
         type="text"
-        className="font-mono text-[16px] text-[var(--text)] bg-[rgba(240,235,224,0.05)] border border-[var(--border)] rounded-[4px] px-[10px] py-[8px] w-full outline-none focus:border-[var(--accent)] placeholder:text-[var(--text-dim)] transition-colors"
+        className="w-full rounded-[16px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
         placeholder={placeholder}
         value={nome}
         onChange={e => setNome(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') handleClose(); }}
       />
-      <div className="flex gap-[6px]">
+      <div className="flex gap-[10px]">
         <button
           type="button"
-          className="font-mono text-[12px] font-semibold bg-[var(--accent)] text-[var(--bg)] rounded-[4px] px-[12px] py-[6px] border-none cursor-pointer min-h-[36px] hover:opacity-80 touch-manipulation transition-opacity"
+          className="min-h-[48px] flex-1 rounded-[16px] bg-[var(--accent)] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
           onClick={handleSubmit}
         >
-          Adicionar
+          {submitLabel}
         </button>
         <button
           type="button"
-          className="font-mono text-[12px] text-[var(--text-dim)] bg-transparent border border-[var(--border)] rounded-[4px] px-[12px] py-[6px] cursor-pointer min-h-[36px] hover:opacity-80 touch-manipulation transition-opacity"
+          className="min-h-[48px] flex-1 rounded-[16px] border border-[var(--border)] bg-transparent px-[16px] py-[12px] text-[14px] font-medium text-[var(--text-dim)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text)]"
           onClick={handleClose}
         >
           Cancelar

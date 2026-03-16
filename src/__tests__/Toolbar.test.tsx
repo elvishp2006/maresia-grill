@@ -2,96 +2,49 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Toolbar from '../components/Toolbar';
 
+const defaultProps = {
+  search: '',
+  onSearchChange: vi.fn(),
+  sortMode: 'alpha' as const,
+  onToggleSort: vi.fn(),
+  viewMode: 'select' as const,
+};
+
 describe('Toolbar', () => {
   it('renders search input and sort button', () => {
-    render(
-      <Toolbar
-        search=""
-        onSearchChange={vi.fn()}
-        sortMode="alpha"
-        onToggleSort={vi.fn()}
-      />
-    );
-    expect(screen.getByPlaceholderText('Filtrar itens...')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'A–Z' })).toBeInTheDocument();
+    render(<Toolbar {...defaultProps} />);
+    expect(screen.getByPlaceholderText('Buscar item para o menu de hoje')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'A-Z' })).toBeInTheDocument();
   });
 
-  it('shows A–Z label when sortMode is alpha', () => {
-    render(
-      <Toolbar
-        search=""
-        onSearchChange={vi.fn()}
-        sortMode="alpha"
-        onToggleSort={vi.fn()}
-      />
-    );
-    expect(screen.getByRole('button')).toHaveTextContent('A–Z');
+  it('changes helper copy based on mode', () => {
+    const { rerender } = render(<Toolbar {...defaultProps} />);
+    expect(screen.getByText('Selecao rapida')).toBeInTheDocument();
+
+    rerender(<Toolbar {...defaultProps} viewMode="manage" />);
+    expect(screen.getByText('Busca e organizacao')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Buscar item ou categoria')).toBeInTheDocument();
   });
 
-  it('shows Uso label when sortMode is usage', () => {
-    render(
-      <Toolbar
-        search=""
-        onSearchChange={vi.fn()}
-        sortMode="usage"
-        onToggleSort={vi.fn()}
-      />
-    );
-    expect(screen.getByRole('button')).toHaveTextContent('Uso');
+  it('shows "Mais usados" label when sortMode is usage', () => {
+    render(<Toolbar {...defaultProps} sortMode="usage" />);
+    expect(screen.getByRole('button', { name: 'Mais usados' })).toBeInTheDocument();
   });
 
   it('calls onSearchChange when typing', () => {
     const onSearchChange = vi.fn();
-    render(
-      <Toolbar
-        search=""
-        onSearchChange={onSearchChange}
-        sortMode="alpha"
-        onToggleSort={vi.fn()}
-      />
-    );
-    fireEvent.change(screen.getByPlaceholderText('Filtrar itens...'), {
+    render(<Toolbar {...defaultProps} onSearchChange={onSearchChange} />);
+    fireEvent.change(screen.getByPlaceholderText('Buscar item para o menu de hoje'), {
       target: { value: 'arroz' },
     });
     expect(onSearchChange).toHaveBeenCalledWith('arroz');
   });
 
-  it('does not render clear button when search is empty', () => {
-    render(
-      <Toolbar
-        search=""
-        onSearchChange={vi.fn()}
-        sortMode="alpha"
-        onToggleSort={vi.fn()}
-      />
-    );
-    expect(screen.queryByRole('button', { name: 'Limpar busca' })).not.toBeInTheDocument();
-  });
-
-  it('renders clear button when search has value', () => {
-    render(
-      <Toolbar
-        search="arroz"
-        onSearchChange={vi.fn()}
-        sortMode="alpha"
-        onToggleSort={vi.fn()}
-      />
-    );
-    expect(screen.getByRole('button', { name: 'Limpar busca' })).toBeInTheDocument();
-  });
-
   it('clears search and keeps focus on input when clear button clicked', () => {
     const onSearchChange = vi.fn();
-    render(
-      <Toolbar
-        search="arroz"
-        onSearchChange={onSearchChange}
-        sortMode="alpha"
-        onToggleSort={vi.fn()}
-      />
-    );
+    render(<Toolbar {...defaultProps} search="arroz" onSearchChange={onSearchChange} />);
 
-    const input = screen.getByPlaceholderText('Filtrar itens...');
+    const input = screen.getByPlaceholderText('Buscar item para o menu de hoje');
     input.focus();
     fireEvent.click(screen.getByRole('button', { name: 'Limpar busca' }));
 
@@ -101,15 +54,8 @@ describe('Toolbar', () => {
 
   it('calls onToggleSort when sort button clicked', () => {
     const onToggleSort = vi.fn();
-    render(
-      <Toolbar
-        search=""
-        onSearchChange={vi.fn()}
-        sortMode="alpha"
-        onToggleSort={onToggleSort}
-      />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'A–Z' }));
+    render(<Toolbar {...defaultProps} onToggleSort={onToggleSort} />);
+    fireEvent.click(screen.getByRole('button', { name: 'A-Z' }));
     expect(onToggleSort).toHaveBeenCalledTimes(1);
   });
 });

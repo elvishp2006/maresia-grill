@@ -46,30 +46,30 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {children}
       {modalState.isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-end bg-black/60 p-[16px] md:items-center md:justify-center"
           onClick={handleCancel}
         >
           <div
-            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 max-w-xs w-full mx-4"
+            className="w-full max-w-sm rounded-[24px] border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-[20px] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="font-[Georgia,'Times_New_Roman',serif] text-[16px] font-bold text-[var(--text)] mb-2">
+            <h3 className="mb-[8px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
               {modalState.title}
             </h3>
-            <p className="font-mono text-[12px] text-[var(--text-dim)] mb-5">
+            <p className="mb-[18px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
               {modalState.message}
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-[10px]">
               <button
                 type="button"
-                className="font-mono text-[13px] font-semibold text-[var(--text-dim)] bg-transparent border border-[var(--border)] rounded-[4px] px-4 py-2 cursor-pointer touch-manipulation transition-colors hover:border-[var(--text-dim)] active:scale-95"
+                className="min-h-[48px] flex-1 rounded-[16px] border border-[var(--border)] bg-transparent px-[16px] py-[12px] text-[14px] font-semibold text-[var(--text-dim)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text)]"
                 onClick={handleCancel}
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                className="font-mono text-[13px] font-semibold text-[var(--bg)] bg-[var(--accent-red)] border-none rounded-[4px] px-4 py-2 cursor-pointer touch-manipulation transition-opacity hover:opacity-90 active:scale-95"
+                className="min-h-[48px] flex-1 rounded-[16px] bg-[var(--accent-red)] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
                 onClick={handleConfirm}
               >
                 Confirmar

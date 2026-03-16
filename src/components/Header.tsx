@@ -5,11 +5,19 @@ interface HeaderProps {
   activeCount: number;
   dateShort: string;
   onCopy: () => void;
+  viewMode: 'select' | 'manage';
+  onViewModeChange: (mode: 'select' | 'manage') => void;
 }
 
-export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) {
+export default function Header({
+  activeCount,
+  dateShort,
+  onCopy,
+  viewMode,
+  onViewModeChange,
+}: HeaderProps) {
   const [copied, setCopied] = useState(false);
-  const { success } = useHapticFeedback();
+  const { success, lightTap } = useHapticFeedback();
 
   useEffect(() => {
     if (!copied) return;
@@ -24,23 +32,51 @@ export default function Header({ activeCount, dateShort, onCopy }: HeaderProps) 
   };
 
   return (
-    <header className="flex items-center justify-between gap-[12px] pt-[16px] pb-[20px] border-b border-[var(--border)] mb-[20px] flex-wrap max-[480px]:flex-col max-[480px]:items-start">
-      <div>
-        <h1 className="font-[Georgia,'Times_New_Roman',serif] text-[28px] font-bold text-[var(--accent)] tracking-[-0.5px]">
-          Menu do Dia
-        </h1>
-        <span className="block text-[11px] text-[var(--text-dim)] mt-[2px] font-mono">
-          {activeCount} iten{activeCount !== 1 ? 's' : ''} • {dateShort}
-        </span>
+    <header className="sticky top-0 z-30 -mx-[16px] mb-[12px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[16px] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[18px]">
+      <div className="flex items-start justify-between gap-[12px]">
+        <div className="min-w-0">
+          <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--text-dim)]">
+            Operacao do dia
+          </p>
+          <h1 className="mt-[6px] font-[Georgia,'Times_New_Roman',serif] text-[32px] font-bold leading-[1] tracking-[-0.04em] text-[var(--text)]">
+            Menu do Dia
+          </h1>
+          <span className="mt-[8px] block text-[14px] text-[var(--text-dim)]">
+            {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
+          </span>
+        </div>
+        <button
+          className={`min-h-[48px] shrink-0 rounded-[16px] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] transition-colors ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
+          onClick={handleCopy}
+          type="button"
+          aria-label="Copiar menu do dia"
+        >
+          {copied ? 'Copiado' : 'Copiar'}
+        </button>
       </div>
-      <button
-        className={`font-mono text-[13px] font-semibold text-[var(--bg)] border-none rounded-[4px] px-[18px] py-[10px] min-h-[44px] cursor-pointer touch-manipulation transition-colors whitespace-nowrap max-[480px]:w-full active:scale-95 ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
-        onClick={handleCopy}
-        type="button"
-        aria-label="Copiar menu do dia"
-      >
-        {copied ? '✓ Copiado!' : 'Copiar Menu'}
-      </button>
+
+      <div className="mt-[16px] grid grid-cols-2 gap-[8px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] p-[4px]">
+        <button
+          type="button"
+          className={`min-h-[44px] rounded-[14px] px-[12px] text-[14px] font-semibold transition-colors ${viewMode === 'select' ? 'bg-[var(--accent)] text-[var(--bg)]' : 'text-[var(--text-dim)]'}`}
+          onClick={() => {
+            lightTap();
+            onViewModeChange('select');
+          }}
+        >
+          Montar menu
+        </button>
+        <button
+          type="button"
+          className={`min-h-[44px] rounded-[14px] px-[12px] text-[14px] font-semibold transition-colors ${viewMode === 'manage' ? 'bg-[var(--accent)] text-[var(--bg)]' : 'text-[var(--text-dim)]'}`}
+          onClick={() => {
+            lightTap();
+            onViewModeChange('manage');
+          }}
+        >
+          Editar catalogo
+        </button>
+      </div>
     </header>
   );
 }
