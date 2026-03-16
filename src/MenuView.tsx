@@ -26,6 +26,7 @@ interface MenuViewProps {
   onMoveCategory: (categoria: Categoria, dir: 'up' | 'down') => void;
   onRemoveCategory: (categoria: Categoria) => void;
   onAddCategory: (nome: string) => void;
+  onClearSearch: () => void;
 }
 
 export default function MenuView({
@@ -48,8 +49,11 @@ export default function MenuView({
   onMoveCategory,
   onRemoveCategory,
   onAddCategory,
+  onClearSearch,
 }: MenuViewProps) {
   const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
+  const [showQuickAddSheet, setShowQuickAddSheet] = useState(false);
+  const [quickAddCategory, setQuickAddCategory] = useState<Categoria | null>(null);
 
   return (
     <>
@@ -100,8 +104,19 @@ export default function MenuView({
               Nada encontrado
             </h2>
             <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
-              Ajuste a busca ou mude para o modo de edição para cadastrar novos itens.
+              {search.trim()
+                ? `Nenhum resultado para "${search}".`
+                : 'Ajuste a busca para encontrar itens.'}
             </p>
+            {search.trim() && isOnline && categories.length > 0 ? (
+              <button
+                type="button"
+                className="mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+                onClick={() => setShowQuickAddSheet(true)}
+              >
+                + Cadastrar "{search}" no catálogo
+              </button>
+            ) : null}
           </section>
         ) : (
           <div className="grid grid-cols-1 gap-[16px] md:grid-cols-2">
@@ -159,6 +174,40 @@ export default function MenuView({
           placeholder="Nome da categoria"
           disabled={!isOnline}
         />
+      </BottomSheet>
+
+      <BottomSheet
+        open={showQuickAddSheet}
+        onClose={() => { setShowQuickAddSheet(false); setQuickAddCategory(null); }}
+        title={quickAddCategory ? `Novo item em ${quickAddCategory}` : 'Em qual categoria?'}
+        description={quickAddCategory ? undefined : 'Escolha onde cadastrar o novo item.'}
+      >
+        {quickAddCategory ? (
+          <AddForm
+            initialValue={search}
+            onAdd={(nome) => {
+              onAddItem(nome, quickAddCategory);
+              onClearSearch();
+              setShowQuickAddSheet(false);
+              setQuickAddCategory(null);
+            }}
+            onClose={() => { setShowQuickAddSheet(false); setQuickAddCategory(null); }}
+          />
+        ) : (
+          <ul className="flex flex-col gap-[10px]">
+            {categories.map(cat => (
+              <li key={cat}>
+                <button
+                  type="button"
+                  className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px] text-left text-[15px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+                  onClick={() => setQuickAddCategory(cat)}
+                >
+                  {cat}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </BottomSheet>
     </>
   );

@@ -135,6 +135,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         onMoveCategory={moveCategory}
         onRemoveCategory={removeCategory}
         onAddCategory={addCategory}
+        onClearSearch={() => setSearch('')}
       />
 
       <UpdateBanner />

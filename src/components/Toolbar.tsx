@@ -53,6 +53,7 @@ export default function Toolbar({
             placeholder={viewMode === 'menu' ? 'Buscar item para o menu de hoje' : 'Buscar item ou categoria'}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') searchInputRef.current?.blur(); }}
           />
           {search.trim().length > 0 ? (
             <button
