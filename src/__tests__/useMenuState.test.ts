@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act, waitFor, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { ToastProvider } from '../contexts/ToastContext';
 import { useMenuState } from '../hooks/useMenuState';
@@ -86,5 +86,16 @@ describe('useMenuState', () => {
     expect(result.current.sortMode).toBe('usage');
     act(() => result.current.toggleSortMode());
     expect(result.current.sortMode).toBe('alpha');
+  });
+
+  it('blocks remote actions and preserves state when offline', async () => {
+    const { result } = renderHook(() => useMenuState(false), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.toggleItem('2'));
+
+    expect(result.current.daySelection).toEqual(['1']);
+    expect(result.current.usageCounts).toEqual({ '1': 3 });
+    expect(screen.getByText('Esta acao requer conexao com a internet.')).toBeInTheDocument();
   });
 });

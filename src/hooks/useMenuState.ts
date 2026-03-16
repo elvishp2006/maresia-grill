@@ -14,8 +14,9 @@ import { useToast } from '../contexts/ToastContext';
 
 let nextId = Date.now();
 const genId = () => String(nextId++);
+const OFFLINE_ACTION_MESSAGE = 'Esta acao requer conexao com a internet.';
 
-export const useMenuState = () => {
+export const useMenuState = (isOnline = true) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [complements, setComplements] = useState<Item[]>([]);
   const [daySelection, setDaySelection] = useState<string[]>([]);
@@ -23,6 +24,12 @@ export const useMenuState = () => {
   const [sortMode, setSortMode] = useState<'alpha' | 'usage'>('alpha');
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+
+  const guardOnlineAction = () => {
+    if (isOnline) return true;
+    showToast(OFFLINE_ACTION_MESSAGE, 'info');
+    return false;
+  };
 
   useEffect(() => {
     Promise.all([
@@ -45,6 +52,7 @@ export const useMenuState = () => {
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
 
   const toggleItem = (id: string) => {
+    if (!guardOnlineAction()) return;
     setDaySelection(prev => {
       const wasSelected = prev.includes(id);
       const next = wasSelected ? prev.filter(x => x !== id) : [...prev, id];
@@ -65,6 +73,7 @@ export const useMenuState = () => {
   };
 
   const addItem = (nome: string, categoria: Categoria) => {
+    if (!guardOnlineAction()) return;
     const item: Item = { id: genId(), nome: nome.trim(), categoria };
     setComplements(prev => {
       const next = [...prev, item];
@@ -80,6 +89,7 @@ export const useMenuState = () => {
   };
 
   const removeItem = (id: string) => {
+    if (!guardOnlineAction()) return;
     const wasSelected = daySelection.includes(id);
     setComplements(prev => {
       const next = prev.filter(x => x.id !== id);
@@ -106,6 +116,7 @@ export const useMenuState = () => {
   };
 
   const renameItem = (id: string, newNome: string) => {
+    if (!guardOnlineAction()) return;
     setComplements(prev => {
       const next = prev.map(item =>
         item.id === id ? { ...item, nome: newNome.trim() } : item
@@ -116,6 +127,7 @@ export const useMenuState = () => {
   };
 
   const addCategory = (nome: string) => {
+    if (!guardOnlineAction()) return;
     setCategories(prev => {
       const next = [...prev, nome.trim()];
       saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
@@ -124,6 +136,7 @@ export const useMenuState = () => {
   };
 
   const removeCategory = (nome: string) => {
+    if (!guardOnlineAction()) return;
     const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
     setCategories(prev => {
       const next = prev.filter(c => c !== nome);
@@ -155,6 +168,7 @@ export const useMenuState = () => {
   };
 
   const moveCategory = (nome: string, direction: 'up' | 'down') => {
+    if (!guardOnlineAction()) return;
     setCategories(prev => {
       const idx = prev.indexOf(nome);
       if (idx < 0) return prev;

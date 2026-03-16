@@ -130,4 +130,28 @@ describe('CategoryCard', () => {
     fireEvent.click(screen.getByLabelText('Adicionar item em Saladas'));
     expect(screen.getByRole('dialog', { name: 'Novo item em Saladas' })).toBeInTheDocument();
   });
+
+  it('disables management actions when offline', () => {
+    const onMoveUp = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        isOnline={false}
+        onMoveUp={onMoveUp}
+      />
+    );
+
+    const addButton = screen.getByLabelText('Adicionar item em Saladas');
+    const moveUpButton = screen.getByLabelText('Mover Saladas para cima');
+
+    expect(addButton).toBeDisabled();
+    expect(moveUpButton).toBeDisabled();
+
+    fireEvent.click(addButton);
+    fireEvent.click(moveUpButton);
+
+    expect(screen.queryByRole('dialog', { name: 'Novo item em Saladas' })).not.toBeInTheDocument();
+    expect(onMoveUp).not.toHaveBeenCalled();
+  });
 });

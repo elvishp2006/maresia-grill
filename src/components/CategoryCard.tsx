@@ -25,6 +25,7 @@ interface CategoryCardProps {
   viewMode: 'select' | 'manage';
   expanded: boolean;
   onToggleCollapse: () => void;
+  isOnline?: boolean;
 }
 
 const INITIAL_VISIBLE_ITEMS = 8;
@@ -48,6 +49,7 @@ export default function CategoryCard({
   viewMode,
   expanded,
   onToggleCollapse,
+  isOnline = true,
 }: CategoryCardProps) {
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ITEMS);
@@ -160,35 +162,37 @@ export default function CategoryCard({
               <div className="mb-[16px] grid grid-cols-2 gap-[10px]">
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
+                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onMoveUp}
-                  disabled={isFirst}
+                  disabled={isFirst || !isOnline}
                   aria-label={`Mover ${categoria} para cima`}
                 >
                   Subir
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
+                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onMoveDown}
-                  disabled={isLast}
+                  disabled={isLast || !isOnline}
                   aria-label={`Mover ${categoria} para baixo`}
                 >
                   Descer
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] bg-[var(--accent)] px-[12px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
+                  className="min-h-[44px] rounded-[18px] bg-[var(--accent)] px-[12px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={handleShowAddSheet}
                   aria-label={`Adicionar item em ${categoria}`}
+                  disabled={!isOnline}
                 >
                   Novo item
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
+                  className="min-h-[44px] rounded-[18px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={handleRemoveCategory}
                   aria-label={`Remover categoria ${categoria}`}
+                  disabled={!isOnline}
                 >
                   Excluir
                 </button>
@@ -213,6 +217,7 @@ export default function CategoryCard({
                       onRemove={() => onRemove(item.id)}
                       onRename={(newNome) => onRename(item.id, newNome)}
                       mode={viewMode}
+                      isOnline={isOnline}
                     />
                   ))}
                 </ul>
@@ -244,6 +249,7 @@ export default function CategoryCard({
             setShowAddSheet(false);
           }}
           onClose={() => setShowAddSheet(false)}
+          disabled={!isOnline}
         />
       </BottomSheet>
     </>
