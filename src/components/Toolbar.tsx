@@ -1,3 +1,5 @@
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
+
 interface ToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
@@ -6,19 +8,26 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({ search, onSearchChange, sortMode, onToggleSort }: ToolbarProps) {
+  const { lightTap } = useHapticFeedback();
+
+  const handleToggleSort = () => {
+    lightTap();
+    onToggleSort();
+  };
+
   return (
-    <div className="toolbar">
+    <div className="flex gap-[8px] mb-[16px] items-center">
       <input
         type="search"
-        className="toolbar-search"
+        className="font-mono text-[16px] text-[var(--text)] bg-[rgba(240,235,224,0.05)] border border-[var(--border)] rounded-[4px] px-[10px] py-[8px] flex-1 outline-none focus:border-[var(--accent)] placeholder:text-[var(--text-dim)] transition-colors"
         placeholder="Filtrar itens..."
         value={search}
         onChange={e => onSearchChange(e.target.value)}
       />
       <button
         type="button"
-        className="sort-btn"
-        onClick={onToggleSort}
+        className="font-mono text-[12px] font-semibold text-[var(--accent)] bg-transparent border border-[var(--border)] rounded-[4px] px-[14px] py-[8px] cursor-pointer min-h-[44px] whitespace-nowrap touch-manipulation hover:border-[var(--accent)] transition-colors"
+        onClick={handleToggleSort}
         title={sortMode === 'alpha' ? 'Ordenar por uso recente' : 'Ordenar A–Z'}
       >
         {sortMode === 'alpha' ? 'A–Z' : 'Uso'}
