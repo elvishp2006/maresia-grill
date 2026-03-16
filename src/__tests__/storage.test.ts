@@ -96,4 +96,26 @@ describe('storage', () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe('loadSelectionHistory', () => {
+    it('returns only existing historical selection documents', async () => {
+      mockGetDoc
+        .mockResolvedValueOnce({
+          exists: () => true,
+          data: () => ({ ids: ['1', '2'] }),
+        } as unknown as DocumentSnapshot)
+        .mockResolvedValueOnce({ exists: () => false } as unknown as DocumentSnapshot)
+        .mockResolvedValueOnce({
+          exists: () => true,
+          data: () => ({ ids: ['3'] }),
+        } as unknown as DocumentSnapshot);
+
+      const { loadSelectionHistory } = await import('../storage');
+      const result = await loadSelectionHistory(3);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.ids).toEqual(['1', '2']);
+      expect(result[1]?.ids).toEqual(['3']);
+    });
+  });
 });

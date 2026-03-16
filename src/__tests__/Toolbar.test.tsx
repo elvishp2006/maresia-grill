@@ -7,7 +7,7 @@ const defaultProps = {
   onSearchChange: vi.fn(),
   sortMode: 'alpha' as const,
   onToggleSort: vi.fn(),
-  viewMode: 'select' as const,
+  viewMode: 'menu' as const,
   stickyTop: 188,
 };
 
