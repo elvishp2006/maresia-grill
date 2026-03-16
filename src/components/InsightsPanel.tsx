@@ -1,4 +1,4 @@
-import type { InsightListItem, SuggestionItem, WeekdayAverage } from '../insights';
+import type { InsightListItem, SuggestionItem, WeekdayAverage } from '../lib/insights';
 
 interface InsightsPanelProps {
   loading: boolean;

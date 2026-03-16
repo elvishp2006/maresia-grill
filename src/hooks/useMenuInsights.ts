@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { loadSelectionHistory, type SelectionHistoryEntry } from '../storage';
+import { loadSelectionHistory, type SelectionHistoryEntry } from '../lib/storage';
 import type { Item } from '../types';
-import { buildInsightMetrics } from '../insights';
+import { buildInsightMetrics } from '../lib/insights';
 
 export const useMenuInsights = (complements: Item[], daySelection: string[], enabled = true) => {
   const [history, setHistory] = useState<SelectionHistoryEntry[]>([]);

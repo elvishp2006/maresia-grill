@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
+import { auth, googleProvider } from '../lib/firebase';
 
 const getSignInErrorMessage = (error: unknown) => {
   if (typeof error === 'object' && error !== null && 'code' in error) {

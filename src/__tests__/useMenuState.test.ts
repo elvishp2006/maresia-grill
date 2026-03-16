@@ -4,9 +4,9 @@ import { createElement } from 'react';
 import { ToastProvider } from '../contexts/ToastContext';
 import { useMenuState } from '../hooks/useMenuState';
 
-vi.mock('../firebase', () => ({ db: {} }));
+vi.mock('../lib/firebase', () => ({ db: {} }));
 
-vi.mock('../storage', () => ({
+vi.mock('../lib/storage', () => ({
   loadCategories: vi.fn().mockResolvedValue(['Saladas', 'Carnes']),
   loadComplements: vi.fn().mockResolvedValue([
     { id: '1', nome: 'Alface', categoria: 'Saladas' },

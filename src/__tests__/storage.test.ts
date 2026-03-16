@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DocumentSnapshot } from 'firebase/firestore';
 
-vi.mock('../firebase', () => ({ db: {} }));
+vi.mock('../lib/firebase', () => ({ db: {} }));
 
 const mockGetDoc = vi.fn();
 const mockSetDoc = vi.fn().mockResolvedValue(undefined);
@@ -25,7 +25,7 @@ describe('storage', () => {
         data: () => ({ items: ['Saladas', 'Carnes'] }),
       } as unknown as DocumentSnapshot);
 
-      const { loadCategories } = await import('../storage');
+      const { loadCategories } = await import('../lib/storage');
       const result = await loadCategories();
       expect(result).toEqual(['Saladas', 'Carnes']);
     });
@@ -33,7 +33,7 @@ describe('storage', () => {
     it('returns empty array when document does not exist', async () => {
       mockGetDoc.mockResolvedValue({ exists: () => false } as unknown as DocumentSnapshot);
 
-      const { loadCategories } = await import('../storage');
+      const { loadCategories } = await import('../lib/storage');
       const result = await loadCategories();
       expect(result).toEqual([]);
     });
@@ -41,7 +41,7 @@ describe('storage', () => {
 
   describe('saveCategories', () => {
     it('calls setDoc with correct data', async () => {
-      const { saveCategories } = await import('../storage');
+      const { saveCategories } = await import('../lib/storage');
       await saveCategories(['Saladas', 'Carnes']);
       expect(mockSetDoc).toHaveBeenCalledWith(
         expect.objectContaining({ path: 'config/categories' }),
@@ -58,7 +58,7 @@ describe('storage', () => {
         data: () => ({ items }),
       } as unknown as DocumentSnapshot);
 
-      const { loadComplements } = await import('../storage');
+      const { loadComplements } = await import('../lib/storage');
       const result = await loadComplements();
       expect(result).toEqual(items);
     });
@@ -75,7 +75,7 @@ describe('storage', () => {
         }),
       } as unknown as DocumentSnapshot);
 
-      const { loadComplements } = await import('../storage');
+      const { loadComplements } = await import('../lib/storage');
       const result = await loadComplements();
       expect(result).toEqual([{ id: '1', nome: 'Alface', categoria: 'Saladas' }]);
     });
@@ -83,7 +83,7 @@ describe('storage', () => {
 
   describe('saveDaySelection', () => {
     it('calls setDoc with today as key', async () => {
-      const { saveDaySelection } = await import('../storage');
+      const { saveDaySelection } = await import('../lib/storage');
       const today = new Date().toISOString().slice(0, 10);
       await saveDaySelection(['1', '2']);
       expect(mockSetDoc).toHaveBeenCalledWith(
@@ -100,7 +100,7 @@ describe('storage', () => {
         data: () => ({ ids: ['1', '2'] }),
       } as unknown as DocumentSnapshot);
 
-      const { loadDaySelection } = await import('../storage');
+      const { loadDaySelection } = await import('../lib/storage');
       const result = await loadDaySelection();
       expect(result).toEqual(['1', '2']);
     });
@@ -108,7 +108,7 @@ describe('storage', () => {
     it('returns empty array when no document for today', async () => {
       mockGetDoc.mockResolvedValue({ exists: () => false } as unknown as DocumentSnapshot);
 
-      const { loadDaySelection } = await import('../storage');
+      const { loadDaySelection } = await import('../lib/storage');
       const result = await loadDaySelection();
       expect(result).toEqual([]);
     });
@@ -119,7 +119,7 @@ describe('storage', () => {
         data: () => ({ ids: null }),
       } as unknown as DocumentSnapshot);
 
-      const { loadDaySelection } = await import('../storage');
+      const { loadDaySelection } = await import('../lib/storage');
       const result = await loadDaySelection();
       expect(result).toEqual([]);
     });
@@ -138,7 +138,7 @@ describe('storage', () => {
           data: () => ({ ids: ['3'] }),
         } as unknown as DocumentSnapshot);
 
-      const { loadSelectionHistory } = await import('../storage');
+      const { loadSelectionHistory } = await import('../lib/storage');
       const result = await loadSelectionHistory(3);
 
       expect(result).toHaveLength(2);
@@ -152,7 +152,7 @@ describe('storage', () => {
         data: () => ({ ids: { broken: true } }),
       } as unknown as DocumentSnapshot);
 
-      const { loadSelectionHistory } = await import('../storage');
+      const { loadSelectionHistory } = await import('../lib/storage');
       const result = await loadSelectionHistory(1);
 
       expect(result).toEqual([

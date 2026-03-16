@@ -9,7 +9,7 @@ import {
   loadDaySelection,
   saveDaySelection,
   loadRecentSelections,
-} from '../storage';
+} from '../lib/storage';
 import { useToast } from '../contexts/ToastContext';
 
 let nextId = Date.now();

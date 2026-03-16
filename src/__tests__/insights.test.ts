@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildInsightMetrics } from '../insights';
+import { buildInsightMetrics } from '../lib/insights';
 import type { Item } from '../types';
-import type { SelectionHistoryEntry } from '../storage';
+import type { SelectionHistoryEntry } from '../lib/storage';
 
 const complements: Item[] = [
   { id: '1', nome: 'Arroz', categoria: 'Acompanhamentos' },
