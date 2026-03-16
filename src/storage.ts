@@ -9,9 +9,27 @@ export interface SelectionHistoryEntry {
   ids: string[];
 }
 
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(item => typeof item === 'string');
+
+const isValidItem = (value: unknown): value is Item => {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.id === 'string'
+    && typeof candidate.nome === 'string'
+    && typeof candidate.categoria === 'string';
+};
+
+const normalizeStringArray = (value: unknown): string[] =>
+  isStringArray(value) ? value : [];
+
+const normalizeItems = (value: unknown): Item[] =>
+  Array.isArray(value) ? value.filter(isValidItem) : [];
+
 export const loadCategories = async (): Promise<string[]> => {
   const snap = await getDoc(doc(db, 'config', 'categories'));
-  return snap.exists() ? (snap.data().items as string[]) : [];
+  return snap.exists() ? normalizeStringArray(snap.data().items) : [];
 };
 
 export const saveCategories = (items: string[]): Promise<void> => {
@@ -20,7 +38,7 @@ export const saveCategories = (items: string[]): Promise<void> => {
 
 export const loadComplements = async (): Promise<Item[]> => {
   const snap = await getDoc(doc(db, 'config', 'complements'));
-  return snap.exists() ? (snap.data().items as Item[]) : [];
+  return snap.exists() ? normalizeItems(snap.data().items) : [];
 };
 
 export const saveComplements = (items: Item[]): Promise<void> => {
@@ -29,7 +47,7 @@ export const saveComplements = (items: Item[]): Promise<void> => {
 
 export const loadDaySelection = async (): Promise<string[]> => {
   const snap = await getDoc(doc(db, 'selections', getDateKey()));
-  return snap.exists() ? (snap.data().ids as string[]) : [];
+  return snap.exists() ? normalizeStringArray(snap.data().ids) : [];
 };
 
 export const saveDaySelection = (ids: string[]): Promise<void> => {
@@ -61,7 +79,7 @@ export const loadSelectionHistory = async (days: number): Promise<SelectionHisto
     if (!snap.exists()) return [];
     return [{
       dateKey: refs[index].dateKey,
-      ids: (snap.data().ids as string[]) ?? [],
+      ids: normalizeStringArray(snap.data().ids),
     }];
   });
 };

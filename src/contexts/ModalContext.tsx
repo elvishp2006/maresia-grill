@@ -14,14 +14,15 @@ interface ModalContextValue {
 }
 
 const ModalContext = createContext<ModalContextValue | null>(null);
+const INITIAL_MODAL_STATE: ModalState = {
+  isOpen: false,
+  title: '',
+  message: '',
+  resolve: null,
+};
 
 export function ModalProvider({ children }: { children: ReactNode }) {
-  const [modalState, setModalState] = useState<ModalState>({
-    isOpen: false,
-    title: '',
-    message: '',
-    resolve: null,
-  });
+  const [modalState, setModalState] = useState<ModalState>(INITIAL_MODAL_STATE);
   const { mediumTap } = useHapticFeedback();
 
   const confirm = useCallback((title: string, message: string): Promise<boolean> => {
@@ -32,19 +33,19 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
   const handleConfirm = () => {
     mediumTap();
-    modalState.resolve?.(true);
-    setModalState(prev => ({ ...prev, isOpen: false, resolve: null }));
+    modalState?.resolve?.(true);
+    setModalState(prev => ({ ...(prev ?? INITIAL_MODAL_STATE), isOpen: false, resolve: null }));
   };
 
   const handleCancel = () => {
-    modalState.resolve?.(false);
-    setModalState(prev => ({ ...prev, isOpen: false, resolve: null }));
+    modalState?.resolve?.(false);
+    setModalState(prev => ({ ...(prev ?? INITIAL_MODAL_STATE), isOpen: false, resolve: null }));
   };
 
   return (
     <ModalContext.Provider value={{ confirm }}>
       {children}
-      {modalState.isOpen && (
+      {modalState?.isOpen === true && (
         <div
           className="fixed inset-0 z-50 flex items-end bg-black/60 p-[16px] md:items-center md:justify-center"
           onClick={handleCancel}

@@ -25,21 +25,22 @@ let nextToastId = 0;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const safeToasts = Array.isArray(toasts) ? toasts : [];
 
   const showToast = useCallback((message: string, type: ToastType, duration = 3000) => {
     const id = nextToastId++;
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts(prev => [...(Array.isArray(prev) ? prev : []), { id, message, type }]);
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts(prev => (Array.isArray(prev) ? prev : []).filter(t => t.id !== id));
     }, duration);
   }, []);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {toasts.length > 0 && (
+      {safeToasts.length > 0 && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none">
-          {toasts.map(toast => (
+          {safeToasts.map(toast => (
             <div
               key={toast.id}
               className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-4 py-3 text-[13px] font-mono text-[var(--text)] shadow-lg transition-all duration-300 whitespace-nowrap"

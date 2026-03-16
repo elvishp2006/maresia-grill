@@ -62,6 +62,23 @@ describe('storage', () => {
       const result = await loadComplements();
       expect(result).toEqual(items);
     });
+
+    it('filters malformed items from the persisted payload', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          items: [
+            { id: '1', nome: 'Alface', categoria: 'Saladas' },
+            { id: '2', nome: 'Sem categoria' },
+            null,
+          ],
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { loadComplements } = await import('../storage');
+      const result = await loadComplements();
+      expect(result).toEqual([{ id: '1', nome: 'Alface', categoria: 'Saladas' }]);
+    });
   });
 
   describe('saveDaySelection', () => {
@@ -95,6 +112,17 @@ describe('storage', () => {
       const result = await loadDaySelection();
       expect(result).toEqual([]);
     });
+
+    it('returns empty array when ids is malformed', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ ids: null }),
+      } as unknown as DocumentSnapshot);
+
+      const { loadDaySelection } = await import('../storage');
+      const result = await loadDaySelection();
+      expect(result).toEqual([]);
+    });
   });
 
   describe('loadSelectionHistory', () => {
@@ -116,6 +144,20 @@ describe('storage', () => {
       expect(result).toHaveLength(2);
       expect(result[0]?.ids).toEqual(['1', '2']);
       expect(result[1]?.ids).toEqual(['3']);
+    });
+
+    it('normalizes malformed history ids to an empty array', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ ids: { broken: true } }),
+      } as unknown as DocumentSnapshot);
+
+      const { loadSelectionHistory } = await import('../storage');
+      const result = await loadSelectionHistory(1);
+
+      expect(result).toEqual([
+        expect.objectContaining({ ids: [] }),
+      ]);
     });
   });
 });
