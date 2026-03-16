@@ -1,20 +1,17 @@
 import { useMemo, useState } from 'react';
 import './App.css';
-import { formatMenuText, normalize } from './utils';
+import { formatMenuText, normalize } from './lib/utils';
 import { useMenuState } from './hooks/useMenuState';
 import Header from './components/Header';
-import CategoryCard from './components/CategoryCard';
 import Toolbar from './components/Toolbar';
-import AddForm from './components/AddForm';
-import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import InstallBanner from './components/InstallBanner';
-import InsightsPanel from './components/InsightsPanel';
 import UpdateBanner from './components/UpdateBanner';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useMenuInsights } from './hooks/useMenuInsights';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import MenuView from './MenuView';
 
 interface AuthenticatedAppProps {
   onSignOut: () => void;
@@ -45,7 +42,6 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'menu' | 'stats' | 'manage'>('menu');
   const [manualExpandedCategory, setManualExpandedCategory] = useState<string | null | undefined>(undefined);
-  const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(188);
 
   const visibleCategories = useMemo(() => {
@@ -119,113 +115,27 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         />
       ) : null}
 
-      <main className="pb-[24px]">
-        <section className="section-card mb-[18px]">
-          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            {viewMode === 'menu' ? 'Fluxo principal' : viewMode === 'stats' ? 'Área analítica' : 'Modo administrativo'}
-          </p>
-          <p className="mt-[8px] max-w-[56ch] text-[15px] leading-[1.6] text-[var(--text)]">
-            {viewMode === 'menu'
-              ? daySelection.length === 0
-                ? 'Toque nos itens para montar rapidamente o menu de hoje.'
-                : `${daySelection.length} ${daySelection.length === 1 ? 'item' : 'itens'} no menu de hoje.`
-              : viewMode === 'stats'
-                ? 'Consulte sugestões e histórico sem interferir no fluxo principal de seleção.'
-                : 'Organize categorias e mantenha o catálogo atualizado sem poluir a tela principal.'}
-          </p>
-        </section>
-
-        {viewMode === 'stats' ? (
-          isOnline ? (
-            <InsightsPanel
-              loading={insights.loading}
-              error={insights.error}
-              trackedDays={insights.trackedDays}
-              weekdayLabel={insights.weekdayLabel}
-              topItems={insights.topItems}
-              weekdayAverages={insights.weekdayAverages}
-              categoryLeaders={insights.categoryLeaders}
-              streakItems={insights.streakItems}
-              neglectedItems={insights.neglectedItems}
-              suggestedItems={insights.suggestedItems}
-              onSelectSuggestion={toggleItem}
-            />
-          ) : (
-            <section className="section-card border-dashed text-center">
-              <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
-                Estatísticas indisponíveis
-              </h2>
-              <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
-                Conecte-se a internet para consultar sugestões e histórico.
-              </p>
-            </section>
-          )
-        ) : visibleCategories.length === 0 ? (
-          <section className="section-card border-dashed text-center">
-            <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
-              Nada encontrado
-            </h2>
-            <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
-              Ajuste a busca ou mude para o modo de edição para cadastrar novos itens.
-            </p>
-          </section>
-        ) : (
-          <div className="grid grid-cols-1 gap-[16px] md:grid-cols-2">
-            {visibleCategories.map(categoria => (
-              <CategoryCard
-                key={`${categoria}-${viewMode}-${search ? 'filtered' : 'default'}`}
-                categoria={categoria}
-                items={complements.filter(item => item.categoria === categoria)}
-                daySelection={daySelection}
-                onToggle={toggleItem}
-                onAdd={addItem}
-                onRemove={removeItem}
-                onRename={renameItem}
-                search={search}
-                sortMode={sortMode}
-                usageCounts={usageCounts}
-                onMoveUp={() => moveCategory(categoria, 'up')}
-                onMoveDown={() => moveCategory(categoria, 'down')}
-                onRemoveCategory={() => removeCategory(categoria)}
-                isFirst={categories.indexOf(categoria) === 0}
-                isLast={categories.indexOf(categoria) === categories.length - 1}
-                viewMode={viewMode === 'menu' ? 'select' : 'manage'}
-                expanded={expandedCategory === categoria}
-                onToggleCollapse={() => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
-                isOnline={isOnline}
-              />
-            ))}
-          </div>
-        )}
-
-        {viewMode === 'manage' ? (
-          <button
-            type="button"
-            className="mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => setShowAddCategorySheet(true)}
-            disabled={!isOnline}
-          >
-            + Nova categoria
-          </button>
-        ) : null}
-      </main>
-
-      <BottomSheet
-        open={showAddCategorySheet}
-        onClose={() => setShowAddCategorySheet(false)}
-        title="Nova categoria"
-        description="Crie uma categoria para separar os itens do cardápio."
-      >
-        <AddForm
-          onAdd={(nome) => {
-            addCategory(nome);
-            setShowAddCategorySheet(false);
-          }}
-          onClose={() => setShowAddCategorySheet(false)}
-          placeholder="Nome da categoria"
-          disabled={!isOnline}
-        />
-      </BottomSheet>
+      <MenuView
+        viewMode={viewMode}
+        visibleCategories={visibleCategories}
+        categories={categories}
+        complements={complements}
+        daySelection={daySelection}
+        usageCounts={usageCounts}
+        sortMode={sortMode}
+        search={search}
+        expandedCategory={expandedCategory}
+        onToggleCollapse={(categoria) => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
+        isOnline={isOnline}
+        insights={insights}
+        onToggle={toggleItem}
+        onAddItem={addItem}
+        onRemoveItem={removeItem}
+        onRenameItem={renameItem}
+        onMoveCategory={moveCategory}
+        onRemoveCategory={removeCategory}
+        onAddCategory={addCategory}
+      />
 
       <UpdateBanner />
       <InstallBanner />

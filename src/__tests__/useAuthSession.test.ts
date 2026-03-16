@@ -6,7 +6,7 @@ const onAuthStateChangedMock = vi.fn();
 const signInWithPopupMock = vi.fn();
 const signOutMock = vi.fn();
 
-vi.mock('../firebase', () => ({
+vi.mock('../lib/firebase', () => ({
   auth: {},
   googleProvider: {},
 }));

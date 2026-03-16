@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatMenuText } from '../utils';
+import { formatMenuText } from '../lib/utils';
 import type { Item } from '../types';
 
 const items: Item[] = [
