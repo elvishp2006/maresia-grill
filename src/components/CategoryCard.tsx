@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Categoria, Item } from '../types';
 import ItemRow from './ItemRow';
 import AddForm from './AddForm';
+import BottomSheet from './BottomSheet';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { useModal } from '../contexts/ModalContext';
 
@@ -21,7 +22,12 @@ interface CategoryCardProps {
   onRemoveCategory: () => void;
   isFirst: boolean;
   isLast: boolean;
+  viewMode: 'select' | 'manage';
+  expanded: boolean;
+  onToggleCollapse: () => void;
 }
+
+const INITIAL_VISIBLE_ITEMS = 8;
 
 export default function CategoryCard({
   categoria,
@@ -39,34 +45,52 @@ export default function CategoryCard({
   onRemoveCategory,
   isFirst,
   isLast,
+  viewMode,
+  expanded,
+  onToggleCollapse,
 }: CategoryCardProps) {
-  const [showForm, setShowForm] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ITEMS);
   const { lightTap, mediumTap } = useHapticFeedback();
   const { confirm } = useModal();
 
-  const filteredItems = search.trim()
-    ? items.filter(item => item.nome.toLowerCase().includes(search.trim().toLowerCase()))
-    : items;
+  const filteredItems = useMemo(() => {
+    if (!search.trim()) return items;
+    const normalized = search.trim().toLowerCase();
+    return items.filter(item => item.nome.toLowerCase().includes(normalized));
+  }, [items, search]);
 
-  const sortByMode = (a: Item, b: Item) => {
-    if (sortMode === 'usage') {
-      const diff = (usageCounts[b.id] ?? 0) - (usageCounts[a.id] ?? 0);
-      if (diff !== 0) return diff;
-    }
-    return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
-  };
+  const sortedItems = useMemo(() => {
+    const sortByMode = (a: Item, b: Item) => {
+      if (sortMode === 'usage') {
+        const diff = (usageCounts[b.id] ?? 0) - (usageCounts[a.id] ?? 0);
+        if (diff !== 0) return diff;
+      }
+      return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+    };
 
-  const activeItems = filteredItems.filter(item => daySelection.includes(item.id)).sort(sortByMode);
-  const inactiveItems = filteredItems.filter(item => !daySelection.includes(item.id)).sort(sortByMode);
-  const sortedItems = [...activeItems, ...inactiveItems];
+    const activeItems = filteredItems
+      .filter(item => daySelection.includes(item.id))
+      .sort(sortByMode);
+    const inactiveItems = filteredItems
+      .filter(item => !daySelection.includes(item.id))
+      .sort(sortByMode);
 
+    return [...activeItems, ...inactiveItems];
+  }, [daySelection, filteredItems, sortMode, usageCounts]);
+
+  const itemsToRender = useMemo(() => {
+    if (viewMode === 'manage' || search.trim()) return sortedItems;
+    return sortedItems.slice(0, visibleCount);
+  }, [search, sortedItems, viewMode, visibleCount]);
+
+  const hasHiddenItems = viewMode === 'select' && !search.trim() && sortedItems.length > itemsToRender.length;
   const selectedCount = items.filter(item => daySelection.includes(item.id)).length;
 
   const handleRemoveCategory = async () => {
     const msg = items.length > 0
-      ? `Remover também os ${items.length} itens desta categoria?`
-      : 'Esta ação não pode ser desfeita.';
+      ? `Remover tambem os ${items.length} itens desta categoria?`
+      : 'Esta acao nao pode ser desfeita.';
     const ok = await confirm(`Remover "${categoria}"`, msg);
     if (ok) {
       mediumTap();
@@ -74,116 +98,141 @@ export default function CategoryCard({
     }
   };
 
-  const handleCollapse = () => {
+  const handleExpandToggle = () => {
     lightTap();
-    setCollapsed(c => !c);
+    onToggleCollapse();
   };
 
-  const handleMoveUp = () => {
+  const handleShowAddSheet = () => {
     lightTap();
-    onMoveUp?.();
+    setShowAddSheet(true);
   };
 
-  const handleMoveDown = () => {
+  const handleShowMore = () => {
     lightTap();
-    onMoveDown?.();
-  };
-
-  const handleShowForm = () => {
-    lightTap();
-    setShowForm(true);
-    setCollapsed(false);
+    setVisibleCount(count => count + INITIAL_VISIBLE_ITEMS);
   };
 
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-[6px] p-[14px]">
-      <div className="category-header group flex items-center justify-between mb-[10px]">
+    <>
+      <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-[6px] bg-transparent border-none p-0 text-left cursor-pointer min-h-[44px] active:scale-95 transition-transform"
-          onClick={handleCollapse}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? `Expandir ${categoria}` : `Colapsar ${categoria}`}
+          className="w-full rounded-[18px] bg-transparent text-left"
+          onClick={handleExpandToggle}
+          aria-expanded={expanded}
+          aria-label={expanded ? `Colapsar ${categoria}` : `Expandir ${categoria}`}
         >
-          <div className="min-w-0 flex-1">
-            <h2 className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[18px] font-bold text-[var(--text)] tracking-[0.2px]">
-              {categoria}
-            </h2>
+          <div className="flex items-start gap-[12px]">
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
+                {viewMode === 'select' ? 'Categoria' : 'Edicao'}
+              </p>
+              <h2 className="mt-[4px] overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                {categoria}
+              </h2>
+              <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+                {selectedCount} de {items.length} itens no menu de hoje
+              </p>
+            </div>
+            <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] text-[18px] text-[var(--text-dim)]">
+              {expanded ? '−' : '+'}
+            </div>
           </div>
-          <span className="shrink-0 text-[11px] text-[var(--text-dim)] font-mono font-normal">
-            ({selectedCount}/{items.length})
-          </span>
-          <span className="shrink-0 text-[12px] text-[var(--text-dim)] leading-none">
-            {collapsed ? '▸' : '▾'}
-          </span>
         </button>
-        <div className="flex items-center gap-[4px] shrink-0">
-          <button
-            type="button"
-            className="move-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 disabled:opacity-15 disabled:cursor-default hover:not-disabled:opacity-100 hover:not-disabled:text-[var(--accent)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color] active:scale-95"
-            onClick={handleMoveUp}
-            disabled={isFirst}
-            aria-label={`Mover ${categoria} para cima`}
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="move-btn text-[14px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 disabled:opacity-15 disabled:cursor-default hover:not-disabled:opacity-100 hover:not-disabled:text-[var(--accent)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color] active:scale-95"
-            onClick={handleMoveDown}
-            disabled={isLast}
-            aria-label={`Mover ${categoria} para baixo`}
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            className="font-mono text-[20px] leading-none text-[var(--accent)] bg-transparent border border-[var(--border)] rounded-[4px] w-[32px] h-[32px] flex items-center justify-center cursor-pointer hover:border-[var(--accent)] shrink-0 touch-manipulation transition-colors active:scale-95"
-            onClick={handleShowForm}
-            aria-label={`Adicionar item em ${categoria}`}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="remove-category-btn text-[18px] leading-none text-[var(--text-dim)] bg-transparent border-none cursor-pointer px-[6px] py-[4px] rounded-[4px] opacity-40 hover:opacity-100 hover:text-[var(--accent-red)] min-h-[32px] shrink-0 touch-manipulation transition-[opacity,color] active:scale-95"
-            onClick={handleRemoveCategory}
-            aria-label={`Remover categoria ${categoria}`}
-          >
-            ×
-          </button>
-        </div>
-      </div>
 
-      {!collapsed && (
-        <>
-          {showForm && (
-            <AddForm
-              onAdd={(nome) => onAdd(nome, categoria)}
-              onClose={() => setShowForm(false)}
-            />
-          )}
+        {expanded ? (
+          <div className="mt-[14px] border-t border-[var(--border)] pt-[14px]">
+            {viewMode === 'manage' ? (
+              <div className="mb-[14px] grid grid-cols-2 gap-[8px]">
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-[16px] border border-[var(--border)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
+                  onClick={onMoveUp}
+                  disabled={isFirst}
+                  aria-label={`Mover ${categoria} para cima`}
+                >
+                  Subir
+                </button>
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-[16px] border border-[var(--border)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:opacity-40"
+                  onClick={onMoveDown}
+                  disabled={isLast}
+                  aria-label={`Mover ${categoria} para baixo`}
+                >
+                  Descer
+                </button>
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-[16px] bg-[var(--accent)] px-[12px] text-[13px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
+                  onClick={handleShowAddSheet}
+                  aria-label={`Adicionar item em ${categoria}`}
+                >
+                  Novo item
+                </button>
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-[16px] border border-[var(--accent-red)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90"
+                  onClick={handleRemoveCategory}
+                  aria-label={`Remover categoria ${categoria}`}
+                >
+                  Excluir
+                </button>
+              </div>
+            ) : null}
 
-          {sortedItems.length === 0 && !showForm ? (
-            <p className="text-[11px] text-[var(--text-dim)] italic py-[8px] px-[4px]">
-              Nenhum item. Use + para adicionar.
-            </p>
-          ) : (
-            <ul className="item-list list-none flex flex-col gap-[2px] max-h-[280px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]">
-              {sortedItems.map(item => (
-                <ItemRow
-                  key={item.id}
-                  item={item}
-                  active={daySelection.includes(item.id)}
-                  onToggle={() => onToggle(item.id)}
-                  onRemove={() => onRemove(item.id)}
-                  onRename={(newNome) => onRename(item.id, newNome)}
-                />
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    </div>
+            {sortedItems.length === 0 ? (
+              <p className="rounded-[18px] border border-dashed border-[var(--border)] px-[14px] py-[18px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+                {viewMode === 'manage'
+                  ? 'Nenhum item nesta categoria. Use "Novo item" para preencher.'
+                  : 'Nenhum item encontrado nesta categoria.'}
+              </p>
+            ) : (
+              <>
+                <ul className="flex list-none flex-col gap-[8px]">
+                  {itemsToRender.map(item => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      active={daySelection.includes(item.id)}
+                      onToggle={() => onToggle(item.id)}
+                      onRemove={() => onRemove(item.id)}
+                      onRename={(newNome) => onRename(item.id, newNome)}
+                      mode={viewMode}
+                    />
+                  ))}
+                </ul>
+
+                {hasHiddenItems ? (
+                  <button
+                    type="button"
+                    className="mt-[12px] min-h-[44px] w-full rounded-[16px] border border-[var(--border)] px-[14px] text-[14px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+                    onClick={handleShowMore}
+                  >
+                    Ver mais {Math.min(INITIAL_VISIBLE_ITEMS, sortedItems.length - itemsToRender.length)} itens
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <BottomSheet
+        open={showAddSheet}
+        onClose={() => setShowAddSheet(false)}
+        title={`Novo item em ${categoria}`}
+        description="Adicione um complemento e ele entra selecionado no menu do dia."
+      >
+        <AddForm
+          onAdd={(nome) => {
+            onAdd(nome, categoria);
+            setShowAddSheet(false);
+          }}
+          onClose={() => setShowAddSheet(false)}
+        />
+      </BottomSheet>
+    </>
   );
 }

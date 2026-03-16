@@ -1,36 +1,61 @@
 @import "tailwindcss";
 
-* { -webkit-tap-highlight-color: transparent; }
+* {
+  -webkit-tap-highlight-color: transparent;
+}
 
-/* ===== CSS Custom Properties ===== */
 :root {
   --bg: #15160f;
-  --bg-card: #1e2017;
-  --accent: #d4a843;
-  --accent-red: #b54a3f;
-  --text: #f0ebe0;
-  --text-dim: rgba(240, 235, 224, 0.55);
-  --border: rgba(212, 168, 67, 0.2);
-  --toggle-off: rgba(240, 235, 224, 0.15);
-  --green: #4a9e6b;
-}
-
-/* ===== Base ===== */
-@layer base {
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-}
-
-html {
-  background: var(--bg);
+  --bg-card: #1d1f17;
+  --bg-elevated: #24271d;
+  --input-bg: rgba(255, 248, 232, 0.06);
+  --accent: #d7b05c;
+  --accent-soft: rgba(215, 176, 92, 0.14);
+  --accent-red: #d06d56;
+  --text: #f5efdf;
+  --text-muted: rgba(245, 239, 223, 0.86);
+  --text-dim: rgba(245, 239, 223, 0.58);
+  --border: rgba(215, 176, 92, 0.16);
+  --border-strong: rgba(215, 176, 92, 0.32);
+  --green: #4fa06d;
   color: var(--text);
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 13px;
-  -webkit-overflow-scrolling: touch;
+  background:
+    radial-gradient(circle at top, rgba(215, 176, 92, 0.08), transparent 28%),
+    linear-gradient(180deg, #1b1d15 0%, #15160f 100%);
+  font-family: Inter, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  min-height: 100vh;
-  min-height: 100dvh;
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    min-height: 100%;
+    background: var(--bg);
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: transparent;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
 }
 
 input[type='search']::-webkit-search-decoration,
@@ -41,70 +66,15 @@ input[type='search']::-webkit-search-results-decoration {
   appearance: none;
 }
 
-/* ===== Toggle Switch (pseudo-elements not supported by Tailwind utilities) ===== */
-.toggle-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  touch-action: manipulation;
-  user-select: none;
-  flex-shrink: 0;
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-.toggle-input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-.toggle-slider {
-  display: block;
-  width: 36px;
-  height: 20px;
-  background: var(--toggle-off);
-  border-radius: 10px;
-  position: relative;
-  transition: background 200ms ease;
-}
-
-.toggle-slider::after {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 16px;
-  height: 16px;
-  background: var(--text-dim);
-  border-radius: 50%;
-  transition: transform 200ms ease, background 200ms ease;
-}
-
-.toggle-input:checked + .toggle-slider {
-  background: var(--accent);
-  box-shadow: 0 0 8px rgba(212, 168, 67, 0.4);
-}
-
-.toggle-input:checked + .toggle-slider::after {
-  transform: translateX(16px);
-  background: #fff;
-}
-
-/* ===== Webkit Scrollbar (pseudo-elements) ===== */
-.item-list::-webkit-scrollbar { width: 4px; }
-.item-list::-webkit-scrollbar-track { background: transparent; }
-.item-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-/* ===== Hover-only opacity for buttons (pointer device detection) ===== */
-@media (hover: hover) {
-  .move-btn:not(:disabled) { opacity: 0; }
-  .category-header:hover .move-btn:not(:disabled) { opacity: 0.4; }
-  .remove-category-btn { opacity: 0; }
-  .category-header:hover .remove-category-btn { opacity: 0.4; }
-  .edit-btn { opacity: 0; }
-  .item:hover .edit-btn { opacity: 0.4; }
-  .remove-btn { opacity: 0; }
-  .item:hover .remove-btn { opacity: 1; }
+@media (min-width: 768px) {
+  :root {
+    background:
+      radial-gradient(circle at top left, rgba(215, 176, 92, 0.1), transparent 24%),
+      linear-gradient(180deg, #1b1d15 0%, #15160f 100%);
+  }
 }

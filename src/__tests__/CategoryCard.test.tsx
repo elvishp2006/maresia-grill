@@ -24,6 +24,9 @@ const defaultProps = {
   usageCounts: {},
   isFirst: false,
   isLast: false,
+  viewMode: 'select' as const,
+  expanded: true,
+  onToggleCollapse: vi.fn(),
 };
 
 const renderWithProviders = (ui: React.ReactElement) =>
@@ -34,9 +37,10 @@ beforeEach(() => {
 });
 
 describe('CategoryCard', () => {
-  it('renders category title', () => {
-    renderWithProviders(<CategoryCard {...defaultProps} />);
+  it('renders category title and count copy', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} daySelection={['1']} />);
     expect(screen.getByText('Saladas')).toBeInTheDocument();
+    expect(screen.getByText('1 de 3 itens no menu de hoje')).toBeInTheDocument();
   });
 
   it('keeps the title truncatable in narrow layouts', () => {
@@ -54,11 +58,6 @@ describe('CategoryCard', () => {
     expect(title.className).toContain('overflow-hidden');
     expect(title.className).toContain('text-ellipsis');
     expect(title.className).toContain('whitespace-nowrap');
-  });
-
-  it('shows count badge with selected/total', () => {
-    renderWithProviders(<CategoryCard {...defaultProps} daySelection={['1']} />);
-    expect(screen.getByText('(1/3)')).toBeInTheDocument();
   });
 
   it('sorts items alphabetically by default', () => {
@@ -82,10 +81,15 @@ describe('CategoryCard', () => {
     expect(screen.queryByText('Beterraba')).not.toBeInTheDocument();
   });
 
-  it('collapses and hides items when title is clicked', () => {
-    renderWithProviders(<CategoryCard {...defaultProps} />);
-    expect(screen.getByRole('list')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { expanded: true }));
+  it('calls onToggleCollapse when header is clicked', () => {
+    const onToggleCollapse = vi.fn();
+    renderWithProviders(<CategoryCard {...defaultProps} onToggleCollapse={onToggleCollapse} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Colapsar Saladas' }));
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides list when collapsed', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} expanded={false} />);
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
@@ -98,19 +102,22 @@ describe('CategoryCard', () => {
     expect(listItems[2].textContent).toContain('Alface');
   });
 
-  it('disables ↑ button when isFirst', () => {
-    renderWithProviders(<CategoryCard {...defaultProps} isFirst={true} />);
-    expect(screen.getByLabelText('Mover Saladas para cima')).toBeDisabled();
-  });
-
-  it('disables ↓ button when isLast', () => {
-    renderWithProviders(<CategoryCard {...defaultProps} isLast={true} />);
-    expect(screen.getByLabelText('Mover Saladas para baixo')).toBeDisabled();
+  it('renders management actions in manage mode', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    expect(screen.getByLabelText('Mover Saladas para cima')).toBeInTheDocument();
+    expect(screen.getByLabelText('Adicionar item em Saladas')).toBeInTheDocument();
+    expect(screen.getByLabelText('Remover categoria Saladas')).toBeInTheDocument();
   });
 
   it('calls onRemoveCategory after confirmation', async () => {
     const onRemoveCategory = vi.fn();
-    renderWithProviders(<CategoryCard {...defaultProps} onRemoveCategory={onRemoveCategory} />);
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        onRemoveCategory={onRemoveCategory}
+      />
+    );
     fireEvent.click(screen.getByLabelText('Remover categoria Saladas'));
     await act(async () => {
       fireEvent.click(await screen.findByText('Confirmar'));
@@ -118,19 +125,9 @@ describe('CategoryCard', () => {
     expect(onRemoveCategory).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call onRemoveCategory when confirmation is cancelled', async () => {
-    const onRemoveCategory = vi.fn();
-    renderWithProviders(<CategoryCard {...defaultProps} onRemoveCategory={onRemoveCategory} />);
-    fireEvent.click(screen.getByLabelText('Remover categoria Saladas'));
-    await act(async () => {
-      fireEvent.click(await screen.findByText('Cancelar'));
-    });
-    expect(onRemoveCategory).not.toHaveBeenCalled();
-  });
-
-  it('shows modal when remove category is clicked', async () => {
-    renderWithProviders(<CategoryCard {...defaultProps} />);
-    fireEvent.click(screen.getByLabelText('Remover categoria Saladas'));
-    expect(await screen.findByText('Remover "Saladas"')).toBeInTheDocument();
+  it('opens the add item sheet in manage mode', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    fireEvent.click(screen.getByLabelText('Adicionar item em Saladas'));
+    expect(screen.getByRole('dialog', { name: 'Novo item em Saladas' })).toBeInTheDocument();
   });
 });

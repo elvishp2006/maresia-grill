@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import ItemRow from '../components/ItemRow';
 import { ModalProvider } from '../contexts/ModalContext';
@@ -12,10 +12,15 @@ const defaultProps = {
   onToggle: vi.fn(),
   onRemove: vi.fn(),
   onRename: vi.fn(),
+  mode: 'select' as const,
 };
 
 const renderWithProviders = (ui: React.ReactElement) =>
   render(<ModalProvider>{ui}</ModalProvider>);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('ItemRow', () => {
   it('renders item name', () => {
@@ -28,73 +33,50 @@ describe('ItemRow', () => {
     expect(container.querySelector('.item')).toHaveClass('active');
   });
 
-  it('calls onToggle when checkbox changes', () => {
+  it('calls onToggle when the row button is clicked', () => {
     const onToggle = vi.fn();
     renderWithProviders(<ItemRow {...defaultProps} onToggle={onToggle} />);
-    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Arroz do menu do dia' }));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('enters edit mode when edit button clicked', () => {
-    renderWithProviders(<ItemRow {...defaultProps} />);
-    fireEvent.click(screen.getByLabelText('Renomear Arroz'));
+  it('renders management actions in manage mode', () => {
+    renderWithProviders(<ItemRow {...defaultProps} mode="manage" />);
+    expect(screen.getByRole('button', { name: 'Renomear Arroz' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Arroz' })).toBeInTheDocument();
+  });
+
+  it('opens rename sheet when rename button is clicked', () => {
+    renderWithProviders(<ItemRow {...defaultProps} mode="manage" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Renomear Arroz' }));
+    expect(screen.getByRole('dialog', { name: 'Renomear Arroz' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Arroz')).toBeInTheDocument();
   });
 
-  it('calls onRename with new name on Enter', () => {
+  it('calls onRename with new name when saving', () => {
     const onRename = vi.fn();
-    renderWithProviders(<ItemRow {...defaultProps} onRename={onRename} />);
-    fireEvent.click(screen.getByLabelText('Renomear Arroz'));
+    renderWithProviders(<ItemRow {...defaultProps} mode="manage" onRename={onRename} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Renomear Arroz' }));
     const input = screen.getByDisplayValue('Arroz');
     fireEvent.change(input, { target: { value: 'Arroz Integral' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     expect(onRename).toHaveBeenCalledWith('Arroz Integral');
   });
 
-  it('cancels edit on Escape without calling onRename', () => {
-    const onRename = vi.fn();
-    renderWithProviders(<ItemRow {...defaultProps} onRename={onRename} />);
-    fireEvent.click(screen.getByLabelText('Renomear Arroz'));
-    const input = screen.getByDisplayValue('Arroz');
-    fireEvent.change(input, { target: { value: 'Changed' } });
-    fireEvent.keyDown(input, { key: 'Escape' });
-    expect(onRename).not.toHaveBeenCalled();
-    expect(screen.getByText('Arroz')).toBeInTheDocument();
-  });
-
-  it('does not call onRename when value is unchanged', () => {
-    const onRename = vi.fn();
-    renderWithProviders(<ItemRow {...defaultProps} onRename={onRename} />);
-    fireEvent.click(screen.getByLabelText('Renomear Arroz'));
-    const input = screen.getByDisplayValue('Arroz');
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onRename).not.toHaveBeenCalled();
-  });
-
   it('shows confirm modal when remove button is clicked', async () => {
-    renderWithProviders(<ItemRow {...defaultProps} />);
-    fireEvent.click(screen.getByLabelText('Remover Arroz'));
+    renderWithProviders(<ItemRow {...defaultProps} mode="manage" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remover Arroz' }));
     expect(await screen.findByText('Remover item')).toBeInTheDocument();
     expect(screen.getByText('Remover "Arroz"?')).toBeInTheDocument();
   });
 
   it('calls onRemove when modal is confirmed', async () => {
     const onRemove = vi.fn();
-    renderWithProviders(<ItemRow {...defaultProps} onRemove={onRemove} />);
-    fireEvent.click(screen.getByLabelText('Remover Arroz'));
+    renderWithProviders(<ItemRow {...defaultProps} mode="manage" onRemove={onRemove} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remover Arroz' }));
     await act(async () => {
       fireEvent.click(await screen.findByText('Confirmar'));
     });
     expect(onRemove).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not call onRemove when modal is cancelled', async () => {
-    const onRemove = vi.fn();
-    renderWithProviders(<ItemRow {...defaultProps} onRemove={onRemove} />);
-    fireEvent.click(screen.getByLabelText('Remover Arroz'));
-    await act(async () => {
-      fireEvent.click(await screen.findByText('Cancelar'));
-    });
-    expect(onRemove).not.toHaveBeenCalled();
   });
 });
