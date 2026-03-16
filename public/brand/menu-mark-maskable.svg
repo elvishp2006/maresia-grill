@@ -1,0 +1,33 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="188" y1="132" x2="850" y2="906" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#25281D" />
+      <stop offset="1" stop-color="#11120D" />
+    </linearGradient>
+    <radialGradient id="glowGradient" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(338 240) rotate(44.1) scale(468 508)">
+      <stop stop-color="#F3D28C" stop-opacity="0.34" />
+      <stop offset="1" stop-color="#F3D28C" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="goldGradient" x1="350" y1="300" x2="720" y2="734" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F1D491" />
+      <stop offset="0.5" stop-color="#D7B05C" />
+      <stop offset="1" stop-color="#B78633" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="260" fill="url(#bgGradient)" />
+  <rect width="1024" height="1024" rx="260" fill="url(#glowGradient)" />
+
+  <circle cx="512" cy="512" r="248" fill="#171912" stroke="url(#goldGradient)" stroke-opacity="0.28" stroke-width="16" />
+
+  <path d="M378 614C388 539 443 484 512 484C581 484 636 539 646 614" stroke="url(#goldGradient)" stroke-width="40" stroke-linecap="round" />
+  <path d="M349 645H675" stroke="url(#goldGradient)" stroke-width="36" stroke-linecap="round" />
+  <path d="M442 443C442 405.997 471.997 376 509 376H515C552.003 376 582 405.997 582 443V447H442V443Z" fill="url(#goldGradient)" />
+  <circle cx="512" cy="352" r="28" fill="#F5E5B4" stroke="#D7B05C" stroke-width="12" />
+
+  <path d="M447 328C457 308 457 289 445 267" stroke="#F6E3B0" stroke-width="18" stroke-linecap="round" opacity="0.88" />
+  <path d="M512 304C522 284 521 262 508 240" stroke="#F6E3B0" stroke-width="18" stroke-linecap="round" opacity="0.88" />
+  <path d="M577 328C589 309 590 287 580 265" stroke="#F6E3B0" stroke-width="18" stroke-linecap="round" opacity="0.88" />
+
+  <path d="M693 372L704 399L731 410L704 421L693 448L682 421L655 410L682 399L693 372Z" fill="#F3D28C" />
+</svg>
