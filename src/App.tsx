@@ -33,8 +33,9 @@ export default function App() {
 
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'select' | 'manage'>('select');
-  const [manualExpandedCategory, setManualExpandedCategory] = useState<string | null>(null);
+  const [manualExpandedCategory, setManualExpandedCategory] = useState<string | null | undefined>(undefined);
   const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(188);
 
   const visibleCategories = useMemo(() => {
     if (!search.trim()) return categories;
@@ -50,6 +51,7 @@ export default function App() {
 
   const expandedCategory = useMemo(() => {
     if (visibleCategories.length === 0) return null;
+    if (manualExpandedCategory === null) return null;
     if (manualExpandedCategory && visibleCategories.includes(manualExpandedCategory)) {
       return manualExpandedCategory;
     }
@@ -78,6 +80,7 @@ export default function App() {
         onCopy={copyMenu}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        onHeightChange={setHeaderHeight}
       />
 
       <Toolbar
@@ -86,6 +89,7 @@ export default function App() {
         sortMode={sortMode}
         onToggleSort={toggleSortMode}
         viewMode={viewMode}
+        stickyTop={headerHeight}
       />
 
       <main className="pb-[24px]">
@@ -131,7 +135,7 @@ export default function App() {
                 isLast={categories.indexOf(categoria) === categories.length - 1}
                 viewMode={viewMode}
                 expanded={expandedCategory === categoria}
-                onToggleCollapse={() => setManualExpandedCategory(current => current === categoria ? null : categoria)}
+                onToggleCollapse={() => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
               />
             ))}
           </div>
