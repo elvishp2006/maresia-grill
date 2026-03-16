@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import './App.css';
 import { formatMenuText } from './utils';
 import { useMenuState } from './hooks/useMenuState';
-import { useUpdateNotification } from './hooks/useUpdateNotification';
 import Header from './components/Header';
 import CategoryCard from './components/CategoryCard';
 import Toolbar from './components/Toolbar';
@@ -11,6 +10,7 @@ import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
 import InstallBanner from './components/InstallBanner';
 import InsightsPanel from './components/InsightsPanel';
+import UpdateBanner from './components/UpdateBanner';
 import { useMenuInsights } from './hooks/useMenuInsights';
 
 export default function App() {
@@ -30,8 +30,6 @@ export default function App() {
     removeCategory,
     moveCategory,
   } = useMenuState();
-
-  useUpdateNotification();
 
   const insights = useMenuInsights(complements, daySelection);
 
@@ -190,6 +188,7 @@ export default function App() {
         />
       </BottomSheet>
 
+      <UpdateBanner />
       <InstallBanner />
     </div>
   );

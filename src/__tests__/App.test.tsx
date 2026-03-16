@@ -3,10 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
 import { ModalProvider } from '../contexts/ModalContext';
 
-vi.mock('../hooks/useUpdateNotification', () => ({
-  useUpdateNotification: vi.fn(),
-}));
-
 vi.mock('../hooks/useMenuInsights', () => ({
   useMenuInsights: vi.fn(() => ({
     loading: false,
@@ -20,6 +16,10 @@ vi.mock('../hooks/useMenuInsights', () => ({
     neglectedItems: [{ id: '2', nome: 'Frango', categoria: 'Carnes', count: 0, lastSeen: null }],
     suggestedItems: [{ id: '2', nome: 'Frango', categoria: 'Carnes', score: 8, reason: 'Usado recentemente', totalCount: 2, weekdayCount: 1 }],
   })),
+}));
+
+vi.mock('../components/UpdateBanner', () => ({
+  default: () => null,
 }));
 
 const toggleItem = vi.fn();
