@@ -41,13 +41,13 @@ export default function App() {
   };
 
   if (loading) return (
-    <div className="max-w-[960px] mx-auto px-4 flex justify-center items-center h-screen">
+    <div className="max-w-[960px] mx-auto px-4 pt-4 flex justify-center items-center h-screen">
       Carregando...
     </div>
   );
 
   return (
-    <div className="max-w-[960px] mx-auto px-4 pb-[env(safe-area-inset-bottom,1rem)]">
+    <div className="max-w-[960px] mx-auto px-4 pt-4 pb-[env(safe-area-inset-bottom,1rem)]">
       <Header
         activeCount={daySelection.length}
         dateShort={dateShort}
