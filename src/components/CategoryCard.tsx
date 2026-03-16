@@ -136,7 +136,20 @@ export default function CategoryCard({
               </p>
             </div>
             <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] text-[18px] text-[var(--text-dim)]">
-              {expanded ? '−' : '+'}
+              <svg
+                className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+                viewBox="0 0 20 20"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 7.5L10 12.5L15 7.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
           </div>
         </button>

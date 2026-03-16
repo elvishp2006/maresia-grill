@@ -46,8 +46,20 @@ export const useMenuState = () => {
 
   const toggleItem = (id: string) => {
     setDaySelection(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      const wasSelected = prev.includes(id);
+      const next = wasSelected ? prev.filter(x => x !== id) : [...prev, id];
       saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      setUsageCounts(counts => {
+        const current = counts[id] ?? 0;
+        const nextCount = wasSelected ? Math.max(0, current - 1) : current + 1;
+        if (nextCount === current) return counts;
+        if (nextCount === 0) {
+          const rest = { ...counts };
+          delete rest[id];
+          return rest;
+        }
+        return { ...counts, [id]: nextCount };
+      });
       return next;
     });
   };
@@ -64,9 +76,11 @@ export const useMenuState = () => {
       saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
+    setUsageCounts(counts => ({ ...counts, [item.id]: (counts[item.id] ?? 0) + 1 }));
   };
 
   const removeItem = (id: string) => {
+    const wasSelected = daySelection.includes(id);
     setComplements(prev => {
       const next = prev.filter(x => x.id !== id);
       saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
@@ -77,6 +91,18 @@ export const useMenuState = () => {
       saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
+    if (wasSelected) {
+      setUsageCounts(counts => {
+        const current = counts[id] ?? 0;
+        const nextCount = Math.max(0, current - 1);
+        if (nextCount === 0) {
+          const rest = { ...counts };
+          delete rest[id];
+          return rest;
+        }
+        return { ...counts, [id]: nextCount };
+      });
+    }
   };
 
   const renameItem = (id: string, newNome: string) => {
@@ -114,6 +140,16 @@ export const useMenuState = () => {
         const next = prev.filter(id => !removedIds.includes(id));
         saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
         return next;
+      });
+      setUsageCounts(counts => {
+        const nextCounts = { ...counts };
+        for (const id of removedIds) {
+          if (!daySelection.includes(id)) continue;
+          const nextCount = Math.max(0, (nextCounts[id] ?? 0) - 1);
+          if (nextCount === 0) delete nextCounts[id];
+          else nextCounts[id] = nextCount;
+        }
+        return nextCounts;
       });
     }
   };

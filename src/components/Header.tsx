@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface HeaderProps {
@@ -7,6 +7,7 @@ interface HeaderProps {
   onCopy: () => void;
   viewMode: 'select' | 'manage';
   onViewModeChange: (mode: 'select' | 'manage') => void;
+  onHeightChange?: (height: number) => void;
 }
 
 export default function Header({
@@ -15,8 +16,10 @@ export default function Header({
   onCopy,
   viewMode,
   onViewModeChange,
+  onHeightChange,
 }: HeaderProps) {
   const [copied, setCopied] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
   const { success, lightTap } = useHapticFeedback();
 
   useEffect(() => {
@@ -25,6 +28,26 @@ export default function Header({
     return () => clearTimeout(t);
   }, [copied]);
 
+  useEffect(() => {
+    if (!onHeightChange || !headerRef.current) return;
+
+    const measure = () => {
+      const nextHeight = Math.round(headerRef.current?.getBoundingClientRect().height ?? 0);
+      if (nextHeight > 0) onHeightChange(nextHeight);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => measure());
+      observer.observe(headerRef.current);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [activeCount, onHeightChange, viewMode]);
+
   const handleCopy = () => {
     onCopy();
     setCopied(true);
@@ -32,7 +55,10 @@ export default function Header({
   };
 
   return (
-    <header className="sticky top-0 z-30 -mx-[16px] mb-[12px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[16px] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[18px]">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-30 -mx-[16px] mb-[12px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[16px] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[18px]"
+    >
       <div className="flex items-start justify-between gap-[12px]">
         <div className="min-w-0">
           <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--text-dim)]">
