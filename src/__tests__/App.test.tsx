@@ -140,7 +140,7 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Estatisticas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Estatísticas' }));
     expect(screen.getByText('Sugestoes inteligentes')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Selecionar' }));
     expect(toggleItem).toHaveBeenCalledWith('2');
@@ -153,11 +153,11 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Estatisticas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Estatísticas' }));
 
     expect(screen.queryByPlaceholderText('Buscar item para o menu de hoje')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Colapsar Saladas' })).not.toBeInTheDocument();
-    expect(screen.getByText('Leitura do cardapio')).toBeInTheDocument();
+    expect(screen.getByText('Leitura do cardápio')).toBeInTheDocument();
   });
 
   it('shows the offline warning and disables statistics when offline', () => {
@@ -170,8 +170,8 @@ describe('App', () => {
     );
 
     expect(screen.getByText('Sem internet')).toBeInTheDocument();
-    expect(screen.getByText(/Edicao, selecao do menu e estatisticas estao indisponiveis/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Estatisticas' })).toBeDisabled();
+    expect(screen.getByText(/Edição, seleção do menu e estatísticas estão indisponíveis/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Estatísticas' })).toBeDisabled();
   });
 
   it('renders an offline empty state when the statistics view is open and connection drops', () => {
@@ -181,7 +181,7 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Estatisticas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Estatísticas' }));
     expect(screen.getByText('Sugestoes inteligentes')).toBeInTheDocument();
 
     useOnlineStatusMock.mockReturnValue({ isOnline: false });
@@ -192,8 +192,8 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    expect(screen.getByText('Estatisticas indisponiveis')).toBeInTheDocument();
-    expect(screen.getByText(/Conecte-se a internet para consultar sugestoes e historico/i)).toBeInTheDocument();
+    expect(screen.getByText('Estatísticas indisponíveis')).toBeInTheDocument();
+    expect(screen.getByText(/Conecte-se a internet para consultar sugestões e histórico/i)).toBeInTheDocument();
   });
 
   it('renders the sign-in screen when there is no session', () => {

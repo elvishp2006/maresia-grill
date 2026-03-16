@@ -103,7 +103,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
             Sem internet
           </p>
           <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
-            Edicao, selecao do menu e estatisticas estao indisponiveis ate a conexao voltar.
+            Edição, seleção do menu e estatísticas estão indisponíveis até a conexão voltar.
           </p>
         </section>
       ) : null}
@@ -122,14 +122,16 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
       <main className="pb-[24px]">
         <section className="section-card mb-[18px]">
           <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            {viewMode === 'menu' ? 'Fluxo principal' : viewMode === 'stats' ? 'Area analitica' : 'Modo administrativo'}
+            {viewMode === 'menu' ? 'Fluxo principal' : viewMode === 'stats' ? 'Área analítica' : 'Modo administrativo'}
           </p>
           <p className="mt-[8px] max-w-[56ch] text-[15px] leading-[1.6] text-[var(--text)]">
             {viewMode === 'menu'
-              ? 'Toque nos itens para montar rapidamente o menu de hoje.'
+              ? daySelection.length === 0
+                ? 'Toque nos itens para montar rapidamente o menu de hoje.'
+                : `${daySelection.length} ${daySelection.length === 1 ? 'item' : 'itens'} no menu de hoje.`
               : viewMode === 'stats'
-                ? 'Consulte sugestoes e historico sem interferir no fluxo principal de selecao.'
-                : 'Organize categorias e mantenha o catalogo atualizado sem poluir a tela principal.'}
+                ? 'Consulte sugestões e histórico sem interferir no fluxo principal de seleção.'
+                : 'Organize categorias e mantenha o catálogo atualizado sem poluir a tela principal.'}
           </p>
         </section>
 
@@ -151,10 +153,10 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           ) : (
             <section className="section-card border-dashed text-center">
               <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
-                Estatisticas indisponiveis
+                Estatísticas indisponíveis
               </h2>
               <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
-                Conecte-se a internet para consultar sugestoes e historico.
+                Conecte-se a internet para consultar sugestões e histórico.
               </p>
             </section>
           )
@@ -164,7 +166,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
               Nada encontrado
             </h2>
             <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
-              Ajuste a busca ou mude para o modo de edicao para cadastrar novos itens.
+              Ajuste a busca ou mude para o modo de edição para cadastrar novos itens.
             </p>
           </section>
         ) : (
@@ -212,7 +214,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         open={showAddCategorySheet}
         onClose={() => setShowAddCategorySheet(false)}
         title="Nova categoria"
-        description="Crie uma categoria para separar os itens do cardapio."
+        description="Crie uma categoria para separar os itens do cardápio."
       >
         <AddForm
           onAdd={(nome) => {

@@ -116,9 +116,9 @@ export default function Header({
           }}
           disabled={!isOnline}
           aria-disabled={!isOnline}
-          title={isOnline ? undefined : 'Estatisticas indisponiveis sem internet'}
+          title={isOnline ? undefined : 'Estatísticas indisponíveis sem internet'}
         >
-          Estatisticas
+          Estatísticas
         </button>
         <button
           type="button"
@@ -128,7 +128,7 @@ export default function Header({
             onViewModeChange('manage');
           }}
         >
-          Editar catalogo
+          Editar catálogo
         </button>
       </div>
 

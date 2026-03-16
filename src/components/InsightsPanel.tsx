@@ -77,7 +77,7 @@ export default function InsightsPanel({
               O que faz sentido hoje
             </h2>
             <p className="mt-[8px] max-w-[48ch] text-[14px] leading-[1.6] text-[var(--text-dim)]">
-              Baseado no seu historico recente e no comportamento tipico de {weekdayLabel}.
+              Baseado no seu histórico recente e no comportamento típico de {weekdayLabel}.
             </p>
           </div>
           <span className="rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-[10px] py-[6px] text-[12px] text-[var(--text-dim)]">
@@ -86,12 +86,12 @@ export default function InsightsPanel({
         </div>
 
         {loading ? (
-          <p className="mt-[14px] text-[14px] text-[var(--text-dim)]">Analisando seu historico...</p>
+          <p className="mt-[14px] text-[14px] text-[var(--text-dim)]">Analisando seu histórico...</p>
         ) : error ? (
           <p className="mt-[14px] text-[14px] text-[var(--accent-red)]">{error}</p>
         ) : suggestedItems.length === 0 ? (
           <p className="mt-[14px] text-[14px] text-[var(--text-dim)]">
-            Ainda nao ha sugestoes fortes. Continue usando o app para criar historico.
+            Ainda não há sugestões fortes. Continue usando o app para criar histórico.
           </p>
         ) : (
           <ul className="mt-[16px] flex list-none flex-col gap-[12px]">
@@ -119,10 +119,10 @@ export default function InsightsPanel({
 
       <div className="section-card">
         <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          Estatisticas
+          Estatísticas
         </p>
         <h2 className="mt-[4px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
-          Leitura do cardapio
+          Leitura do cardápio
         </h2>
 
         {loading ? (
@@ -162,16 +162,16 @@ export default function InsightsPanel({
               <div className="mt-[12px]">
                 <RankingList
                   items={categoryLeaders}
-                  emptyText="Nenhuma categoria com historico suficiente."
+                  emptyText="Nenhuma categoria com histórico suficiente."
                   valueLabel={(count) => `${count}x`}
                 />
               </div>
             </div>
 
             <div className="rounded-[22px] border border-[var(--border)] bg-[var(--bg-card)] p-[16px] shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
-              <h3 className="text-[16px] font-semibold text-[var(--text)]">Sequencias recentes</h3>
+              <h3 className="text-[16px] font-semibold text-[var(--text)]">Sequências recentes</h3>
               {streakItems.length === 0 ? (
-                <p className="mt-[12px] text-[14px] text-[var(--text-dim)]">Sem sequencias relevantes no periodo.</p>
+                <p className="mt-[12px] text-[14px] text-[var(--text-dim)]">Sem sequências relevantes no período.</p>
               ) : (
                 <ul className="mt-[12px] flex list-none flex-col gap-[10px]">
                   {streakItems.map(item => (
@@ -200,7 +200,7 @@ export default function InsightsPanel({
                       <div className="min-w-0">
                         <p className="truncate text-[14px] font-semibold text-[var(--text)]">{item.nome}</p>
                         <p className="mt-[2px] text-[12px] text-[var(--text-dim)]">
-                          {item.categoria} • {item.lastSeen ? `Ultima vez: ${item.lastSeen}` : 'Nunca apareceu'}
+                          {item.categoria} • {item.lastSeen ? `Última vez: ${item.lastSeen}` : 'Nunca apareceu'}
                         </p>
                       </div>
                       <span className="shrink-0 text-[13px] font-semibold text-[var(--accent)]">{item.count}x</span>

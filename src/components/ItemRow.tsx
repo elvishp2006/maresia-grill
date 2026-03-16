@@ -108,7 +108,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
         open={showRenameSheet}
         onClose={() => setShowRenameSheet(false)}
         title={`Renomear ${item.nome}`}
-        description="Atualize o nome do item no catalogo."
+        description="Atualize o nome do item no catálogo."
       >
         <AddForm
           onAdd={(nome) => {

@@ -239,9 +239,9 @@ export const buildInsightMetrics = ({
 
       let reason = 'Historico moderado de uso';
       if (sameWeekday > 0) {
-        reason = `Muito usado no padrao de ${weekdayLabel}`;
+        reason = `Muito usado no padrão de ${weekdayLabel}`;
       } else if (overall >= 4) {
-        reason = `Apareceu ${overall} vezes no periodo`;
+        reason = `Apareceu ${overall} vezes no período`;
       } else if (recentIndex >= 0) {
         reason = 'Usado recentemente';
       }

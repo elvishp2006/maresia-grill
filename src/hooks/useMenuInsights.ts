@@ -25,7 +25,7 @@ export const useMenuInsights = (complements: Item[], daySelection: string[], ena
       })
       .catch(() => {
         if (cancelled) return;
-        setError('Nao foi possivel carregar o historico de selecoes.');
+        setError('Não foi possível carregar o histórico de seleções.');
         setLoading(false);
       });
 
