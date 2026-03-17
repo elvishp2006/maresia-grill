@@ -24,13 +24,15 @@ export default function AddForm({
   const inputId = useId();
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
-
-  useEffect(() => {
     setNome(initialValue);
   }, [initialValue]);
+
+  useEffect(() => {
+    if (!initialValue) return;
+    const id = setTimeout(() => inputRef.current?.select(), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
@@ -55,6 +57,8 @@ export default function AddForm({
         ref={inputRef}
         id={inputId}
         type="text"
+        autoFocus
+        onFocus={() => inputRef.current?.select()}
         className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
         placeholder={placeholder}
         value={nome}
