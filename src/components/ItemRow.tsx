@@ -74,14 +74,14 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
               {item.nome}
             </p>
             <p className="mt-[2px] text-[13px] text-[var(--text-dim)]">
-              {active ? 'Ja aparece no menu do dia' : 'Ainda nao selecionado'}
+              {active ? 'Já aparece no menu de hoje' : 'Ainda não selecionado'}
             </p>
           </div>
         </div>
         <div className="mt-[14px] flex gap-[10px]">
           <button
             type="button"
-            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+            className="min-h-[44px] flex-1 rounded-[16px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={() => {
               if (!isOnline) return;
               lightTap();
@@ -94,7 +94,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           </button>
           <button
             type="button"
-            className="min-h-[42px] flex-1 rounded-[16px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+            className="min-h-[44px] flex-1 rounded-[16px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             onClick={handleRemove}
             aria-label={`Remover ${item.nome}`}
             disabled={!isOnline}

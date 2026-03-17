@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 interface BottomSheetProps {
   open: boolean;
@@ -15,14 +15,45 @@ export default function BottomSheet({
   onClose,
   children,
 }: BottomSheetProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
 
+    const previousFocus = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
+    const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const dialogEl = dialogRef.current;
+
+    if (dialogEl) {
+      const first = dialogEl.querySelector<HTMLElement>(FOCUSABLE);
+      first?.focus();
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key === 'Tab' && dialogEl) {
+        const focusable = Array.from(dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE));
+        if (focusable.length === 0) { event.preventDefault(); return; }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey) {
+          if (document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -30,6 +61,7 @@ export default function BottomSheet({
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
     };
   }, [open, onClose]);
 
@@ -42,6 +74,7 @@ export default function BottomSheet({
       role="presentation"
     >
       <div
+        ref={dialogRef}
         className="w-full rounded-t-[30px] border border-b-0 border-[var(--border-strong)] bg-[var(--bg-elevated)] px-[20px] pb-[max(22px,env(safe-area-inset-bottom))] pt-[14px] shadow-[0_-20px_60px_rgba(0,0,0,0.35)]"
         onClick={event => event.stopPropagation()}
         role="dialog"
