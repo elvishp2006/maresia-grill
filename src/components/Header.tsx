@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface HeaderProps {
   activeCount: number;
   dateShort: string;
-  onCopy: () => void;
   isOnline: boolean;
   onSignOut?: () => void;
   userEmail?: string | null;
@@ -16,7 +15,6 @@ interface HeaderProps {
 export default function Header({
   activeCount,
   dateShort,
-  onCopy,
   isOnline,
   onSignOut,
   userEmail,
@@ -24,15 +22,8 @@ export default function Header({
   onViewModeChange,
   onHeightChange,
 }: HeaderProps) {
-  const [copied, setCopied] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
-  const { success, lightTap } = useHapticFeedback();
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(t);
-  }, [copied]);
+  const { lightTap } = useHapticFeedback();
 
   useEffect(() => {
     if (!onHeightChange || !headerRef.current) return;
@@ -53,12 +44,6 @@ export default function Header({
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [activeCount, onHeightChange, viewMode]);
-
-  const handleCopy = () => {
-    onCopy();
-    setCopied(true);
-    success();
-  };
 
   return (
     <header
@@ -85,14 +70,6 @@ export default function Header({
           <span className="min-w-0 text-[13px] text-[var(--text-dim)] md:text-[14px]">
             {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
           </span>
-          <button
-            className={`min-h-[44px] shrink-0 rounded-[16px] px-[15px] py-[10px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_20px_rgba(0,0,0,0.16)] transition-colors md:min-h-[48px] md:rounded-[18px] md:px-[16px] md:py-[12px] md:text-[14px] ${copied ? 'bg-[var(--green)]' : 'bg-[var(--accent)]'}`}
-            onClick={handleCopy}
-            type="button"
-            aria-label="Copiar menu do dia"
-          >
-            {copied ? 'Copiado' : 'Copiar'}
-          </button>
         </div>
       </div>
 

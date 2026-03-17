@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
 import { ModalProvider } from '../contexts/ModalContext';
+import { ToastProvider } from '../contexts/ToastContext';
 
 vi.mock('../hooks/useMenuInsights', () => ({
   useMenuInsights: vi.fn(() => ({
@@ -43,32 +44,37 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 
 const toggleItem = vi.fn();
 
+const defaultMenuState = {
+  categories: ['Saladas', 'Carnes'] as string[],
+  complements: [
+    { id: '1', nome: 'Alface', categoria: 'Saladas' },
+    { id: '2', nome: 'Frango', categoria: 'Carnes' },
+  ],
+  daySelection: ['1'] as string[],
+  usageCounts: {} as Record<string, number>,
+  sortMode: 'alpha' as const,
+  loading: false,
+  toggleSortMode: vi.fn(),
+  toggleItem,
+  addItem: vi.fn(),
+  removeItem: vi.fn(),
+  renameItem: vi.fn(),
+  addCategory: vi.fn(),
+  removeCategory: vi.fn(),
+  moveCategory: vi.fn(),
+};
+
+const useMenuStateMock = vi.fn(() => defaultMenuState);
+
 vi.mock('../hooks/useMenuState', () => ({
-  useMenuState: vi.fn(() => ({
-    categories: ['Saladas', 'Carnes'],
-    complements: [
-      { id: '1', nome: 'Alface', categoria: 'Saladas' },
-      { id: '2', nome: 'Frango', categoria: 'Carnes' },
-    ],
-    daySelection: ['1'],
-    usageCounts: {},
-    sortMode: 'alpha',
-    loading: false,
-    toggleSortMode: vi.fn(),
-    toggleItem,
-    addItem: vi.fn(),
-    removeItem: vi.fn(),
-    renameItem: vi.fn(),
-    addCategory: vi.fn(),
-    removeCategory: vi.fn(),
-    moveCategory: vi.fn(),
-  })),
+  useMenuState: () => useMenuStateMock(),
 }));
 
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     toggleItem.mockReset();
+    useMenuStateMock.mockReturnValue(defaultMenuState);
     useAuthSessionMock.mockReturnValue({
       user: { email: 'chef@maresia.com' },
       loading: false,
@@ -80,17 +86,60 @@ describe('App', () => {
     useOnlineStatusMock.mockReturnValue({ isOnline: true });
     vi.stubGlobal('alert', vi.fn());
     Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn(),
-      },
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+      share: undefined,
+    });
+  });
+
+  it('shows the share button when items are selected in menu mode', () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Compartilhar menu' })).toBeInTheDocument();
+  });
+
+  it('hides the share button when no items are selected', () => {
+    useMenuStateMock.mockReturnValueOnce({ ...defaultMenuState, daySelection: [] });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Compartilhar menu' })).not.toBeInTheDocument();
+  });
+
+  it('copies menu to clipboard when share button is clicked and navigator.share is unavailable', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+
+    await vi.waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
     });
   });
 
   it('opens the first visible category by default', () => {
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toBeInTheDocument();
@@ -103,9 +152,11 @@ describe('App', () => {
 
   it('allows collapsing the currently open category', () => {
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Colapsar Saladas' }));
@@ -118,9 +169,11 @@ describe('App', () => {
 
   it('opens only the category that was explicitly selected', () => {
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Expandir Carnes' }));
@@ -133,9 +186,11 @@ describe('App', () => {
 
   it('renders suggestions and selects an item from insights', () => {
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     fireEvent.click(screen.getByRole('tab', { name: 'Estatísticas' }));
@@ -146,9 +201,11 @@ describe('App', () => {
 
   it('hides toolbar and categories in statistics area', () => {
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     fireEvent.click(screen.getByRole('tab', { name: 'Estatísticas' }));
@@ -162,9 +219,11 @@ describe('App', () => {
     useOnlineStatusMock.mockReturnValue({ isOnline: false });
 
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     expect(screen.getByText('Sem internet')).toBeInTheDocument();
@@ -174,9 +233,11 @@ describe('App', () => {
 
   it('renders an offline empty state when the statistics view is open and connection drops', () => {
     const { rerender } = render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     fireEvent.click(screen.getByRole('tab', { name: 'Estatísticas' }));
@@ -185,9 +246,11 @@ describe('App', () => {
     useOnlineStatusMock.mockReturnValue({ isOnline: false });
 
     rerender(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     expect(screen.getByText('Estatísticas indisponíveis')).toBeInTheDocument();
@@ -205,9 +268,11 @@ describe('App', () => {
     });
 
     render(
-      <ModalProvider>
+      <ToastProvider>
+        <ModalProvider>
         <App />
-      </ModalProvider>
+        </ModalProvider>
+      </ToastProvider>
     );
 
     expect(screen.getByText('Acesso restrito')).toBeInTheDocument();

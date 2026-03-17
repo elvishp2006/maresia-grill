@@ -11,6 +11,7 @@ import UpdateBanner from './components/UpdateBanner';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useMenuInsights } from './hooks/useMenuInsights';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useToast } from './contexts/ToastContext';
 import MenuView from './MenuView';
 
 interface AuthenticatedAppProps {
@@ -20,6 +21,7 @@ interface AuthenticatedAppProps {
 
 function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
+  const { showToast } = useToast();
   const {
     categories,
     complements,
@@ -68,12 +70,17 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const now = new Date();
   const dateShort = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
-  const copyMenu = async () => {
+  const shareMenu = async () => {
     const text = formatMenuText(complements, daySelection, categories);
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      alert(text);
+    if (navigator.share) {
+      await navigator.share({ title: 'Menu do Maresia Grill', text });
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Menu copiado!', 'success');
+      } catch {
+        alert(text);
+      }
     }
   };
 
@@ -84,7 +91,6 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
       <Header
         activeCount={daySelection.length}
         dateShort={dateShort}
-        onCopy={copyMenu}
         isOnline={isOnline}
         onSignOut={onSignOut}
         userEmail={userEmail}
@@ -136,6 +142,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         onRemoveCategory={removeCategory}
         onAddCategory={addCategory}
         onClearSearch={() => setSearch('')}
+        onShare={shareMenu}
       />
 
       <UpdateBanner />
