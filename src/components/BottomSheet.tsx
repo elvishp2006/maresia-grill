@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface BottomSheetProps {
   open: boolean;
@@ -16,6 +17,12 @@ export default function BottomSheet({
   children,
 }: BottomSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const { mediumTap } = useHapticFeedback();
+
+  const handleClose = useCallback(() => {
+    mediumTap();
+    onClose();
+  }, [mediumTap, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -36,7 +43,7 @@ export default function BottomSheet({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        handleClose();
         return;
       }
       if (event.key === 'Tab' && dialogEl) {
@@ -65,14 +72,14 @@ export default function BottomSheet({
       window.removeEventListener('keydown', handleKeyDown);
       previousFocus?.focus();
     };
-  }, [open, onClose]);
+  }, [handleClose, open]);
 
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-[2px]"
-      onClick={onClose}
+      onClick={handleClose}
       role="presentation"
     >
       <div
@@ -98,7 +105,7 @@ export default function BottomSheet({
           <button
             type="button"
             className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[22px] leading-none text-[var(--text-dim)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text)]"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Fechar painel"
           >
             ×

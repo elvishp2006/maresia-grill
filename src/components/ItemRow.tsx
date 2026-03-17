@@ -21,9 +21,10 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
   const { confirm } = useModal();
 
   const handleRemove = async () => {
+    if (!isOnline) return;
+    mediumTap();
     const ok = await confirm('Remover item', `Remover "${item.nome}"?`);
     if (ok) {
-      mediumTap();
       onRemove();
     }
   };

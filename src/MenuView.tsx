@@ -8,7 +8,7 @@ import type { useMenuInsights } from './hooks/useMenuInsights';
 import { useHapticFeedback } from './hooks/useHapticFeedback';
 
 interface MenuViewProps {
-  viewMode: 'menu' | 'stats' | 'manage';
+  viewMode: 'menu' | 'stats' | 'manage' | 'orders';
   visibleCategories: Categoria[];
   categories: Categoria[];
   complements: Item[];
@@ -56,7 +56,7 @@ export default function MenuView({
   onClearSearch,
   onShare,
 }: MenuViewProps) {
-  const { success } = useHapticFeedback();
+  const { lightTap, success } = useHapticFeedback();
   const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
   const [showQuickAddSheet, setShowQuickAddSheet] = useState(false);
   const [quickAddCategory, setQuickAddCategory] = useState<Categoria | null>(null);
@@ -103,7 +103,10 @@ export default function MenuView({
               <button
                 type="button"
                 className="neon-gold-border neon-gold-text mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
-                onClick={() => setShowQuickAddSheet(true)}
+                onClick={() => {
+                  lightTap();
+                  setShowQuickAddSheet(true);
+                }}
               >
                 + Cadastrar "{search}" no catálogo
               </button>
@@ -142,7 +145,10 @@ export default function MenuView({
           <button
             type="button"
             className="neon-gold-text mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => setShowAddCategorySheet(true)}
+            onClick={() => {
+              lightTap();
+              setShowAddCategorySheet(true);
+            }}
             disabled={!canEdit}
           >
             + Nova categoria
@@ -209,7 +215,10 @@ export default function MenuView({
                 <button
                   type="button"
                   className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px] text-left text-[15px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
-                  onClick={() => setQuickAddCategory(cat)}
+                  onClick={() => {
+                    lightTap();
+                    setQuickAddCategory(cat);
+                  }}
                   disabled={!canEdit}
                 >
                   {cat}

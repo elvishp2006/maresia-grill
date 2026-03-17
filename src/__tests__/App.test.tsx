@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
 import { ModalProvider } from '../contexts/ModalContext';
 import { ToastProvider } from '../contexts/ToastContext';
@@ -67,6 +67,30 @@ vi.mock('../hooks/useEditorLock', () => ({
 }));
 
 const toggleItem = vi.fn();
+const subscribeOrdersMock = vi.fn();
+const getOrCreateDailyShareLinkMock = vi.fn().mockResolvedValue({
+  token: 'token-1',
+  url: 'https://maresia.example/s/token-1',
+});
+const subscribePublicMenuMock = vi.fn();
+const submitPublicOrderMock = vi.fn().mockResolvedValue({ selectedItemIds: ['1'] });
+const deletePublicOrderMock = vi.fn().mockResolvedValue(undefined);
+const syncPublicMenuSnapshotForDateMock = vi.fn().mockResolvedValue(undefined);
+const subscribeOrderIntakeStatusMock = vi.fn();
+const setOrderIntakeStatusMock = vi.fn().mockResolvedValue(undefined);
+const loadPublicMenuVersionsMock = vi.fn().mockResolvedValue({});
+
+vi.mock('../lib/storage', () => ({
+  subscribeOrders: (...args: unknown[]) => subscribeOrdersMock(...args),
+  getOrCreateDailyShareLink: (...args: unknown[]) => getOrCreateDailyShareLinkMock(...args),
+  loadPublicMenuVersions: (...args: unknown[]) => loadPublicMenuVersionsMock(...args),
+  subscribeOrderIntakeStatus: (...args: unknown[]) => subscribeOrderIntakeStatusMock(...args),
+  setOrderIntakeStatus: (...args: unknown[]) => setOrderIntakeStatusMock(...args),
+  subscribePublicMenu: (...args: unknown[]) => subscribePublicMenuMock(...args),
+  submitPublicOrder: (...args: unknown[]) => submitPublicOrderMock(...args),
+  deletePublicOrder: (...args: unknown[]) => deletePublicOrderMock(...args),
+  syncPublicMenuSnapshotForDate: (...args: unknown[]) => syncPublicMenuSnapshotForDateMock(...args),
+}));
 
 const defaultMenuState = {
   categories: ['Saladas', 'Carnes'] as string[],
@@ -78,6 +102,7 @@ const defaultMenuState = {
   usageCounts: {} as Record<string, number>,
   sortMode: 'alpha' as const,
   loading: false,
+  currentDateKey: '2026-03-17',
   toggleSortMode: vi.fn(),
   toggleItem,
   addItem: vi.fn(),
@@ -102,6 +127,8 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.pushState({}, '', '/');
+    localStorage.clear();
     toggleItem.mockReset();
     useMenuStateMock.mockReturnValue(defaultMenuState);
     useAuthSessionMock.mockReturnValue({
@@ -135,6 +162,31 @@ describe('App', () => {
       clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
       share: undefined,
     });
+    subscribeOrdersMock.mockImplementation((_dateKey: string, onValue: (orders: unknown[]) => void) => {
+      onValue([]);
+      return vi.fn();
+    });
+    subscribeOrderIntakeStatusMock.mockImplementation((_dateKey: string, onValue: (acceptingOrders: boolean) => void) => {
+      onValue(true);
+      return vi.fn();
+    });
+    loadPublicMenuVersionsMock.mockResolvedValue({});
+    setOrderIntakeStatusMock.mockResolvedValue(undefined);
+    syncPublicMenuSnapshotForDateMock.mockResolvedValue(undefined);
+    submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1'] });
+    deletePublicOrderMock.mockResolvedValue(undefined);
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+      });
+      return vi.fn();
+    });
   });
 
   it('shows the share button when items are selected in menu mode', () => {
@@ -150,7 +202,7 @@ describe('App', () => {
   });
 
   it('hides the share button when no items are selected', () => {
-    useMenuStateMock.mockReturnValueOnce({ ...defaultMenuState, daySelection: [] });
+    useMenuStateMock.mockReturnValue({ ...defaultMenuState, daySelection: [] });
 
     render(
       <ToastProvider>
@@ -161,9 +213,10 @@ describe('App', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Compartilhar menu' })).not.toBeInTheDocument();
+    useMenuStateMock.mockReturnValue(defaultMenuState);
   });
 
-  it('copies menu to clipboard when share button is clicked and navigator.share is unavailable', async () => {
+  it('copies menu to clipboard when text share is chosen and navigator.share is unavailable', async () => {
     render(
       <ToastProvider>
         <ModalProvider>
@@ -173,10 +226,51 @@ describe('App', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar texto' }));
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled();
     });
+    expect(await screen.findByText('Menu copiado!')).toBeInTheDocument();
+  });
+
+  it('shares the daily link when the link option is chosen', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar link único' }));
+
+    await waitFor(() => {
+      expect(getOrCreateDailyShareLinkMock).toHaveBeenCalled();
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://maresia.example/s/token-1');
+    });
+    expect(await screen.findByText('Link copiado!')).toBeInTheDocument();
+  });
+
+  it('disables daily link sharing when order intake is closed', () => {
+    subscribeOrderIntakeStatusMock.mockImplementation((_dateKey: string, onValue: (acceptingOrders: boolean) => void) => {
+      onValue(false);
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+
+    expect(screen.getByRole('button', { name: 'Compartilhar link único' })).toBeDisabled();
+    expect(screen.getByText(/recebimento estiver encerrado/i)).toBeInTheDocument();
   });
 
   it('shows the update indicator in the header and applies the update on click', async () => {
@@ -196,7 +290,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar atualização do app' }));
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(applyUpdateMock).toHaveBeenCalledTimes(1);
     });
   });
@@ -281,6 +375,87 @@ describe('App', () => {
     expect(screen.queryByPlaceholderText('Buscar item para o menu de hoje')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Colapsar Saladas' })).not.toBeInTheDocument();
     expect(screen.getByText('Leitura do cardápio')).toBeInTheDocument();
+  });
+
+  it('renders the orders tab and empty state', () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Pedidos' }));
+
+    expect(screen.getByText('Nenhum pedido ainda')).toBeInTheDocument();
+  });
+
+  it('allows closing order intake from the orders tab', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Pedidos' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Recebimento de pedidos' }));
+
+    await waitFor(() => {
+      expect(setOrderIntakeStatusMock).toHaveBeenCalledWith(expect.objectContaining({
+        dateKey: '2026-03-17',
+        acceptingOrders: false,
+      }));
+    });
+    expect(await screen.findByText('Recebimento de pedidos encerrado.')).toBeInTheDocument();
+  });
+
+  it('renders order categories following the configured category order', () => {
+    subscribeOrdersMock.mockImplementation((_dateKey: string, onValue: (orders: unknown[]) => void) => {
+      onValue([{
+        id: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        orderId: 'order-1',
+        customerName: 'Ana',
+        menuVersionId: 'version-1',
+        selectedItemIds: ['1', '2', '3'],
+        submittedAt: Date.now(),
+      }]);
+      return vi.fn();
+    });
+    loadPublicMenuVersionsMock.mockResolvedValue({
+      'version-1': {
+        id: 'version-1',
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        categories: ['Saladas', 'Carnes'],
+        itemIds: ['1', '2', '3'],
+        items: [
+          { id: '2', nome: 'Frango', categoria: 'Carnes' },
+          { id: '3', nome: 'Molho da casa', categoria: 'Molhos' },
+          { id: '1', nome: 'Alface', categoria: 'Saladas' },
+        ],
+        createdAt: Date.now(),
+      },
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Pedidos' }));
+
+    return waitFor(() => {
+      const categoryLabels = screen.getAllByText(/^(Saladas|Carnes|Molhos)$/).map(node => node.textContent);
+      expect(categoryLabels).toEqual(['Saladas', 'Carnes', 'Molhos']);
+    });
   });
 
   it('shows the offline warning and disables statistics when offline', () => {
@@ -427,5 +602,410 @@ describe('App', () => {
     );
 
     expect(screen.getByText('Login cancelado.')).toBeInTheDocument();
+  });
+
+  it('renders the public menu route without login', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    expect(screen.getByText('Saladas')).toBeInTheDocument();
+  });
+
+  it('renders the public closed state when order intake is closed', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: false,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('O recebimento de pedidos foi encerrado')).toBeInTheDocument();
+    expect(screen.queryByText('Nome do cliente')).not.toBeInTheDocument();
+  });
+
+  it('syncs the public menu snapshot while the authenticated menu changes', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    await waitFor(() => {
+      expect(syncPublicMenuSnapshotForDateMock).toHaveBeenCalledWith(expect.objectContaining({
+        dateKey: '2026-03-17',
+        categories: ['Saladas', 'Carnes'],
+        daySelection: ['1'],
+      }));
+    });
+  });
+
+  it('shows success state after sending a public order and allows editing again', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    await waitFor(() => {
+      expect(submitPublicOrderMock).toHaveBeenCalledWith(expect.objectContaining({
+        orderId: 'public-order-1',
+        customerName: 'Ana',
+        selectedItemIds: ['1'],
+      }));
+    });
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/enviado');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar pedido' }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ana')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+    });
+    expect(window.location.hash).toBe('#/pedido');
+  });
+
+  it('allows removing the public order while intake is open and shows a removal confirmation state', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover pedido' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
+
+    await waitFor(() => {
+      expect(deletePublicOrderMock).toHaveBeenCalledWith({
+        orderId: 'public-order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      });
+    });
+
+    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(localStorage.getItem('public-menu-last-order:token-1')).toBeNull();
+    expect(window.location.hash).toBe('#/removido');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fazer novo pedido' }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ana')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' })).toBeInTheDocument();
+    });
+    expect(window.location.hash).toBe('#/pedido');
+  });
+
+  it('persists only the validated public selection after submit', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1'] });
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1', '999'],
+    }));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+
+    expect(JSON.parse(localStorage.getItem('public-menu-last-order:token-1') ?? 'null')).toEqual({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+    });
+  });
+
+  it('rehydrates the previous public order from local storage on revisit', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+    }));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('keeps the submitted state after reload when the hash and cached order are present', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+    }));
+    localStorage.setItem('public-menu-view:token-1', 'submitted');
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/enviado');
+  });
+
+  it('keeps the submitted confirmation after reload even when intake is closed', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+    }));
+    localStorage.setItem('public-menu-view:token-1', 'submitted');
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: false,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remover pedido' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the removed state after reload when the hash and customer name are present', async () => {
+    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/removido');
+  });
+
+  it('keeps the removed confirmation after reload even when intake is closed', async () => {
+    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: false,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fazer novo pedido' })).not.toBeInTheDocument();
+  });
+
+  it('restores the removed state using token-scoped data instead of the global customer name', async () => {
+    localStorage.setItem('public-menu-customer-name', 'Beatriz');
+    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText(/Ana, você ainda pode montar um novo pedido neste cardápio/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Beatriz, você ainda pode montar um novo pedido neste cardápio/i)).not.toBeInTheDocument();
+  });
+
+  it('falls back to the form when the removed hash has no token-scoped removed state', async () => {
+    localStorage.setItem('public-menu-customer-name', 'Ana');
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/pedido');
+    });
+  });
+
+  it('preserves query parameters when normalizing the public hash route', async () => {
+    window.history.pushState({}, '', '/s/token-1?ref=whatsapp');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.search).toBe('?ref=whatsapp');
+      expect(window.location.href).toContain('/s/token-1/?ref=whatsapp#/pedido');
+    });
+  });
+
+  it('falls back to the form when the submitted hash has no cached order', async () => {
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/pedido');
+    });
+  });
+
+  it('sanitizes cached public selections that no longer exist in the current menu', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1', '999'],
+    }));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /999/i })).not.toBeInTheDocument();
+  });
+
+  it('renders the 404 page for unknown routes', () => {
+    window.history.pushState({}, '', '/nao-existe');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
   });
 });

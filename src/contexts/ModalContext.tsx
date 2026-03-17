@@ -38,6 +38,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   };
 
   const handleCancel = () => {
+    mediumTap();
     modalState?.resolve?.(false);
     setModalState(prev => ({ ...(prev ?? INITIAL_MODAL_STATE), isOpen: false, resolve: null }));
   };

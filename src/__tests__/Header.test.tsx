@@ -34,10 +34,10 @@ describe('Header', () => {
     expect(screen.queryByRole('button', { name: 'Aplicar atualização do app' })).not.toBeInTheDocument();
   });
 
-  it('applies the strong neon treatment to the header logo', () => {
+  it('renders the header logo without neon glow classes', () => {
     render(<Header {...defaultProps} />);
 
-    expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toHaveClass('neon-gold-mark-strong');
+    expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).not.toHaveClass('neon-gold-mark-strong');
   });
 
   it('renders the update button when an update is available', () => {
@@ -54,5 +54,15 @@ describe('Header', () => {
 
     expect(lightTapMock).toHaveBeenCalledTimes(1);
     expect(onApplyUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('triggers haptic feedback before sign out', () => {
+    const onSignOut = vi.fn();
+    render(<Header {...defaultProps} onSignOut={onSignOut} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair da conta' }));
+
+    expect(lightTapMock).toHaveBeenCalledTimes(1);
+    expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 });

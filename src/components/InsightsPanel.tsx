@@ -1,4 +1,5 @@
 import type { InsightListItem, SuggestionItem, WeekdayAverage } from '../lib/insights';
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface InsightsPanelProps {
   loading: boolean;
@@ -65,6 +66,8 @@ export default function InsightsPanel({
   suggestedItems,
   onSelectSuggestion,
 }: InsightsPanelProps) {
+  const { lightTap } = useHapticFeedback();
+
   return (
     <section className="mb-[18px] flex flex-col gap-[16px]">
       <div className="section-card">
@@ -106,7 +109,10 @@ export default function InsightsPanel({
                   <button
                     type="button"
                     className="neon-gold-fill min-h-[42px] shrink-0 rounded-[16px] bg-[var(--accent)] px-[14px] py-[10px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
-                    onClick={() => onSelectSuggestion(item.id)}
+                    onClick={() => {
+                      lightTap();
+                      onSelectSuggestion(item.id);
+                    }}
                   >
                     Selecionar
                   </button>

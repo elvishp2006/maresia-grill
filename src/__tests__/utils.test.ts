@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatMenuText } from '../lib/utils';
+import { formatMenuText, groupOrderItemsByCategory } from '../lib/utils';
 import type { Item } from '../types';
 
 const items: Item[] = [
@@ -53,5 +53,46 @@ describe('formatMenuText', () => {
     const carnesIdx = text.indexOf('Carnes');
     const saladIdx = text.indexOf('Saladas');
     expect(carnesIdx).toBeLessThan(saladIdx);
+  });
+});
+
+describe('groupOrderItemsByCategory', () => {
+  it('groups items by category using the configured category order first', () => {
+    const grouped = groupOrderItemsByCategory([
+      { id: '4', nome: 'Alface', categoria: 'Saladas' },
+      { id: '1', nome: 'Arroz', categoria: 'Acompanhamentos' },
+      { id: '3', nome: 'Frango', categoria: 'Carnes' },
+    ], ['Carnes', 'Saladas', 'Acompanhamentos']);
+
+    expect(grouped).toEqual([
+      { category: 'Carnes', names: ['Frango'] },
+      { category: 'Saladas', names: ['Alface'] },
+      { category: 'Acompanhamentos', names: ['Arroz'] },
+    ]);
+  });
+
+  it('sorts item names alphabetically inside each category', () => {
+    const grouped = groupOrderItemsByCategory([
+      { id: '2', nome: 'Feijão', categoria: 'Acompanhamentos' },
+      { id: '1', nome: 'Arroz', categoria: 'Acompanhamentos' },
+    ], ['Acompanhamentos']);
+
+    expect(grouped).toEqual([
+      { category: 'Acompanhamentos', names: ['Arroz', 'Feijão'] },
+    ]);
+  });
+
+  it('places legacy categories after configured ones', () => {
+    const grouped = groupOrderItemsByCategory([
+      { id: '8', nome: 'Molho da casa', categoria: 'Molhos' },
+      { id: '3', nome: 'Frango', categoria: 'Carnes' },
+      { id: '4', nome: 'Alface', categoria: 'Saladas' },
+    ], ['Saladas', 'Carnes']);
+
+    expect(grouped).toEqual([
+      { category: 'Saladas', names: ['Alface'] },
+      { category: 'Carnes', names: ['Frango'] },
+      { category: 'Molhos', names: ['Molho da casa'] },
+    ]);
   });
 });

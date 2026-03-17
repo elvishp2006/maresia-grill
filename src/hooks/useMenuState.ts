@@ -234,6 +234,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     usageCounts,
     sortMode,
     loading,
+    currentDateKey,
     toggleSortMode,
     toggleItem,
     addItem,

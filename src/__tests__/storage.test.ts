@@ -5,14 +5,25 @@ vi.mock('../lib/firebase', () => ({ db: {} }));
 
 const mockGetDoc = vi.fn();
 const mockSetDoc = vi.fn().mockResolvedValue(undefined);
+const mockDeleteDoc = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') }));
+const mockCollection = vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') }));
+const mockQuery = vi.fn((ref: unknown, ordering?: unknown) => {
+  void ordering;
+  return ref;
+});
+const mockOrderBy = vi.fn((field: string, direction: string) => ({ field, direction }));
 const mockOnSnapshot = vi.fn();
 const mockRunTransaction = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
   getDoc: (ref: unknown) => mockGetDoc(ref),
   setDoc: (ref: unknown, data: unknown) => mockSetDoc(ref, data),
+  deleteDoc: (ref: unknown) => mockDeleteDoc(ref),
   doc: (db: unknown, ...segments: string[]) => mockDoc(db, ...segments),
+  collection: (db: unknown, ...segments: string[]) => mockCollection(db, ...segments),
+  query: (ref: unknown, ordering: unknown) => mockQuery(ref, ordering),
+  orderBy: (field: string, direction: string) => mockOrderBy(field, direction),
   onSnapshot: (...args: unknown[]) => mockOnSnapshot(...args),
   runTransaction: (...args: unknown[]) => mockRunTransaction(...args),
 }));
@@ -310,6 +321,437 @@ describe('storage', () => {
       await releaseEditorLock('session-1');
 
       expect(mockSetDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'config/editorLock' }));
+    });
+  });
+
+  describe('daily share links', () => {
+    it('reuses the same token when a valid link already exists for the day', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 60_000,
+          acceptingOrders: false,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { getOrCreateDailyShareLink } = await import('../lib/storage');
+      const result = await getOrCreateDailyShareLink({
+        dateKey: '2026-03-17',
+        categories: ['Saladas'],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        daySelection: ['1'],
+      });
+
+      expect(result.token).toBe('token-1');
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: expect.stringMatching(/^publicMenuVersions\//) }),
+        expect.objectContaining({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          itemIds: ['1'],
+        })
+      );
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'publicMenus/token-1' }),
+        expect.objectContaining({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+          currentVersionId: expect.any(String),
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        })
+      );
+    });
+
+    it('creates a public menu snapshot when there is no link for the day', async () => {
+      mockGetDoc.mockResolvedValue({ exists: () => false } as unknown as DocumentSnapshot);
+      vi.stubGlobal('crypto', { randomUUID: () => 'token-2' });
+
+      const { getOrCreateDailyShareLink } = await import('../lib/storage');
+      const result = await getOrCreateDailyShareLink({
+        dateKey: '2026-03-17',
+        categories: ['Saladas', 'Carnes'],
+        complements: [
+          { id: '1', nome: 'Alface', categoria: 'Saladas' },
+          { id: '2', nome: 'Frango', categoria: 'Carnes' },
+        ],
+        daySelection: ['1'],
+      });
+
+      expect(result.token).toBe('token-2');
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'shareLinks/2026-03-17' }),
+        expect.objectContaining({
+          token: 'token-2',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          createdAt: expect.any(Date),
+          expiresAt: expect.any(Date),
+        })
+      );
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: expect.stringMatching(/^publicMenuVersions\//) }),
+        expect.objectContaining({
+          token: 'token-2',
+          dateKey: '2026-03-17',
+          itemIds: ['1'],
+        })
+      );
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'publicMenus/token-2' }),
+        expect.objectContaining({
+          token: 'token-2',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: expect.any(String),
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        })
+      );
+    });
+
+    it('subscribes to open order intake when there is no link document yet', async () => {
+      mockOnSnapshot.mockImplementation((_ref: unknown, onValue: (snap: { exists: () => boolean }) => void) => {
+        onValue({ exists: () => false });
+        return vi.fn();
+      });
+
+      const { subscribeOrderIntakeStatus } = await import('../lib/storage');
+      const onValue = vi.fn();
+
+      subscribeOrderIntakeStatus('2026-03-17', onValue);
+
+      expect(onValue).toHaveBeenCalledWith(true);
+    });
+
+    it('updates order intake status and syncs the public menu snapshot', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          acceptingOrders: true,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { setOrderIntakeStatus } = await import('../lib/storage');
+      await setOrderIntakeStatus({
+        dateKey: '2026-03-17',
+        categories: ['Saladas'],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        daySelection: ['1'],
+        acceptingOrders: false,
+      });
+
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'shareLinks/2026-03-17' }),
+        expect.objectContaining({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+        })
+      );
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'publicMenus/token-1' }),
+        expect.objectContaining({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+        })
+      );
+    });
+  });
+
+  describe('public menu', () => {
+    it('returns null when the public menu is expired', async () => {
+      vi.useFakeTimers();
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T10:01:00Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+      vi.setSystemTime(new Date('2026-03-17T10:02:00Z'));
+
+      const { loadPublicMenu } = await import('../lib/storage');
+      await expect(loadPublicMenu('token-1')).resolves.toBeNull();
+      vi.useRealTimers();
+    });
+
+    it('subscribes to a valid public menu snapshot', async () => {
+      mockOnSnapshot.mockImplementation((_ref: unknown, onValue: (snap: { exists: () => boolean; data: () => unknown }) => void) => {
+        onValue({
+          exists: () => true,
+          data: () => ({
+            token: 'token-1',
+            dateKey: '2026-03-17',
+            acceptingOrders: true,
+            currentVersionId: 'version-1',
+            categories: ['Saladas'],
+            items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+            createdAt: new Date('2026-03-17T10:00:00Z'),
+            expiresAt: new Date('2026-03-17T23:59:59Z'),
+          }),
+        });
+        return vi.fn();
+      });
+
+      const { subscribePublicMenu } = await import('../lib/storage');
+      const onValue = vi.fn();
+
+      subscribePublicMenu('token-1', onValue);
+
+      expect(onValue).toHaveBeenCalledWith(expect.objectContaining({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+      }));
+    });
+  });
+
+  describe('public menu sync', () => {
+    it('updates the public menu snapshot when a share link already exists for the day', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          acceptingOrders: false,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { syncPublicMenuSnapshotForDate } = await import('../lib/storage');
+      await syncPublicMenuSnapshotForDate({
+        dateKey: '2026-03-17',
+        categories: ['Saladas', 'Carnes'],
+        complements: [
+          { id: '1', nome: 'Alface', categoria: 'Saladas' },
+          { id: '2', nome: 'Frango', categoria: 'Carnes' },
+        ],
+        daySelection: ['1', '2'],
+      });
+
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: expect.stringMatching(/^publicMenuVersions\//) }),
+        expect.objectContaining({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          itemIds: ['1', '2'],
+        })
+      );
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'publicMenus/token-1' }),
+        expect.objectContaining({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+          currentVersionId: expect.any(String),
+          categories: ['Saladas', 'Carnes'],
+          items: [
+            { id: '1', nome: 'Alface', categoria: 'Saladas' },
+            { id: '2', nome: 'Frango', categoria: 'Carnes' },
+          ],
+        })
+      );
+    });
+  });
+
+  describe('orders', () => {
+    it('stores a public order entry', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { submitPublicOrder } = await import('../lib/storage');
+
+      await expect(submitPublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Ana',
+        selectedItemIds: ['1'],
+      })).resolves.toEqual({ selectedItemIds: ['1'] });
+
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'orders/2026-03-17/entries/order-1' }),
+        expect.objectContaining({
+          orderId: 'order-1',
+          dateKey: '2026-03-17',
+          shareToken: 'token-1',
+          customerName: 'Ana',
+          menuVersionId: 'version-1',
+          selectedItemIds: ['1'],
+        })
+      );
+    });
+
+    it('rejects public orders when order intake is closed', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { submitPublicOrder } = await import('../lib/storage');
+
+      await expect(submitPublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Ana',
+        selectedItemIds: ['1'],
+      })).rejects.toThrow('Os pedidos deste cardapio foram encerrados.');
+    });
+
+    it('stores only selected item ids that are still valid in the current public menu', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-2',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { submitPublicOrder } = await import('../lib/storage');
+
+      await expect(submitPublicOrder({
+        orderId: 'order-2',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Ana',
+        selectedItemIds: ['1', '999'],
+      })).resolves.toEqual({ selectedItemIds: ['1'] });
+
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'orders/2026-03-17/entries/order-2' }),
+        expect.objectContaining({
+          menuVersionId: 'version-2',
+          selectedItemIds: ['1'],
+        })
+      );
+    });
+
+    it('subscribes to orders sorted by submittedAt', async () => {
+      mockOnSnapshot.mockImplementation((_ref: unknown, onValue: (snap: { docs: Array<{ id: string; data: () => unknown }> }) => void) => {
+        onValue({
+          docs: [{
+            id: 'order-1',
+            data: () => ({
+              orderId: 'order-1',
+              dateKey: '2026-03-17',
+              shareToken: 'token-1',
+              customerName: 'Ana',
+              selectedItemIds: ['1'],
+              submittedItems: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+              submittedAt: new Date('2026-03-17T12:00:00Z'),
+            }),
+          }],
+        });
+        return vi.fn();
+      });
+
+      const { subscribeOrders } = await import('../lib/storage');
+      const onValue = vi.fn();
+      subscribeOrders('2026-03-17', onValue);
+
+      expect(mockOrderBy).toHaveBeenCalledWith('submittedAt', 'desc');
+      expect(onValue).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: 'order-1',
+          customerName: 'Ana',
+          submittedItems: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        }),
+      ]);
+    });
+
+    it('deletes a public order entry while order intake is open', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { deletePublicOrder } = await import('../lib/storage');
+
+      await expect(deletePublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      })).resolves.toBeUndefined();
+
+      expect(mockDeleteDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'orders/2026-03-17/entries/order-1' }),
+      );
+    });
+
+    it('rejects public order deletion when order intake is closed', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { deletePublicOrder } = await import('../lib/storage');
+
+      await expect(deletePublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      })).rejects.toThrow('Os pedidos deste cardapio foram encerrados.');
     });
   });
 });
