@@ -95,17 +95,11 @@ describe('storage', () => {
   });
 
   describe('saveDaySelection', () => {
-    it('calls setDoc with today as key', async () => {
+    it('calls setDoc with the provided date key', async () => {
       const { saveDaySelection } = await import('../lib/storage');
-      const now = new Date();
-      const today = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, '0'),
-        String(now.getDate()).padStart(2, '0'),
-      ].join('-');
-      await saveDaySelection(['1', '2']);
+      await saveDaySelection('2026-03-17', ['1', '2']);
       expect(mockSetDoc).toHaveBeenCalledWith(
-        expect.objectContaining({ path: `selections/${today}` }),
+        expect.objectContaining({ path: 'selections/2026-03-17' }),
         { ids: ['1', '2'] }
       );
     });
@@ -119,7 +113,7 @@ describe('storage', () => {
       } as unknown as DocumentSnapshot);
 
       const { loadDaySelection } = await import('../lib/storage');
-      const result = await loadDaySelection();
+      const result = await loadDaySelection('2026-03-17');
       expect(result).toEqual(['1', '2']);
     });
 
@@ -127,7 +121,7 @@ describe('storage', () => {
       mockGetDoc.mockResolvedValue({ exists: () => false } as unknown as DocumentSnapshot);
 
       const { loadDaySelection } = await import('../lib/storage');
-      const result = await loadDaySelection();
+      const result = await loadDaySelection('2026-03-17');
       expect(result).toEqual([]);
     });
 
@@ -138,7 +132,7 @@ describe('storage', () => {
       } as unknown as DocumentSnapshot);
 
       const { loadDaySelection } = await import('../lib/storage');
-      const result = await loadDaySelection();
+      const result = await loadDaySelection('2026-03-17');
       expect(result).toEqual([]);
     });
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { ToastProvider } from '../contexts/ToastContext';
@@ -15,6 +15,14 @@ const saveComplements = vi.fn().mockResolvedValue(undefined);
 const saveDaySelection = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../lib/storage', () => ({
+  getDateKey: vi.fn((date?: Date) => {
+    const current = date ?? new Date();
+    return [
+      current.getFullYear(),
+      String(current.getMonth() + 1).padStart(2, '0'),
+      String(current.getDate()).padStart(2, '0'),
+    ].join('-');
+  }),
   subscribeCategories: (...args: unknown[]) => subscribeCategories(...args),
   subscribeComplements: (...args: unknown[]) => subscribeComplements(...args),
   subscribeDaySelection: (...args: unknown[]) => subscribeDaySelection(...args),
@@ -41,11 +49,16 @@ beforeEach(() => {
     ]));
     return vi.fn();
   });
-  subscribeDaySelection.mockImplementation((onValue: (value: string[]) => void) => {
+  subscribeDaySelection.mockImplementation((_dateKey: string, onValue: (value: string[]) => void) => {
     queueMicrotask(() => onValue(['1']));
     return vi.fn();
   });
   loadRecentSelections.mockResolvedValue({ '1': 3 });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('useMenuState', () => {
@@ -64,7 +77,7 @@ describe('useMenuState', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.toggleItem('2'));
     expect(result.current.daySelection).toContain('2');
-    expect(saveDaySelection).toHaveBeenCalledWith(['1', '2']);
+    expect(saveDaySelection).toHaveBeenCalledWith(expect.any(String), ['1', '2']);
   });
 
   it('toggleItem removes item from selection if already selected', async () => {
@@ -72,7 +85,7 @@ describe('useMenuState', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.toggleItem('1'));
     expect(result.current.daySelection).not.toContain('1');
-    expect(saveDaySelection).toHaveBeenCalledWith([]);
+    expect(saveDaySelection).toHaveBeenCalledWith(expect.any(String), []);
   });
 
   it('addItem creates new item and auto-selects it', async () => {
@@ -130,5 +143,31 @@ describe('useMenuState', () => {
     expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
     expect(saveCategories).not.toHaveBeenCalled();
     expect(screen.getByText('Outro dispositivo esta editando o cardapio neste momento.')).toBeInTheDocument();
+  });
+
+  it('switches to the new day and clears the selection after midnight', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-17T23:59:58'));
+
+    subscribeDaySelection.mockImplementation((dateKey: string, onValue: (value: string[]) => void) => {
+      queueMicrotask(() => onValue(dateKey === '2026-03-17' ? ['1'] : []));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.daySelection).toEqual(['1']);
+
+    await act(async () => {
+      vi.setSystemTime(new Date('2026-03-18T00:00:01'));
+      vi.advanceTimersByTime(2_000);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(result.current.daySelection).toEqual([]);
+    expect(screen.getByText('Novo dia carregado.')).toBeInTheDocument();
   });
 });

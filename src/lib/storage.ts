@@ -10,7 +10,7 @@ import type { EditorLock, Item } from '../types';
 
 export const LOCK_TIMEOUT_MS = 60_000;
 
-const getDateKey = (date = new Date()) => [
+export const getDateKey = (date = new Date()) => [
   date.getFullYear(),
   String(date.getMonth() + 1).padStart(2, '0'),
   String(date.getDate()).padStart(2, '0'),
@@ -25,7 +25,7 @@ const getDb = () => {
 
 const categoriesRef = () => doc(getDb(), 'config', 'categories');
 const complementsRef = () => doc(getDb(), 'config', 'complements');
-const selectionRef = (date = new Date()) => doc(getDb(), 'selections', getDateKey(date));
+const selectionRef = (dateKey: string) => doc(getDb(), 'selections', dateKey);
 const editorLockRef = () => doc(getDb(), 'config', 'editorLock');
 
 export interface SelectionHistoryEntry {
@@ -122,20 +122,20 @@ export const subscribeComplements = (
   onValue(snap.exists() ? normalizeItems(snap.data().items) : []);
 }, error => onError?.(error));
 
-export const loadDaySelection = async (): Promise<string[]> => {
-  const snap = await getDoc(selectionRef());
+export const loadDaySelection = async (dateKey = getDateKey()): Promise<string[]> => {
+  const snap = await getDoc(selectionRef(dateKey));
   return snap.exists() ? normalizeStringArray(snap.data().ids) : [];
 };
 
-export const saveDaySelection = (ids: string[]): Promise<void> => {
-  return setDoc(selectionRef(), { ids });
+export const saveDaySelection = (dateKey: string, ids: string[]): Promise<void> => {
+  return setDoc(selectionRef(dateKey), { ids });
 };
 
 export const subscribeDaySelection = (
+  dateKey: string,
   onValue: (ids: string[]) => void,
   onError?: (error: Error) => void,
-  date = new Date(),
-) => onSnapshot(selectionRef(date), (snap) => {
+) => onSnapshot(selectionRef(dateKey), (snap) => {
   onValue(snap.exists() ? normalizeStringArray(snap.data().ids) : []);
 }, error => onError?.(error));
 

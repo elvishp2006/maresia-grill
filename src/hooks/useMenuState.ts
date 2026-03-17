@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Item, Categoria } from '../types';
 import { DEFAULT_CATEGORIES } from '../types';
 import {
+  getDateKey,
   loadRecentSelections,
   saveCategories,
   saveComplements,
@@ -16,6 +17,7 @@ let nextId = Date.now();
 const genId = () => String(nextId++);
 const OFFLINE_ACTION_MESSAGE = 'Esta acao requer conexao com a internet.';
 const READ_ONLY_ACTION_MESSAGE = 'Outro dispositivo esta editando o cardapio neste momento.';
+const DAY_CHANGED_MESSAGE = 'Novo dia carregado.';
 
 export const useMenuState = (isOnline = true, canEdit = true) => {
   const [categories, setCategories] = useState<string[]>([]);
@@ -24,6 +26,8 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [sortMode, setSortMode] = useState<'alpha' | 'usage'>('alpha');
   const [loading, setLoading] = useState(true);
+  const [currentDateKey, setCurrentDateKey] = useState(() => getDateKey());
+  const lastDateKeyRef = useRef(currentDateKey);
   const { showToast } = useToast();
 
   const guardWritableAction = () => {
@@ -38,11 +42,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   useEffect(() => {
     let active = true;
-    const ready = {
-      categories: false,
-      complements: false,
-      selection: false,
-    };
+    const ready = { categories: false, complements: false };
 
     const markReady = (key: keyof typeof ready) => {
       ready[key] = true;
@@ -67,19 +67,30 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       markReady('complements');
     }, handleError);
 
-    const unsubscribeSelection = subscribeDaySelection((ids) => {
-      if (!active) return;
-      setDaySelection(ids);
-      markReady('selection');
-    }, handleError);
-
     return () => {
       active = false;
       unsubscribeCategories();
       unsubscribeComplements();
-      unsubscribeSelection();
     };
   }, [showToast]);
+
+  useEffect(() => {
+    let active = true;
+    const unsubscribeSelection = subscribeDaySelection(currentDateKey, (ids) => {
+      if (!active) return;
+      setDaySelection(ids);
+      setLoading(false);
+    }, () => {
+      if (!active) return;
+      showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+      unsubscribeSelection();
+    };
+  }, [currentDateKey, showToast]);
 
   useEffect(() => {
     let active = true;
@@ -98,13 +109,31 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     };
   }, [daySelection, showToast]);
 
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timeoutId = window.setTimeout(() => {
+      const nextDateKey = getDateKey();
+      setCurrentDateKey((previousDateKey) => previousDateKey === nextDateKey ? previousDateKey : nextDateKey);
+    }, Math.max(1, nextMidnight.getTime() - now.getTime()));
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentDateKey]);
+
+  useEffect(() => {
+    if (lastDateKeyRef.current === currentDateKey) return;
+    lastDateKeyRef.current = currentDateKey;
+    showToast(DAY_CHANGED_MESSAGE, 'info', 2500);
+  }, [currentDateKey, showToast]);
+
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
 
   const toggleItem = (id: string) => {
     if (!guardWritableAction()) return;
     setDaySelection(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -119,7 +148,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     });
     setDaySelection(prev => {
       const next = [...prev, item.id];
-      saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -133,7 +162,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     });
     setDaySelection(prev => {
       const next = prev.filter(x => x !== id);
-      saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
   };
@@ -174,7 +203,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       });
       setDaySelection(prev => {
         const next = prev.filter(id => !removedIds.includes(id));
-        saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+        saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
         return next;
       });
     }
