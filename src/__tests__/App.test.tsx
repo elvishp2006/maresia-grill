@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
 import { ModalProvider } from '../contexts/ModalContext';
 import { ToastProvider } from '../contexts/ToastContext';
+import type { EditorLock } from '../types';
 
 vi.mock('../hooks/useMenuInsights', () => ({
   useMenuInsights: vi.fn(() => ({
@@ -17,10 +18,6 @@ vi.mock('../hooks/useMenuInsights', () => ({
     neglectedItems: [{ id: '2', nome: 'Frango', categoria: 'Carnes', count: 0, lastSeen: null }],
     suggestedItems: [{ id: '2', nome: 'Frango', categoria: 'Carnes', score: 8, reason: 'Usado recentemente', totalCount: 2, weekdayCount: 1 }],
   })),
-}));
-
-vi.mock('../components/UpdateBanner', () => ({
-  default: () => null,
 }));
 
 const useAuthSessionMock = vi.fn(() => ({
@@ -40,6 +37,33 @@ const useOnlineStatusMock = vi.fn(() => ({ isOnline: true }));
 
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => useOnlineStatusMock(),
+}));
+
+const applyUpdateMock = vi.fn().mockResolvedValue(undefined);
+const useUpdateNotificationMock = vi.fn(() => ({
+  needRefresh: false,
+  applyUpdate: applyUpdateMock,
+  dismiss: vi.fn(),
+}));
+
+vi.mock('../hooks/useUpdateNotification', () => ({
+  useUpdateNotification: () => useUpdateNotificationMock(),
+}));
+
+const useEditorLockMock = vi.fn(() => ({
+  canEdit: true,
+  loading: false,
+  lock: null as EditorLock | null,
+  isExpired: false,
+  isOwner: true,
+  error: null as string | null,
+  requestEditAccess: vi.fn().mockResolvedValue(true),
+  takeControl: vi.fn().mockResolvedValue(true),
+  releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../hooks/useEditorLock', () => ({
+  useEditorLock: () => useEditorLockMock(),
 }));
 
 const toggleItem = vi.fn();
@@ -89,6 +113,23 @@ describe('App', () => {
       signOut: vi.fn(),
     });
     useOnlineStatusMock.mockReturnValue({ isOnline: true });
+    useUpdateNotificationMock.mockReturnValue({
+      needRefresh: false,
+      applyUpdate: applyUpdateMock,
+      dismiss: vi.fn(),
+    });
+    applyUpdateMock.mockReset();
+    useEditorLockMock.mockReturnValue({
+      canEdit: true,
+      loading: false,
+      lock: null as EditorLock | null,
+      isExpired: false,
+      isOwner: true,
+      error: null,
+      requestEditAccess: vi.fn().mockResolvedValue(true),
+      takeControl: vi.fn().mockResolvedValue(true),
+      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+    });
     vi.stubGlobal('alert', vi.fn());
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -135,6 +176,28 @@ describe('App', () => {
 
     await vi.waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    });
+  });
+
+  it('shows the update indicator in the header and applies the update on click', async () => {
+    useUpdateNotificationMock.mockReturnValue({
+      needRefresh: true,
+      applyUpdate: applyUpdateMock,
+      dismiss: vi.fn(),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar atualização do app' }));
+
+    await vi.waitFor(() => {
+      expect(applyUpdateMock).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -260,6 +323,66 @@ describe('App', () => {
 
     expect(screen.getByText('Estatísticas indisponíveis')).toBeInTheDocument();
     expect(screen.getByText(/Conecte-se a internet para consultar sugestões e histórico/i)).toBeInTheDocument();
+  });
+
+  it('shows the read-only banner when another device owns the editor lock', () => {
+    useEditorLockMock.mockReturnValue({
+      canEdit: false,
+      loading: false,
+      lock: {
+        sessionId: 'other-session',
+        userEmail: 'outra@maresia.com',
+        deviceLabel: 'iPhone',
+        status: 'active',
+        acquiredAt: Date.now(),
+        lastHeartbeatAt: Date.now(),
+        expiresAt: Date.now() + 30_000,
+      },
+      isExpired: false,
+      isOwner: false,
+      error: null,
+      requestEditAccess: vi.fn().mockResolvedValue(false),
+      takeControl: vi.fn().mockResolvedValue(true),
+      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText('Leitura somente')).toBeInTheDocument();
+    expect(screen.getByText(/outra@maresia.com está editando em iPhone/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assumir controle' })).toBeInTheDocument();
+  });
+
+  it('shows a Firestore rules hint when the editor lock read is denied', () => {
+    useEditorLockMock.mockReturnValue({
+      canEdit: false,
+      loading: false,
+      lock: null,
+      isExpired: false,
+      isOwner: false,
+      error: 'Missing or insufficient permissions.',
+      requestEditAccess: vi.fn().mockResolvedValue(false),
+      takeControl: vi.fn().mockResolvedValue(false),
+      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText(/não conseguiu acessar o documento de lock no Firestore/i)).toBeInTheDocument();
+    expect(screen.getByText(/Publique as regras mais recentes do Firestore/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assumir controle' })).not.toBeInTheDocument();
   });
 
   it('renders the sign-in screen when there is no session', () => {

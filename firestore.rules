@@ -18,6 +18,25 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly(keys);
     }
 
+    function isValidEditorLock() {
+      return request.resource.data.keys().hasOnly([
+          'sessionId',
+          'userEmail',
+          'deviceLabel',
+          'status',
+          'acquiredAt',
+          'lastHeartbeatAt',
+          'expiresAt'
+        ])
+        && request.resource.data.sessionId is string
+        && request.resource.data.userEmail is string
+        && request.resource.data.deviceLabel is string
+        && request.resource.data.status == 'active'
+        && request.resource.data.acquiredAt is int
+        && request.resource.data.lastHeartbeatAt is int
+        && request.resource.data.expiresAt is int;
+    }
+
     match /config/categories {
       allow read: if isAuthorizedUser();
       allow create, update: if isAuthorizedUser()
@@ -32,6 +51,12 @@ service cloud.firestore {
         && hasOnlyKeys(['items'])
         && request.resource.data.items is list;
       allow delete: if false;
+    }
+
+    match /config/editorLock {
+      allow read: if isAuthorizedUser();
+      allow create, update: if isAuthorizedUser() && isValidEditorLock();
+      allow delete: if isAuthorizedUser();
     }
 
     match /selections/{dateKey} {

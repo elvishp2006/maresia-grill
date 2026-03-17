@@ -1,21 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { useAuthSession } from '../hooks/useAuthSession';
 
 const onAuthStateChangedMock = vi.fn();
 const signInWithPopupMock = vi.fn();
 const signOutMock = vi.fn();
 
-vi.mock('../lib/firebase', () => ({
-  auth: {},
-  googleProvider: {},
-}));
+interface FirebaseModuleMock {
+  auth: object | null;
+  googleProvider: object | null;
+  hasFirebaseConfig: boolean;
+}
 
 vi.mock('firebase/auth', () => ({
   onAuthStateChanged: (...args: unknown[]) => onAuthStateChangedMock(...args),
   signInWithPopup: (...args: unknown[]) => signInWithPopupMock(...args),
   signOut: (...args: unknown[]) => signOutMock(...args),
 }));
+
+const importUseAuthSession = async (firebaseMock: FirebaseModuleMock = {
+  auth: {},
+  googleProvider: {},
+  hasFirebaseConfig: true,
+}) => {
+  vi.resetModules();
+  vi.doMock('../lib/firebase', () => firebaseMock);
+  return import('../hooks/useAuthSession');
+};
 
 describe('useAuthSession', () => {
   beforeEach(() => {
@@ -28,6 +38,7 @@ describe('useAuthSession', () => {
       return vi.fn();
     });
 
+    const { useAuthSession } = await importUseAuthSession();
     const { result } = renderHook(() => useAuthSession());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -41,6 +52,7 @@ describe('useAuthSession', () => {
       return vi.fn();
     });
 
+    const { useAuthSession } = await importUseAuthSession();
     const { result } = renderHook(() => useAuthSession());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -55,6 +67,7 @@ describe('useAuthSession', () => {
     });
     signInWithPopupMock.mockResolvedValue(undefined);
 
+    const { useAuthSession } = await importUseAuthSession();
     const { result } = renderHook(() => useAuthSession());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -64,5 +77,19 @@ describe('useAuthSession', () => {
     });
 
     expect(signInWithPopupMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes a controlled auth error when Firebase config is missing', async () => {
+    const { useAuthSession } = await importUseAuthSession({
+      auth: null,
+      googleProvider: null,
+      hasFirebaseConfig: false,
+    });
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.user).toBeNull();
+    expect(result.current.authError).toBe('Configuracao do Firebase ausente.');
+    expect(onAuthStateChangedMock).not.toHaveBeenCalled();
   });
 });

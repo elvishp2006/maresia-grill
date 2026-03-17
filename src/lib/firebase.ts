@@ -1,6 +1,15 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import type { FirebaseApp } from 'firebase/app';
+import {
+  GoogleAuthProvider,
+  browserLocalPersistence,
+  connectAuthEmulator,
+  getAuth,
+  setPersistence,
+} from 'firebase/auth';
+import type { Auth } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import type { Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,18 +20,24 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
+const requiredConfigValues = Object.values(firebaseConfig);
 
-googleProvider.setCustomParameters({ prompt: 'select_account' });
+export const hasFirebaseConfig = requiredConfigValues.every(value => typeof value === 'string' && value.length > 0);
 
-if (import.meta.env.DEV) {
+export const app: FirebaseApp | null = hasFirebaseConfig ? initializeApp(firebaseConfig) : null;
+export const auth: Auth | null = app ? getAuth(app) : null;
+export const db: Firestore | null = app ? getFirestore(app) : null;
+export const googleProvider: GoogleAuthProvider | null = auth ? new GoogleAuthProvider() : null;
+
+googleProvider?.setCustomParameters({ prompt: 'select_account' });
+
+if (import.meta.env.DEV && auth && db) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
 }
 
-void setPersistence(auth, browserLocalPersistence).catch((error: unknown) => {
-  console.warn('Falha ao persistir a sessao do Firebase Auth:', error);
-});
+if (auth) {
+  void setPersistence(auth, browserLocalPersistence).catch((error: unknown) => {
+    console.warn('Falha ao persistir a sessao do Firebase Auth:', error);
+  });
+}

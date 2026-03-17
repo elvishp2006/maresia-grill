@@ -6,15 +6,28 @@ vi.mock('../lib/firebase', () => ({ db: {} }));
 const mockGetDoc = vi.fn();
 const mockSetDoc = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') }));
+const mockOnSnapshot = vi.fn();
+const mockRunTransaction = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
   getDoc: (ref: unknown) => mockGetDoc(ref),
   setDoc: (ref: unknown, data: unknown) => mockSetDoc(ref, data),
   doc: (db: unknown, ...segments: string[]) => mockDoc(db, ...segments),
+  onSnapshot: (...args: unknown[]) => mockOnSnapshot(...args),
+  runTransaction: (...args: unknown[]) => mockRunTransaction(...args),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockRunTransaction.mockImplementation(async (_db: unknown, callback: (transaction: {
+    get: typeof mockGetDoc;
+    set: typeof mockSetDoc;
+    delete: typeof mockSetDoc;
+  }) => unknown) => callback({
+    get: mockGetDoc,
+    set: mockSetDoc,
+    delete: mockSetDoc,
+  }));
 });
 
 describe('storage', () => {
@@ -163,6 +176,146 @@ describe('storage', () => {
       expect(result).toEqual([
         expect.objectContaining({ ids: [] }),
       ]);
+    });
+  });
+
+  describe('editor lock', () => {
+    it('acquires the lock when the document is missing', async () => {
+      mockGetDoc.mockResolvedValue({ exists: () => false } as unknown as DocumentSnapshot);
+      const { acquireEditorLock } = await import('../lib/storage');
+
+      const result = await acquireEditorLock({
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      });
+
+      expect(result?.sessionId).toBe('session-1');
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'config/editorLock' }),
+        expect.objectContaining({
+          sessionId: 'session-1',
+          userEmail: 'chef@maresia.com',
+          deviceLabel: 'Mac',
+          status: 'active',
+        })
+      );
+    });
+
+    it('refuses to acquire the lock when another session is still active', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          sessionId: 'session-2',
+          userEmail: 'other@maresia.com',
+          deviceLabel: 'iPhone',
+          status: 'active',
+          acquiredAt: Date.now(),
+          lastHeartbeatAt: Date.now(),
+          expiresAt: Date.now() + 30_000,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { acquireEditorLock } = await import('../lib/storage');
+      const result = await acquireEditorLock({
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      });
+
+      expect(result).toBeNull();
+      expect(mockSetDoc).not.toHaveBeenCalled();
+    });
+
+    it('takes over an expired lock', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          sessionId: 'session-2',
+          userEmail: 'other@maresia.com',
+          deviceLabel: 'iPhone',
+          status: 'active',
+          acquiredAt: Date.now() - 120_000,
+          lastHeartbeatAt: Date.now() - 120_000,
+          expiresAt: Date.now() - 1,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { acquireEditorLock } = await import('../lib/storage');
+      const result = await acquireEditorLock({
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      });
+
+      expect(result?.sessionId).toBe('session-1');
+      expect(mockSetDoc).toHaveBeenCalled();
+    });
+
+    it('forces takeover when explicitly requested', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          sessionId: 'session-2',
+          userEmail: 'other@maresia.com',
+          deviceLabel: 'iPhone',
+          status: 'active',
+          acquiredAt: Date.now(),
+          lastHeartbeatAt: Date.now(),
+          expiresAt: Date.now() + 30_000,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { acquireEditorLock } = await import('../lib/storage');
+      const result = await acquireEditorLock({
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      }, { force: true });
+
+      expect(result?.sessionId).toBe('session-1');
+      expect(mockSetDoc).toHaveBeenCalled();
+    });
+
+    it('renews the heartbeat for the owner session', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          sessionId: 'session-1',
+          userEmail: 'chef@maresia.com',
+          deviceLabel: 'Mac',
+          status: 'active',
+          acquiredAt: Date.now(),
+          lastHeartbeatAt: Date.now(),
+          expiresAt: Date.now() + 30_000,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { renewEditorLock } = await import('../lib/storage');
+      const result = await renewEditorLock('session-1');
+
+      expect(result?.sessionId).toBe('session-1');
+      expect(mockSetDoc).toHaveBeenCalled();
+    });
+
+    it('releases the lock only for the owner session', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          sessionId: 'session-1',
+          userEmail: 'chef@maresia.com',
+          deviceLabel: 'Mac',
+          status: 'active',
+          acquiredAt: Date.now(),
+          lastHeartbeatAt: Date.now(),
+          expiresAt: Date.now() + 30_000,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { releaseEditorLock } = await import('../lib/storage');
+      await releaseEditorLock('session-1');
+
+      expect(mockSetDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'config/editorLock' }));
     });
   });
 });

@@ -5,6 +5,8 @@ interface HeaderProps {
   activeCount: number;
   dateShort: string;
   isOnline: boolean;
+  showUpdateIndicator?: boolean;
+  onApplyUpdate?: () => void;
   onSignOut?: () => void;
   userEmail?: string | null;
   viewMode: 'menu' | 'stats' | 'manage';
@@ -16,6 +18,8 @@ export default function Header({
   activeCount,
   dateShort,
   isOnline,
+  showUpdateIndicator = false,
+  onApplyUpdate,
   onSignOut,
   userEmail,
   viewMode,
@@ -70,6 +74,25 @@ export default function Header({
           ) : (
             <span className="text-[12px] text-[var(--text-dim)]">{dateShort}</span>
           )}
+          {showUpdateIndicator && onApplyUpdate ? (
+            <button
+              type="button"
+              aria-label="Aplicar atualização do app"
+              title="Nova versão disponível"
+              className="relative flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[rgba(110,214,116,0.68)] bg-[rgba(110,214,116,0.14)] text-[#8CFF93] shadow-[0_0_0_1px_rgba(110,214,116,0.22),0_0_14px_rgba(110,214,116,0.48),0_0_28px_rgba(110,214,116,0.24)] transition-transform hover:scale-[1.03] hover:bg-[rgba(110,214,116,0.22)]"
+              onClick={() => {
+                lightTap();
+                onApplyUpdate();
+              }}
+            >
+              <span className="absolute inset-[6px] rounded-full border border-[rgba(180,255,184,0.38)]" aria-hidden="true" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v10" />
+                <path d="M8.5 11.5 12 15l3.5-3.5" />
+                <path d="M5 19h14" />
+              </svg>
+            </button>
+          ) : null}
           {onSignOut ? (
             <button
               type="button"

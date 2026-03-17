@@ -6,11 +6,9 @@ import { useUpdateNotification } from '../hooks/useUpdateNotification';
 
 const updateServiceWorkerMock = vi.fn().mockResolvedValue(undefined);
 const setNeedRefreshMock = vi.fn();
-const setOfflineReadyMock = vi.fn();
 const registrationUpdateMock = vi.fn().mockResolvedValue(undefined);
 
 let currentNeedRefresh = false;
-let currentOfflineReady = false;
 let registerOptions: {
   onRegisteredSW?: (swUrl: string, registration: ServiceWorkerRegistration | undefined) => void;
   onRegisterError?: (error: unknown) => void;
@@ -21,7 +19,7 @@ vi.mock('../pwa', () => ({
     registerOptions = options;
     return {
       needRefresh: [currentNeedRefresh, setNeedRefreshMock],
-      offlineReady: [currentOfflineReady, setOfflineReadyMock],
+      offlineReady: [false, vi.fn()],
       updateServiceWorker: updateServiceWorkerMock,
     };
   }),
@@ -34,11 +32,9 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 describe('useUpdateNotification', () => {
   beforeEach(() => {
     currentNeedRefresh = false;
-    currentOfflineReady = false;
     registerOptions = {};
     updateServiceWorkerMock.mockClear();
     setNeedRefreshMock.mockClear();
-    setOfflineReadyMock.mockClear();
     registrationUpdateMock.mockClear();
   });
 
@@ -53,7 +49,7 @@ describe('useUpdateNotification', () => {
     expect(updateServiceWorkerMock).toHaveBeenCalledWith(true);
   });
 
-  it('dismisses both refresh and offline states', () => {
+  it('dismisses the refresh state', () => {
     const { result } = renderHook(() => useUpdateNotification(), { wrapper });
 
     act(() => {
@@ -61,7 +57,6 @@ describe('useUpdateNotification', () => {
     });
 
     expect(setNeedRefreshMock).toHaveBeenCalledWith(false);
-    expect(setOfflineReadyMock).toHaveBeenCalledWith(false);
   });
 
   it('checks for updates when the registration is available and the window regains focus', () => {
@@ -88,6 +83,5 @@ describe('useUpdateNotification', () => {
     const { result } = renderHook(() => useUpdateNotification(), { wrapper });
 
     expect(result.current.needRefresh).toBe(true);
-    expect(result.current.offlineReady).toBe(false);
   });
 });

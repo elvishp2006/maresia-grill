@@ -8,6 +8,7 @@ interface AddFormProps {
   initialValue?: string;
   submitLabel?: string;
   disabled?: boolean;
+  disabledMessage?: string;
 }
 
 export default function AddForm({
@@ -17,6 +18,7 @@ export default function AddForm({
   initialValue = '',
   submitLabel = 'Adicionar',
   disabled = false,
+  disabledMessage = 'Esta ação requer conexão com a internet.',
 }: AddFormProps) {
   const [nome, setNome] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +70,7 @@ export default function AddForm({
       />
       {disabled ? (
         <p className="text-[13px] leading-[1.5] text-[var(--accent-red)]">
-          Esta ação requer conexão com a internet.
+          {disabledMessage}
         </p>
       ) : null}
       <div className="flex gap-[10px]">

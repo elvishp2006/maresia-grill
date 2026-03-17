@@ -7,13 +7,14 @@ import Toolbar from './components/Toolbar';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import InstallBanner from './components/InstallBanner';
-import UpdateBanner from './components/UpdateBanner';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useMenuInsights } from './hooks/useMenuInsights';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { useToast } from './contexts/ToastContext';
 import { useModal } from './contexts/ModalContext';
 import MenuView from './MenuView';
+import { useEditorLock } from './hooks/useEditorLock';
+import { useUpdateNotification } from './hooks/useUpdateNotification';
 
 interface AuthenticatedAppProps {
   onSignOut: () => void;
@@ -24,6 +25,14 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
   const { showToast } = useToast();
   const { confirm } = useModal();
+  const { needRefresh, applyUpdate } = useUpdateNotification();
+  const {
+    canEdit,
+    lock,
+    error: editorLockError,
+    takeControl,
+    releaseEditAccess,
+  } = useEditorLock(userEmail, isOnline);
   const {
     categories,
     complements,
@@ -39,7 +48,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
     addCategory,
     removeCategory,
     moveCategory,
-  } = useMenuState(isOnline);
+  } = useMenuState(isOnline, canEdit);
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
 
@@ -88,10 +97,16 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
 
   const handleSignOut = async () => {
     const ok = await confirm('Sair da conta', 'Deseja encerrar a sessão?');
-    if (ok) onSignOut();
+    if (ok) {
+      await releaseEditAccess();
+      onSignOut();
+    }
   };
 
   if (loading) return <LoadingSpinner />;
+
+  const isReadOnly = isOnline && !canEdit;
+  const hasEditorLockPermissionIssue = editorLockError?.toLowerCase().includes('permission') ?? false;
 
   return (
     <div className="app-shell">
@@ -100,6 +115,8 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         dateShort={dateShort}
         isOnline={isOnline}
         onSignOut={() => { void handleSignOut(); }}
+        showUpdateIndicator={needRefresh}
+        onApplyUpdate={() => { void applyUpdate(); }}
         userEmail={userEmail}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -114,6 +131,37 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
             Edição, seleção do menu e estatísticas estão indisponíveis até a conexão voltar.
           </p>
+        </section>
+      ) : null}
+
+      {isReadOnly ? (
+        <section className="section-card mb-[18px] border border-[var(--accent)] bg-[var(--accent-soft)]">
+          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+            Leitura somente
+          </p>
+          <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
+            {hasEditorLockPermissionIssue
+              ? 'O controle de edição não conseguiu acessar o documento de lock no Firestore.'
+              : `${lock?.userEmail ?? 'Outra pessoa'} está editando em ${lock?.deviceLabel ?? 'outro dispositivo'}.`}
+          </p>
+          <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+            {hasEditorLockPermissionIssue
+              ? 'Publique as regras mais recentes do Firestore para liberar leitura e escrita em config/editorLock.'
+              : 'Clique abaixo para assumir o controle da edição neste dispositivo.'}
+          </p>
+          {!hasEditorLockPermissionIssue ? (
+            <button
+              type="button"
+              className="neon-gold-fill mt-[14px] min-h-[48px] rounded-[18px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
+              onClick={() => {
+                void takeControl().then((granted) => {
+                  if (!granted) showToast('Nao foi possivel assumir o controle.', 'error');
+                });
+              }}
+            >
+              Assumir controle
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -140,6 +188,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         expandedCategory={expandedCategory}
         onToggleCollapse={(categoria) => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
         isOnline={isOnline}
+        canEdit={canEdit}
         insights={insights}
         onToggle={toggleItem}
         onAddItem={addItem}
@@ -151,8 +200,6 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         onClearSearch={() => setSearch('')}
         onShare={shareMenu}
       />
-
-      <UpdateBanner />
       <InstallBanner />
     </div>
   );

@@ -6,17 +6,22 @@ import { useMenuState } from '../hooks/useMenuState';
 
 vi.mock('../lib/firebase', () => ({ db: {} }));
 
+const subscribeCategories = vi.fn();
+const subscribeComplements = vi.fn();
+const subscribeDaySelection = vi.fn();
+const loadRecentSelections = vi.fn().mockResolvedValue({ '1': 3 });
+const saveCategories = vi.fn().mockResolvedValue(undefined);
+const saveComplements = vi.fn().mockResolvedValue(undefined);
+const saveDaySelection = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('../lib/storage', () => ({
-  loadCategories: vi.fn().mockResolvedValue(['Saladas', 'Carnes']),
-  loadComplements: vi.fn().mockResolvedValue([
-    { id: '1', nome: 'Alface', categoria: 'Saladas' },
-    { id: '2', nome: 'Frango', categoria: 'Carnes' },
-  ]),
-  loadDaySelection: vi.fn().mockResolvedValue(['1']),
-  loadRecentSelections: vi.fn().mockResolvedValue({ '1': 3 }),
-  saveCategories: vi.fn().mockResolvedValue(undefined),
-  saveComplements: vi.fn().mockResolvedValue(undefined),
-  saveDaySelection: vi.fn().mockResolvedValue(undefined),
+  subscribeCategories: (...args: unknown[]) => subscribeCategories(...args),
+  subscribeComplements: (...args: unknown[]) => subscribeComplements(...args),
+  subscribeDaySelection: (...args: unknown[]) => subscribeDaySelection(...args),
+  loadRecentSelections: (...args: unknown[]) => loadRecentSelections(...args),
+  saveCategories: (...args: unknown[]) => saveCategories(...args),
+  saveComplements: (...args: unknown[]) => saveComplements(...args),
+  saveDaySelection: (...args: unknown[]) => saveDaySelection(...args),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -24,10 +29,27 @@ const wrapper = ({ children }: { children: React.ReactNode }) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+
+  subscribeCategories.mockImplementation((onValue: (value: string[]) => void) => {
+    queueMicrotask(() => onValue(['Saladas', 'Carnes']));
+    return vi.fn();
+  });
+  subscribeComplements.mockImplementation((onValue: (value: unknown[]) => void) => {
+    queueMicrotask(() => onValue([
+      { id: '1', nome: 'Alface', categoria: 'Saladas' },
+      { id: '2', nome: 'Frango', categoria: 'Carnes' },
+    ]));
+    return vi.fn();
+  });
+  subscribeDaySelection.mockImplementation((onValue: (value: string[]) => void) => {
+    queueMicrotask(() => onValue(['1']));
+    return vi.fn();
+  });
+  loadRecentSelections.mockResolvedValue({ '1': 3 });
 });
 
 describe('useMenuState', () => {
-  it('starts with loading=true and resolves data', async () => {
+  it('starts with loading=true and resolves data from subscriptions', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -42,7 +64,7 @@ describe('useMenuState', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.toggleItem('2'));
     expect(result.current.daySelection).toContain('2');
-    expect(result.current.usageCounts['2']).toBe(1);
+    expect(saveDaySelection).toHaveBeenCalledWith(['1', '2']);
   });
 
   it('toggleItem removes item from selection if already selected', async () => {
@@ -50,7 +72,7 @@ describe('useMenuState', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.toggleItem('1'));
     expect(result.current.daySelection).not.toContain('1');
-    expect(result.current.usageCounts['1']).toBe(2);
+    expect(saveDaySelection).toHaveBeenCalledWith([]);
   });
 
   it('addItem creates new item and auto-selects it', async () => {
@@ -60,7 +82,8 @@ describe('useMenuState', () => {
     expect(result.current.complements.some(i => i.nome === 'Tomate')).toBe(true);
     const tomate = result.current.complements.find(i => i.nome === 'Tomate');
     expect(result.current.daySelection).toContain(tomate?.id);
-    expect(result.current.usageCounts[tomate!.id]).toBe(1);
+    expect(saveComplements).toHaveBeenCalled();
+    expect(saveDaySelection).toHaveBeenCalled();
   });
 
   it('removeItem removes item from complements and daySelection', async () => {
@@ -89,13 +112,23 @@ describe('useMenuState', () => {
   });
 
   it('blocks remote actions and preserves state when offline', async () => {
-    const { result } = renderHook(() => useMenuState(false), { wrapper });
+    const { result } = renderHook(() => useMenuState(false, true), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => result.current.toggleItem('2'));
 
     expect(result.current.daySelection).toEqual(['1']);
-    expect(result.current.usageCounts).toEqual({ '1': 3 });
     expect(screen.getByText('Esta acao requer conexao com a internet.')).toBeInTheDocument();
+  });
+
+  it('blocks remote actions when another device owns the lock', async () => {
+    const { result } = renderHook(() => useMenuState(true, false), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.addCategory('Sobremesas'));
+
+    expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
+    expect(saveCategories).not.toHaveBeenCalled();
+    expect(screen.getByText('Outro dispositivo esta editando o cardapio neste momento.')).toBeInTheDocument();
   });
 });
