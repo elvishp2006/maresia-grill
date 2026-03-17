@@ -60,7 +60,11 @@ const sanitizeHistory = (history: SelectionHistoryEntry[]) =>
 const sanitizeDaySelection = (daySelection: string[]) =>
   daySelection.filter(id => typeof id === 'string');
 
-const getDateKey = (date: Date) => date.toISOString().slice(0, 10);
+const getDateKey = (date: Date) => [
+  date.getFullYear(),
+  String(date.getMonth() + 1).padStart(2, '0'),
+  String(date.getDate()).padStart(2, '0'),
+].join('-');
 
 const getWeekdayFromDateKey = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -152,7 +156,7 @@ export const buildInsightMetrics = ({
   const totalCounts = buildCounts(mergedHistory);
   const lastSeen = buildLastSeen(mergedHistory);
   const streaks = buildStreaks(mergedHistory);
-  const weekday = now.getUTCDay();
+  const weekday = now.getDay();
   const weekdayLabel = WEEKDAY_LABELS[weekday];
 
   const topItems = toInsightItems(
