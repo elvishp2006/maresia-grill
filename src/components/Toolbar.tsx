@@ -36,21 +36,28 @@ export default function Toolbar({
       className="subtle-panel sticky z-20 mb-[18px] p-[12px]"
       style={{ top: `${stickyTop}px` }}
     >
-      <div className="mb-[10px] flex items-center justify-between gap-[10px]">
-        <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          {viewMode === 'menu' ? 'Seleção rápida' : 'Busca e organização'}
-        </p>
-        <p className="text-[12px] text-[var(--text-dim)]">
-          {sortMode === 'alpha' ? 'Ordem alfabética' : 'Prioridade por frequência'}
-        </p>
-      </div>
       <div className="flex items-center gap-[10px]">
         <div className="relative flex-1">
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute left-[14px] top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
           <input
             ref={searchInputRef}
             type="search"
-            className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] pr-[52px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
-            placeholder={viewMode === 'menu' ? 'Buscar item para o menu de hoje' : 'Buscar item ou categoria'}
+            className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] py-[10px] pl-[40px] pr-[52px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+            placeholder={viewMode === 'menu' ? 'Buscar item para o menu...' : 'Buscar item ou categoria'}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') searchInputRef.current?.blur(); }}
@@ -68,11 +75,40 @@ export default function Toolbar({
         </div>
         <button
           type="button"
-          className="min-h-[48px] shrink-0 rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] px-[14px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
-          onClick={handleToggleSort}
+          aria-label={sortMode === 'alpha' ? 'Ordenar por uso recente' : 'Ordenar A-Z'}
           title={sortMode === 'alpha' ? 'Ordenar por uso recente' : 'Ordenar A-Z'}
+          className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+          onClick={handleToggleSort}
         >
-          {sortMode === 'alpha' ? 'Mais usados' : 'A-Z'}
+          {sortMode === 'alpha' ? (
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18M7 12h10M11 18h2"/>
+            </svg>
+          ) : (
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 20V10M12 20V4M6 20v-6"/>
+            </svg>
+          )}
         </button>
       </div>
     </div>

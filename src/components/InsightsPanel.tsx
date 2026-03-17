@@ -80,7 +80,7 @@ export default function InsightsPanel({
               Baseado no seu histórico recente e no comportamento típico de {weekdayLabel}.
             </p>
           </div>
-          <span className="rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-[10px] py-[6px] text-[12px] text-[var(--text-dim)]">
+          <span className="shrink-0 whitespace-nowrap rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] px-[10px] py-[6px] text-[12px] text-[var(--text-dim)]">
             {trackedDays} dias
           </span>
         </div>

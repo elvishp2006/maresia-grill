@@ -14,30 +14,27 @@ const defaultProps = {
 describe('Toolbar', () => {
   it('renders search input and sort button', () => {
     render(<Toolbar {...defaultProps} />);
-    expect(screen.getByPlaceholderText('Buscar item para o menu de hoje')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mais usados' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Buscar item para o menu...')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ordenar por uso recente' })).toBeInTheDocument();
   });
 
-  it('changes helper copy based on mode', () => {
+  it('changes placeholder based on mode', () => {
     const { rerender } = render(<Toolbar {...defaultProps} />);
-    expect(screen.getByText('Seleção rápida')).toBeInTheDocument();
-    expect(screen.getByText('Ordem alfabética')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Buscar item para o menu...')).toBeInTheDocument();
 
     rerender(<Toolbar {...defaultProps} viewMode="manage" />);
-    expect(screen.getByText('Busca e organização')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar item ou categoria')).toBeInTheDocument();
   });
 
-  it('shows "A-Z" label when sortMode is usage', () => {
+  it('shows "Ordenar A-Z" aria-label when sortMode is usage', () => {
     render(<Toolbar {...defaultProps} sortMode="usage" />);
-    expect(screen.getByRole('button', { name: 'A-Z' })).toBeInTheDocument();
-    expect(screen.getByText('Prioridade por frequência')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ordenar A-Z' })).toBeInTheDocument();
   });
 
   it('calls onSearchChange when typing', () => {
     const onSearchChange = vi.fn();
     render(<Toolbar {...defaultProps} onSearchChange={onSearchChange} />);
-    fireEvent.change(screen.getByPlaceholderText('Buscar item para o menu de hoje'), {
+    fireEvent.change(screen.getByPlaceholderText('Buscar item para o menu...'), {
       target: { value: 'arroz' },
     });
     expect(onSearchChange).toHaveBeenCalledWith('arroz');
@@ -47,7 +44,7 @@ describe('Toolbar', () => {
     const onSearchChange = vi.fn();
     render(<Toolbar {...defaultProps} search="arroz" onSearchChange={onSearchChange} />);
 
-    const input = screen.getByPlaceholderText('Buscar item para o menu de hoje');
+    const input = screen.getByPlaceholderText('Buscar item para o menu...');
     input.focus();
     fireEvent.click(screen.getByRole('button', { name: 'Limpar busca' }));
 
@@ -58,12 +55,12 @@ describe('Toolbar', () => {
   it('calls onToggleSort when sort button clicked', () => {
     const onToggleSort = vi.fn();
     render(<Toolbar {...defaultProps} onToggleSort={onToggleSort} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Mais usados' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ordenar por uso recente' }));
     expect(onToggleSort).toHaveBeenCalledTimes(1);
   });
 
   it('applies the provided sticky offset', () => {
-    render(<Toolbar {...defaultProps} stickyTop={212} />);
-    expect(screen.getByText('Seleção rápida').closest('div.sticky')).toHaveStyle({ top: '212px' });
+    const { container } = render(<Toolbar {...defaultProps} stickyTop={212} />);
+    expect(container.querySelector('div.sticky')).toHaveStyle({ top: '212px' });
   });
 });
