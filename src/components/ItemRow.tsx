@@ -63,12 +63,6 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
     <>
       <li className="item rounded-[22px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
         <div className="flex items-center gap-[14px]">
-          <span
-            className={`flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border text-[15px] font-bold transition-colors ${active ? 'border-[var(--green)] bg-[var(--green)] text-[var(--bg)]' : 'border-[var(--border-strong)] text-transparent'}`}
-            aria-hidden="true"
-          >
-            ✓
-          </span>
           <p className="min-w-0 flex-1 truncate text-[15px] font-medium leading-[1.4] text-[var(--text)]">
             {item.nome}
           </p>
