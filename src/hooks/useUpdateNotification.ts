@@ -7,11 +7,9 @@ const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 export function useUpdateNotification() {
   const { showToast } = useToast();
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
-  const hasAnnouncedOfflineReady = useRef(false);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
-    offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl: string, registration: ServiceWorkerRegistration | undefined) {
@@ -33,26 +31,12 @@ export function useUpdateNotification() {
 
   const dismiss = useCallback(() => {
     setNeedRefresh(false);
-    setOfflineReady(false);
-  }, [setNeedRefresh, setOfflineReady]);
+  }, [setNeedRefresh]);
 
   const applyUpdate = useCallback(async () => {
     setNeedRefresh(false);
     await updateServiceWorker(true);
   }, [setNeedRefresh, updateServiceWorker]);
-
-  useEffect(() => {
-    if (!offlineReady || hasAnnouncedOfflineReady.current) return;
-
-    hasAnnouncedOfflineReady.current = true;
-    showToast('✓ App pronto para uso offline', 'success', 3000);
-  }, [offlineReady, showToast]);
-
-  useEffect(() => {
-    if (!offlineReady) {
-      hasAnnouncedOfflineReady.current = false;
-    }
-  }, [offlineReady]);
 
   useEffect(() => {
     if (typeof navigator.serviceWorker === 'undefined') return;
@@ -86,7 +70,6 @@ export function useUpdateNotification() {
 
   return {
     needRefresh,
-    offlineReady,
     applyUpdate,
     dismiss,
   };

@@ -8,12 +8,10 @@ const lightTapMock = vi.fn();
 const successMock = vi.fn();
 
 let currentNeedRefresh = false;
-let currentOfflineReady = false;
 
 vi.mock('../hooks/useUpdateNotification', () => ({
   useUpdateNotification: vi.fn(() => ({
     needRefresh: currentNeedRefresh,
-    offlineReady: currentOfflineReady,
     applyUpdate: applyUpdateMock,
     dismiss: dismissMock,
   })),
@@ -29,7 +27,6 @@ vi.mock('../hooks/useHapticFeedback', () => ({
 describe('UpdateBanner', () => {
   beforeEach(() => {
     currentNeedRefresh = false;
-    currentOfflineReady = false;
     applyUpdateMock.mockReset();
     dismissMock.mockReset();
     lightTapMock.mockReset();
@@ -52,11 +49,11 @@ describe('UpdateBanner', () => {
     expect(dismissMock).not.toHaveBeenCalled();
   });
 
-  it('renders the offline-ready message and allows dismissing it', () => {
-    currentOfflineReady = true;
+  it('dismisses the banner from the close button when an update is available', () => {
+    currentNeedRefresh = true;
 
     render(<UpdateBanner />);
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar aviso de atualizacao' }));
 
     expect(lightTapMock).toHaveBeenCalledTimes(1);
     expect(dismissMock).toHaveBeenCalledTimes(1);
