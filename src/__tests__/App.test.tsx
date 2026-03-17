@@ -40,14 +40,23 @@ vi.mock('../hooks/useOnlineStatus', () => ({
 }));
 
 const applyUpdateMock = vi.fn().mockResolvedValue(undefined);
-const useUpdateNotificationMock = vi.fn(() => ({
+type UpdateNotificationOptions = {
+  autoApply?: boolean;
+  reloadOnControllerChange?: boolean;
+  showUpdatedToast?: boolean;
+};
+
+const useUpdateNotificationMock = vi.fn((options?: UpdateNotificationOptions) => {
+  void options;
+  return {
   needRefresh: false,
   applyUpdate: applyUpdateMock,
   dismiss: vi.fn(),
-}));
+  };
+});
 
 vi.mock('../hooks/useUpdateNotification', () => ({
-  useUpdateNotification: (...args: unknown[]) => useUpdateNotificationMock(...args),
+  useUpdateNotification: (options?: UpdateNotificationOptions) => useUpdateNotificationMock(options),
 }));
 
 const useEditorLockMock = vi.fn(() => ({
