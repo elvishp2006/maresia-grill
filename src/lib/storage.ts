@@ -2,7 +2,11 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Item } from '../types';
 
-const getDateKey = () => new Date().toISOString().slice(0, 10);
+const getDateKey = (date = new Date()) => [
+  date.getFullYear(),
+  String(date.getMonth() + 1).padStart(2, '0'),
+  String(date.getDate()).padStart(2, '0'),
+].join('-');
 
 export interface SelectionHistoryEntry {
   dateKey: string;
@@ -69,7 +73,7 @@ export const loadSelectionHistory = async (days: number): Promise<SelectionHisto
   const refs = Array.from({ length: days }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    const dateKey = d.toISOString().slice(0, 10);
+    const dateKey = getDateKey(d);
     return { dateKey, ref: doc(db, 'selections', dateKey) };
   });
 
