@@ -71,6 +71,11 @@ vi.mock('../hooks/useMenuState', () => ({
 }));
 
 describe('App', () => {
+  const todayShort = new Date().toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     toggleItem.mockReset();
@@ -144,7 +149,7 @@ describe('App', () => {
 
     expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Menu do Dia' })).not.toBeInTheDocument();
-    expect(screen.getByText(/1 • 17\/03/)).toBeInTheDocument();
+    expect(screen.getByText(`1 • ${todayShort}`)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Colapsar Saladas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expandir Carnes' })).toBeInTheDocument();
     expect(screen.queryByText('Sugestões inteligentes')).not.toBeInTheDocument();
@@ -275,7 +280,29 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(screen.getByRole('heading', { name: 'Marésia Grill' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Logo do Marésia Grill' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Marésia Grill' })).not.toBeInTheDocument();
+  });
+
+  it('keeps auth errors visible on the sign-in screen', () => {
+    useAuthSessionMock.mockReturnValue({
+      user: null,
+      loading: false,
+      authError: 'Login cancelado.',
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText('Login cancelado.')).toBeInTheDocument();
   });
 });

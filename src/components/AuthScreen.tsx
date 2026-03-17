@@ -12,19 +12,13 @@ export default function AuthScreen({
   primaryDisabled = false,
 }: AuthScreenProps) {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6">
-      <div className="flex flex-col items-center gap-4">
+    <div className="auth-screen">
+      <div className="auth-screen__content">
         <img
           src="/brand/menu-mark.svg"
-          alt="Marésia Grill"
-          className="w-24 h-24 drop-shadow-[0_0_24px_rgba(215,176,92,0.35)]"
+          alt="Logo do Marésia Grill"
+          className="auth-screen__mark"
         />
-        <h1 className="font-[Georgia,'Times_New_Roman',serif] text-[28px] font-bold tracking-wide text-[var(--accent)]">
-          Marésia Grill
-        </h1>
-      </div>
-
-      <div className="flex flex-col items-center gap-3">
         <button
           type="button"
           className="flex items-center gap-3 rounded-full bg-[var(--accent)] px-8 py-4 text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_24px_rgba(215,176,92,0.25)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
@@ -53,7 +47,7 @@ export default function AuthScreen({
         </button>
 
         {error ? (
-          <p className="text-[13px] text-[var(--accent-red)] text-center">
+          <p className="text-center text-[13px] text-[var(--accent-red)]">
             {error}
           </p>
         ) : null}
