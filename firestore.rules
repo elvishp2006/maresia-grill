@@ -60,6 +60,7 @@ service cloud.firestore {
           'currentVersionId',
           'categories',
           'items',
+          'categorySelectionRules',
           'createdAt',
           'expiresAt'
         ])
@@ -69,6 +70,7 @@ service cloud.firestore {
         && request.resource.data.currentVersionId is string
         && request.resource.data.categories is list
         && request.resource.data.items is list
+        && request.resource.data.categorySelectionRules is list
         && request.resource.data.createdAt is timestamp
         && request.resource.data.expiresAt is timestamp;
     }
@@ -81,6 +83,7 @@ service cloud.firestore {
           'categories',
           'itemIds',
           'items',
+          'categorySelectionRules',
           'createdAt'
         ])
         && request.resource.data.id == versionId
@@ -89,6 +92,7 @@ service cloud.firestore {
         && request.resource.data.categories is list
         && request.resource.data.itemIds is list
         && request.resource.data.items is list
+        && request.resource.data.categorySelectionRules is list
         && request.resource.data.createdAt is timestamp;
     }
 
@@ -148,6 +152,14 @@ service cloud.firestore {
       allow create, update: if isAuthorizedUser()
         && hasOnlyKeys(['items'])
         && request.resource.data.items is list;
+      allow delete: if false;
+    }
+
+    match /config/categorySelectionRules {
+      allow read: if isAuthorizedUser();
+      allow create, update: if isAuthorizedUser()
+        && hasOnlyKeys(['rules'])
+        && request.resource.data.rules is list;
       allow delete: if false;
     }
 

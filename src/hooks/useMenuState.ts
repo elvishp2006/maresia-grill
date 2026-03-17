@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Item, Categoria } from '../types';
+import type { Item, Categoria, CategorySelectionRule } from '../types';
 import { DEFAULT_CATEGORIES } from '../types';
 import {
   getDateKey,
   loadRecentSelections,
+  saveCategorySelectionRules,
   saveCategories,
   saveComplements,
   saveDaySelection,
+  subscribeCategorySelectionRules,
   subscribeCategories,
   subscribeComplements,
   subscribeDaySelection,
 } from '../lib/storage';
 import { useToast } from '../contexts/ToastContext';
+import {
+  removeCategorySelectionRule,
+  upsertCategorySelectionRule,
+  type CategorySelectionRuleInput,
+} from '../lib/categorySelectionRules';
 
 let nextId = Date.now();
 const genId = () => String(nextId++);
@@ -22,13 +29,14 @@ const DAY_CHANGED_MESSAGE = 'Novo dia carregado.';
 export const useMenuState = (isOnline = true, canEdit = true) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [complements, setComplements] = useState<Item[]>([]);
+  const [categorySelectionRules, setCategorySelectionRules] = useState<CategorySelectionRule[]>([]);
   const [daySelection, setDaySelection] = useState<string[]>([]);
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [sortMode, setSortMode] = useState<'alpha' | 'usage'>('alpha');
   const [loading, setLoading] = useState(true);
   const [currentDateKey, setCurrentDateKey] = useState(() => getDateKey());
   const lastDateKeyRef = useRef(currentDateKey);
-  const loadReadyRef = useRef({ categories: false, complements: false, selection: false });
+  const loadReadyRef = useRef({ categories: false, complements: false, rules: false, selection: false });
   const { showToast } = useToast();
 
   const handleSaveError = () => showToast('Erro ao salvar. Verifique sua conexão.', 'error');
@@ -46,7 +54,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   useEffect(() => {
     let active = true;
 
-    const markGlobalReady = (key: 'categories' | 'complements') => {
+    const markGlobalReady = (key: 'categories' | 'complements' | 'rules') => {
       loadReadyRef.current[key] = true;
       if (active && Object.values(loadReadyRef.current).every(Boolean)) setLoading(false);
     };
@@ -69,10 +77,17 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       markGlobalReady('complements');
     }, handleError);
 
+    const unsubscribeCategorySelectionRules = subscribeCategorySelectionRules((rules) => {
+      if (!active) return;
+      setCategorySelectionRules(rules);
+      markGlobalReady('rules');
+    }, handleError);
+
     return () => {
       active = false;
       unsubscribeCategories();
       unsubscribeComplements();
+      unsubscribeCategorySelectionRules();
     };
   }, [showToast]);
 
@@ -199,6 +214,11 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       saveCategories(next).catch(handleSaveError);
       return next;
     });
+    setCategorySelectionRules(prev => {
+      const next = removeCategorySelectionRule(prev, nome);
+      saveCategorySelectionRules(next).catch(handleSaveError);
+      return next;
+    });
     if (removedIds.length > 0) {
       setComplements(prev => {
         const next = prev.filter(item => item.categoria !== nome);
@@ -227,9 +247,19 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     });
   };
 
+  const saveCategoryRule = (category: Categoria, input: CategorySelectionRuleInput) => {
+    if (!guardWritableAction()) return;
+    setCategorySelectionRules(prev => {
+      const next = upsertCategorySelectionRule(prev, category, input);
+      saveCategorySelectionRules(next).catch(handleSaveError);
+      return next;
+    });
+  };
+
   return {
     categories,
     complements,
+    categorySelectionRules,
     daySelection,
     usageCounts,
     sortMode,
@@ -243,5 +273,6 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     addCategory,
     removeCategory,
     moveCategory,
+    saveCategoryRule,
   };
 };

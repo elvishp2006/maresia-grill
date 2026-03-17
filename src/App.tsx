@@ -67,6 +67,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const {
     categories,
     complements,
+    categorySelectionRules,
     daySelection,
     usageCounts,
     sortMode,
@@ -80,6 +81,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
     addCategory,
     removeCategory,
     moveCategory,
+    saveCategoryRule,
   } = useMenuState(isOnline, canEdit);
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
@@ -148,6 +150,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         categories,
         complements,
         daySelection,
+        categorySelectionRules,
       });
 
       if (navigator.share) {
@@ -234,10 +237,11 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
       categories,
       complements,
       daySelection,
+      categorySelectionRules,
     }).catch(() => {
       showToast('Não foi possível atualizar o link público do dia.', 'error');
     });
-  }, [canEdit, categories, complements, currentDateKey, daySelection, isOnline, loading, showToast]);
+  }, [canEdit, categories, complements, currentDateKey, daySelection, categorySelectionRules, isOnline, loading, showToast]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -255,6 +259,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         categories,
         complements,
         daySelection,
+        categorySelectionRules,
         acceptingOrders: !acceptingOrders,
       });
       showToast(
@@ -355,6 +360,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           visibleCategories={visibleCategories}
           categories={categories}
           complements={complements}
+          categorySelectionRules={categorySelectionRules}
           daySelection={daySelection}
           usageCounts={usageCounts}
           sortMode={sortMode}
@@ -371,6 +377,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           onMoveCategory={moveCategory}
           onRemoveCategory={removeCategory}
           onAddCategory={addCategory}
+          onSaveCategoryRule={saveCategoryRule}
           onClearSearch={() => setSearch('')}
           onShare={() => setShowShareSheet(true)}
         />

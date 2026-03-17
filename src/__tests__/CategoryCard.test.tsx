@@ -13,12 +13,14 @@ const items: Item[] = [
 const defaultProps = {
   categoria: 'Saladas',
   items,
+  allCategories: ['Saladas', 'Carnes', 'Churrasco'],
   daySelection: [],
   onToggle: vi.fn(),
   onAdd: vi.fn(),
   onRemove: vi.fn(),
   onRename: vi.fn(),
   onRemoveCategory: vi.fn(),
+  onSaveCategoryRule: vi.fn(),
   search: '',
   sortMode: 'alpha' as const,
   usageCounts: {},
@@ -112,8 +114,16 @@ describe('CategoryCard', () => {
   it('renders management actions in manage mode', () => {
     renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
     expect(screen.getByLabelText('Mover Saladas para cima')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Configurar limite' })).toBeInTheDocument();
     expect(screen.getByLabelText('Adicionar item em Saladas')).toBeInTheDocument();
     expect(screen.getByLabelText('Remover categoria Saladas')).toBeInTheDocument();
+  });
+
+  it('opens the limit configuration sheet in manage mode', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    expect(screen.getByRole('dialog', { name: 'Limite de Saladas' })).toBeInTheDocument();
+    expect(screen.getByText('Compartilhar com outras categorias')).toBeInTheDocument();
   });
 
   it('calls onRemoveCategory after confirmation', async () => {
