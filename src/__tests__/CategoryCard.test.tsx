@@ -40,7 +40,7 @@ describe('CategoryCard', () => {
   it('renders category title and count copy', () => {
     renderWithProviders(<CategoryCard {...defaultProps} daySelection={['1']} />);
     expect(screen.getByText('Saladas')).toBeInTheDocument();
-    expect(screen.getByText('1 de 3 itens no menu de hoje')).toBeInTheDocument();
+    expect(screen.getByText('1/3 itens')).toBeInTheDocument();
   });
 
   it('keeps the title truncatable in narrow layouts', () => {
