@@ -12,16 +12,22 @@ export default function AuthScreen({
   primaryDisabled = false,
 }: AuthScreenProps) {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6">
+    <div
+      className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6"
+      style={{
+        background: `
+          radial-gradient(circle at 50% 40%, rgba(215,176,92,0.13), transparent 55%),
+          radial-gradient(circle at 50% 92%, rgba(215,176,92,0.07), transparent 35%),
+          linear-gradient(180deg, #1b1d15 0%, #15160f 100%)
+        `,
+      }}
+    >
       <div className="flex flex-col items-center gap-4">
         <img
           src="/brand/menu-mark.svg"
           alt="Marésia Grill"
-          className="w-24 h-24 drop-shadow-[0_0_24px_rgba(215,176,92,0.35)]"
+          className="w-32 h-32 drop-shadow-[0_0_24px_rgba(215,176,92,0.35)]"
         />
-        <h1 className="font-[Georgia,'Times_New_Roman',serif] text-[28px] font-bold tracking-wide text-[var(--accent)]">
-          Marésia Grill
-        </h1>
       </div>
 
       <div className="flex flex-col items-center gap-3">
