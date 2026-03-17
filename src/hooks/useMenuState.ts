@@ -28,6 +28,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   const [loading, setLoading] = useState(true);
   const [currentDateKey, setCurrentDateKey] = useState(() => getDateKey());
   const lastDateKeyRef = useRef(currentDateKey);
+  const loadReadyRef = useRef({ categories: false, complements: false, selection: false });
   const { showToast } = useToast();
 
   const handleSaveError = () => showToast('Erro ao salvar. Verifique sua conexão.', 'error');
@@ -44,11 +45,10 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   useEffect(() => {
     let active = true;
-    const ready = { categories: false, complements: false, selection: false };
 
-    const markReady = (key: keyof typeof ready) => {
-      ready[key] = true;
-      if (active && Object.values(ready).every(Boolean)) setLoading(false);
+    const markGlobalReady = (key: 'categories' | 'complements') => {
+      loadReadyRef.current[key] = true;
+      if (active && Object.values(loadReadyRef.current).every(Boolean)) setLoading(false);
     };
 
     const handleError = () => {
@@ -60,25 +60,39 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     const unsubscribeCategories = subscribeCategories((cats) => {
       if (!active) return;
       setCategories(cats.length > 0 ? cats : DEFAULT_CATEGORIES);
-      markReady('categories');
+      markGlobalReady('categories');
     }, handleError);
 
     const unsubscribeComplements = subscribeComplements((items) => {
       if (!active) return;
       setComplements(items);
-      markReady('complements');
-    }, handleError);
-
-    const unsubscribeSelection = subscribeDaySelection(currentDateKey, (ids) => {
-      if (!active) return;
-      setDaySelection(ids);
-      markReady('selection');
+      markGlobalReady('complements');
     }, handleError);
 
     return () => {
       active = false;
       unsubscribeCategories();
       unsubscribeComplements();
+    };
+  }, [showToast]);
+
+  useEffect(() => {
+    let active = true;
+    loadReadyRef.current.selection = false;
+
+    const unsubscribeSelection = subscribeDaySelection(currentDateKey, (ids) => {
+      if (!active) return;
+      setDaySelection(ids);
+      loadReadyRef.current.selection = true;
+      if (Object.values(loadReadyRef.current).every(Boolean)) setLoading(false);
+    }, () => {
+      if (!active) return;
+      showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
       unsubscribeSelection();
     };
   }, [currentDateKey, showToast]);
