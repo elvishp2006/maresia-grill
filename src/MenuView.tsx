@@ -62,21 +62,6 @@ export default function MenuView({
   return (
     <>
       <main className="pb-[24px]">
-        <section className="section-card mb-[18px]">
-          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            {viewMode === 'menu' ? 'Fluxo principal' : viewMode === 'stats' ? 'Área analítica' : 'Modo administrativo'}
-          </p>
-          <p className="mt-[8px] max-w-[56ch] text-[15px] leading-[1.6] text-[var(--text)]">
-            {viewMode === 'menu'
-              ? daySelection.length === 0
-                ? 'Toque nos itens para montar rapidamente o menu de hoje.'
-                : `${daySelection.length} ${daySelection.length === 1 ? 'item' : 'itens'} no menu de hoje.`
-              : viewMode === 'stats'
-                ? 'Consulte sugestões e histórico sem interferir no fluxo principal de seleção.'
-                : 'Organize categorias e mantenha o catálogo atualizado sem poluir a tela principal.'}
-          </p>
-        </section>
-
         {viewMode === 'stats' ? (
           isOnline ? (
             <InsightsPanel

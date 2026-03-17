@@ -12,6 +12,7 @@ import { useAuthSession } from './hooks/useAuthSession';
 import { useMenuInsights } from './hooks/useMenuInsights';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { useToast } from './contexts/ToastContext';
+import { useModal } from './contexts/ModalContext';
 import MenuView from './MenuView';
 
 interface AuthenticatedAppProps {
@@ -22,6 +23,7 @@ interface AuthenticatedAppProps {
 function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
   const { showToast } = useToast();
+  const { confirm } = useModal();
   const {
     categories,
     complements,
@@ -84,6 +86,11 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
     }
   };
 
+  const handleSignOut = async () => {
+    const ok = await confirm('Sair da conta', 'Deseja encerrar a sessão?');
+    if (ok) onSignOut();
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -92,7 +99,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         activeCount={daySelection.length}
         dateShort={dateShort}
         isOnline={isOnline}
-        onSignOut={onSignOut}
+        onSignOut={() => { void handleSignOut(); }}
         userEmail={userEmail}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
