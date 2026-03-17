@@ -39,6 +39,10 @@ export interface AcquireEditorLockInput {
   deviceLabel: string;
 }
 
+export interface AcquireEditorLockOptions {
+  force?: boolean;
+}
+
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(item => typeof item === 'string');
 
@@ -177,14 +181,17 @@ export const subscribeEditorLock = (
   onValue(snap.exists() ? normalizeEditorLock(snap.data()) : null);
 }, error => onError?.(error));
 
-export const acquireEditorLock = async (input: AcquireEditorLockInput): Promise<EditorLock | null> => {
+export const acquireEditorLock = async (
+  input: AcquireEditorLockInput,
+  options: AcquireEditorLockOptions = {},
+): Promise<EditorLock | null> => {
   return runTransaction(getDb(), async (transaction) => {
     const ref = editorLockRef();
     const snap = await transaction.get(ref);
     const current = snap.exists() ? normalizeEditorLock(snap.data()) : null;
     const now = Date.now();
 
-    if (current && !isLockExpired(current, now) && current.sessionId !== input.sessionId) {
+    if (!options.force && current && !isLockExpired(current, now) && current.sessionId !== input.sessionId) {
       return null;
     }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { EditorLock } from '../types';
 import {
   acquireEditorLock,
@@ -9,10 +9,8 @@ import {
 } from '../lib/storage';
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
-const INACTIVITY_TIMEOUT_MS = 30_000;
 const SESSION_STORAGE_KEY = 'menu-editor-session-id';
 const DEVICE_STORAGE_KEY = 'menu-editor-device-label';
-const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'focus'];
 
 const getStorage = (storage: 'localStorage' | 'sessionStorage') => {
   if (typeof window === 'undefined') return null;
@@ -52,9 +50,6 @@ const getOrCreateStoredValue = (key: string, storage: 'localStorage' | 'sessionS
   return next;
 };
 
-const isDocumentVisible = () =>
-  typeof document === 'undefined' || document.visibilityState === 'visible';
-
 export interface EditorLockState {
   canEdit: boolean;
   loading: boolean;
@@ -63,16 +58,13 @@ export interface EditorLockState {
   isOwner: boolean;
   error: string | null;
   requestEditAccess: () => Promise<boolean>;
+  takeControl: () => Promise<boolean>;
   releaseEditAccess: () => Promise<void>;
 }
 
 export function useEditorLock(userEmail?: string | null, isOnline = true): EditorLockState {
   const [lock, setLock] = useState<EditorLock | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isForeground, setIsForeground] = useState(isDocumentVisible());
-  const [lastInteractionAt, setLastInteractionAt] = useState(() => Date.now());
-  const [isLocallyActive, setIsLocallyActive] = useState(true);
-  const reacquireAttemptedRef = useRef(false);
 
   const sessionId = useMemo(
     () => getOrCreateStoredValue(SESSION_STORAGE_KEY, 'sessionStorage', randomId),
@@ -96,39 +88,6 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
     return unsubscribe;
   }, [userEmail]);
 
-  useEffect(() => {
-    const markInteraction = () => {
-      setLastInteractionAt(Date.now());
-      setIsForeground(isDocumentVisible());
-      setIsLocallyActive(true);
-      reacquireAttemptedRef.current = false;
-    };
-
-    const handleVisibilityChange = () => {
-      const visible = isDocumentVisible();
-      setIsForeground(visible);
-      if (visible) {
-        setLastInteractionAt(Date.now());
-        setIsLocallyActive(true);
-        reacquireAttemptedRef.current = false;
-      } else {
-        setIsLocallyActive(false);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    for (const eventName of ACTIVITY_EVENTS) {
-      window.addEventListener(eventName, markInteraction);
-    }
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      for (const eventName of ACTIVITY_EVENTS) {
-        window.removeEventListener(eventName, markInteraction);
-      }
-    };
-  }, []);
-
   const requestEditAccess = useCallback(async () => {
     if (!userEmail || !isOnline) return false;
     try {
@@ -136,7 +95,19 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
       setError(null);
       return acquired?.sessionId === sessionId;
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel assumir a edicao.');
+      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel solicitar a edicao.');
+      return false;
+    }
+  }, [deviceLabel, isOnline, sessionId, userEmail]);
+
+  const takeControl = useCallback(async () => {
+    if (!userEmail || !isOnline) return false;
+    try {
+      const acquired = await acquireEditorLock({ sessionId, userEmail, deviceLabel }, { force: true });
+      setError(null);
+      return acquired?.sessionId === sessionId;
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel assumir o controle.');
       return false;
     }
   }, [deviceLabel, isOnline, sessionId, userEmail]);
@@ -152,38 +123,16 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
   const effectiveLock = userEmail ? lock : null;
   const isOwner = effectiveLock?.sessionId === sessionId && !isLockExpired(effectiveLock);
   const isExpired = isLockExpired(effectiveLock);
-  const canEdit = isOnline && isOwner && isLocallyActive;
+  const canEdit = isOnline && isOwner;
 
   useEffect(() => {
-    if (!isForeground) return undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setIsLocallyActive(false);
-    }, Math.max(0, INACTIVITY_TIMEOUT_MS - (Date.now() - lastInteractionAt)));
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isForeground, lastInteractionAt]);
-
-  useEffect(() => {
-    if (!userEmail || !isOnline || !isLocallyActive) return;
-    if (lock && !isExpired) return;
-    if (reacquireAttemptedRef.current) return;
-
-    reacquireAttemptedRef.current = true;
-    const attemptId = window.setTimeout(() => {
-      void requestEditAccess().then((granted) => {
-        if (!granted) reacquireAttemptedRef.current = false;
-      });
+    if (!userEmail || !isOnline || lock) return;
+    const requestId = window.setTimeout(() => {
+      void requestEditAccess();
     }, 0);
 
-    return () => window.clearTimeout(attemptId);
-  }, [isExpired, isLocallyActive, isOnline, lock, requestEditAccess, userEmail]);
-
-  useEffect(() => {
-    if (!userEmail || !isOwner) return;
-    if (isLocallyActive) return;
-    void releaseEditAccess();
-  }, [isLocallyActive, isOwner, releaseEditAccess, userEmail]);
+    return () => window.clearTimeout(requestId);
+  }, [isOnline, lock, requestEditAccess, userEmail]);
 
   useEffect(() => {
     if (!canEdit) return;
@@ -224,6 +173,7 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
     isOwner,
     error,
     requestEditAccess,
+    takeControl,
     releaseEditAccess,
   };
 }

@@ -14,7 +14,6 @@ import { useToast } from './contexts/ToastContext';
 import { useModal } from './contexts/ModalContext';
 import MenuView from './MenuView';
 import { useEditorLock } from './hooks/useEditorLock';
-import { LOCK_TIMEOUT_MS } from './lib/storage';
 import { useUpdateNotification } from './hooks/useUpdateNotification';
 
 interface AuthenticatedAppProps {
@@ -30,9 +29,8 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const {
     canEdit,
     lock,
-    isExpired,
     error: editorLockError,
-    requestEditAccess,
+    takeControl,
     releaseEditAccess,
   } = useEditorLock(userEmail, isOnline);
   const {
@@ -108,7 +106,6 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   if (loading) return <LoadingSpinner />;
 
   const isReadOnly = isOnline && !canEdit;
-  const canTakeOver = isReadOnly && isExpired;
   const hasEditorLockPermissionIssue = editorLockError?.toLowerCase().includes('permission') ?? false;
 
   return (
@@ -145,28 +142,24 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
             {hasEditorLockPermissionIssue
               ? 'O controle de edição não conseguiu acessar o documento de lock no Firestore.'
-              : isExpired
-                ? `${lock?.userEmail ?? 'Outra pessoa'} ficou com a edição travada em ${lock?.deviceLabel ?? 'outro dispositivo'}.`
-                : `${lock?.userEmail ?? 'Outra pessoa'} está editando em ${lock?.deviceLabel ?? 'outro dispositivo'}.`}
+              : `${lock?.userEmail ?? 'Outra pessoa'} está editando em ${lock?.deviceLabel ?? 'outro dispositivo'}.`}
           </p>
           <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
             {hasEditorLockPermissionIssue
               ? 'Publique as regras mais recentes do Firestore para liberar leitura e escrita em config/editorLock.'
-              : isExpired
-                ? 'A sessão anterior expirou. Você já pode assumir a edição.'
-                : `Se essa sessão parar de responder, o bloqueio expira em até ${Math.ceil(LOCK_TIMEOUT_MS / 1000)}s.`}
+              : 'Clique abaixo para assumir o controle da edição neste dispositivo.'}
           </p>
-          {canTakeOver && !hasEditorLockPermissionIssue ? (
+          {!hasEditorLockPermissionIssue ? (
             <button
               type="button"
               className="neon-gold-fill mt-[14px] min-h-[48px] rounded-[18px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
               onClick={() => {
-                void requestEditAccess().then((granted) => {
-                  if (!granted) showToast('Nao foi possivel assumir a edição.', 'error');
+                void takeControl().then((granted) => {
+                  if (!granted) showToast('Nao foi possivel assumir o controle.', 'error');
                 });
               }}
             >
-              Assumir edição
+              Assumir controle
             </button>
           ) : null}
         </section>

@@ -252,6 +252,31 @@ describe('storage', () => {
       expect(mockSetDoc).toHaveBeenCalled();
     });
 
+    it('forces takeover when explicitly requested', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          sessionId: 'session-2',
+          userEmail: 'other@maresia.com',
+          deviceLabel: 'iPhone',
+          status: 'active',
+          acquiredAt: Date.now(),
+          lastHeartbeatAt: Date.now(),
+          expiresAt: Date.now() + 30_000,
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { acquireEditorLock } = await import('../lib/storage');
+      const result = await acquireEditorLock({
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      }, { force: true });
+
+      expect(result?.sessionId).toBe('session-1');
+      expect(mockSetDoc).toHaveBeenCalled();
+    });
+
     it('renews the heartbeat for the owner session', async () => {
       mockGetDoc.mockResolvedValue({
         exists: () => true,

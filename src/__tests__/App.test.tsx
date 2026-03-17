@@ -58,6 +58,7 @@ const useEditorLockMock = vi.fn(() => ({
   isOwner: true,
   error: null as string | null,
   requestEditAccess: vi.fn().mockResolvedValue(true),
+  takeControl: vi.fn().mockResolvedValue(true),
   releaseEditAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -126,6 +127,7 @@ describe('App', () => {
       isOwner: true,
       error: null,
       requestEditAccess: vi.fn().mockResolvedValue(true),
+      takeControl: vi.fn().mockResolvedValue(true),
       releaseEditAccess: vi.fn().mockResolvedValue(undefined),
     });
     vi.stubGlobal('alert', vi.fn());
@@ -340,6 +342,7 @@ describe('App', () => {
       isOwner: false,
       error: null,
       requestEditAccess: vi.fn().mockResolvedValue(false),
+      takeControl: vi.fn().mockResolvedValue(true),
       releaseEditAccess: vi.fn().mockResolvedValue(undefined),
     });
 
@@ -353,6 +356,7 @@ describe('App', () => {
 
     expect(screen.getByText('Leitura somente')).toBeInTheDocument();
     expect(screen.getByText(/outra@maresia.com está editando em iPhone/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assumir controle' })).toBeInTheDocument();
   });
 
   it('shows a Firestore rules hint when the editor lock read is denied', () => {
@@ -364,6 +368,7 @@ describe('App', () => {
       isOwner: false,
       error: 'Missing or insufficient permissions.',
       requestEditAccess: vi.fn().mockResolvedValue(false),
+      takeControl: vi.fn().mockResolvedValue(false),
       releaseEditAccess: vi.fn().mockResolvedValue(undefined),
     });
 
@@ -377,7 +382,7 @@ describe('App', () => {
 
     expect(screen.getByText(/não conseguiu acessar o documento de lock no Firestore/i)).toBeInTheDocument();
     expect(screen.getByText(/Publique as regras mais recentes do Firestore/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Assumir edição' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assumir controle' })).not.toBeInTheDocument();
   });
 
   it('renders the sign-in screen when there is no session', () => {

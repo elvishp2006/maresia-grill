@@ -32,10 +32,6 @@ describe('useEditorLock', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    Object.defineProperty(document, 'visibilityState', {
-      value: 'visible',
-      configurable: true,
-    });
 
     sessionStorage.clear();
     localStorage.clear();
@@ -56,7 +52,7 @@ describe('useEditorLock', () => {
     vi.useRealTimers();
   });
 
-  it('acquires the lock automatically when active and unlocked', async () => {
+  it('acquires the lock automatically when there is no current owner', async () => {
     renderHook(() => useEditorLock('chef@maresia.com', true));
 
     await act(async () => {
@@ -70,7 +66,7 @@ describe('useEditorLock', () => {
     });
   });
 
-  it('releases the lock when the app goes to background', async () => {
+  it('keeps renewing the heartbeat while the current session owns the lock', async () => {
     subscribeEditorLockMock.mockImplementation((onValue: (lock: EditorLock | null) => void) => {
       onValue(makeLock());
       return vi.fn();
@@ -78,61 +74,33 @@ describe('useEditorLock', () => {
 
     renderHook(() => useEditorLock('chef@maresia.com', true));
 
-    Object.defineProperty(document, 'visibilityState', {
-      value: 'hidden',
-      configurable: true,
-    });
-
     act(() => {
-      document.dispatchEvent(new Event('visibilitychange'));
+      vi.advanceTimersByTime(15_000);
     });
 
-    expect(releaseEditorLockMock).toHaveBeenCalledWith('session-1');
+    expect(renewEditorLockMock).toHaveBeenCalledWith('session-1');
   });
 
-  it('releases the lock after 30 seconds without interaction while visible', async () => {
+  it('forces takeover when takeControl is called', async () => {
     subscribeEditorLockMock.mockImplementation((onValue: (lock: EditorLock | null) => void) => {
-      onValue(makeLock());
+      onValue(makeLock({
+        sessionId: 'session-2',
+        userEmail: 'other@maresia.com',
+        deviceLabel: 'iPhone',
+      }));
       return vi.fn();
     });
 
-    renderHook(() => useEditorLock('chef@maresia.com', true));
-
-    act(() => {
-      vi.advanceTimersByTime(30_000);
-    });
-
-    expect(releaseEditorLockMock).toHaveBeenCalledWith('session-1');
-  });
-
-  it('tries to reacquire when the user interacts again after inactivity', async () => {
-    let onValueRef: ((lock: EditorLock | null) => void) | null = null;
-    subscribeEditorLockMock.mockImplementation((onValue: (lock: EditorLock | null) => void) => {
-      onValueRef = onValue;
-      onValue(makeLock());
-      return vi.fn();
-    });
-
-    renderHook(() => useEditorLock('chef@maresia.com', true));
-
-    act(() => {
-      vi.advanceTimersByTime(30_000);
-    });
-
-    expect(releaseEditorLockMock).toHaveBeenCalledWith('session-1');
-
-    act(() => {
-      onValueRef?.(null);
-    });
-
-    act(() => {
-      window.dispatchEvent(new Event('focus'));
-    });
+    const { result } = renderHook(() => useEditorLock('chef@maresia.com', true));
 
     await act(async () => {
-      await vi.runOnlyPendingTimersAsync();
+      await result.current.takeControl();
     });
 
-    expect(acquireEditorLockMock).toHaveBeenCalled();
+    expect(acquireEditorLockMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      userEmail: 'chef@maresia.com',
+      deviceLabel: 'Mac',
+    }, { force: true });
   });
 });
