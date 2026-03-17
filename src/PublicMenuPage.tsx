@@ -441,6 +441,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const selectedCount = selection.length;
 
   const toggleItem = (id: string) => {
+    lightTap();
     setSelection(prev => (
       prev.includes(id)
         ? prev.filter(itemId => itemId !== id)

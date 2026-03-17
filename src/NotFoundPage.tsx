@@ -1,4 +1,8 @@
+import { useHapticFeedback } from './hooks/useHapticFeedback';
+
 export default function NotFoundPage() {
+  const { lightTap } = useHapticFeedback();
+
   return (
     <main className="public-shell">
       <section className="public-topbar">
@@ -38,6 +42,9 @@ export default function NotFoundPage() {
         </p>
         <a
           href="/"
+          onClick={() => {
+            lightTap();
+          }}
           className="neon-gold-fill mt-[20px] inline-flex min-h-[56px] w-full items-center justify-center rounded-[22px] bg-[var(--accent)] px-[20px] text-[16px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
         >
           Voltar ao início
