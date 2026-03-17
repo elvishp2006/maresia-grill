@@ -10,7 +10,8 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { EditorLock, Item, OrderEntry, PublicMenu, PublicMenuVersion } from '../types';
+import type { CategorySelectionRule, EditorLock, Item, OrderEntry, PublicMenu, PublicMenuVersion } from '../types';
+import { normalizeCategorySelectionRules, validateSelectionRules } from './categorySelectionRules';
 
 export const LOCK_TIMEOUT_MS = 60_000;
 
@@ -29,6 +30,7 @@ const getDb = () => {
 
 const categoriesRef = () => doc(getDb(), 'config', 'categories');
 const complementsRef = () => doc(getDb(), 'config', 'complements');
+const categorySelectionRulesRef = () => doc(getDb(), 'config', 'categorySelectionRules');
 const selectionRef = (dateKey: string) => doc(getDb(), 'selections', dateKey);
 const editorLockRef = () => doc(getDb(), 'config', 'editorLock');
 const shareLinkRef = (dateKey: string) => doc(getDb(), 'shareLinks', dateKey);
@@ -64,6 +66,7 @@ export interface CreateDailyShareLinkInput {
   categories: string[];
   complements: Item[];
   daySelection: string[];
+  categorySelectionRules: CategorySelectionRule[];
 }
 
 export interface ShareLinkResult {
@@ -146,6 +149,14 @@ const isValidStoredShareLink = (value: unknown): value is StoredShareLink => {
     && (candidate.acceptingOrders === undefined || typeof candidate.acceptingOrders === 'boolean');
 };
 
+const isValidCategorySelectionRule = (value: unknown): value is CategorySelectionRule => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.category === 'string'
+    && (candidate.maxSelections === undefined || typeof candidate.maxSelections === 'number')
+    && (candidate.sharedLimitGroupId === undefined || candidate.sharedLimitGroupId === null || typeof candidate.sharedLimitGroupId === 'string');
+};
+
 const isValidPublicMenu = (value: unknown): value is PublicMenu & { createdAt: number } => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
@@ -157,6 +168,8 @@ const isValidPublicMenu = (value: unknown): value is PublicMenu & { createdAt: n
     && candidate.categories.every(item => typeof item === 'string')
     && Array.isArray(candidate.items)
     && candidate.items.every(isValidItem)
+    && Array.isArray(candidate.categorySelectionRules)
+    && candidate.categorySelectionRules.every(isValidCategorySelectionRule)
     && normalizeTimestamp(candidate.createdAt) !== null
     && normalizeTimestamp(candidate.expiresAt) !== null;
 };
@@ -172,6 +185,8 @@ const isValidPublicMenuVersion = (value: unknown): value is PublicMenuVersion =>
     && candidate.itemIds.every(item => typeof item === 'string')
     && Array.isArray(candidate.items)
     && candidate.items.every(isValidItem)
+    && Array.isArray(candidate.categorySelectionRules)
+    && candidate.categorySelectionRules.every(isValidCategorySelectionRule)
     && normalizeTimestamp(candidate.createdAt) !== null;
 };
 
@@ -212,6 +227,7 @@ const normalizePublicMenu = (value: unknown): PublicMenu | null => {
     currentVersionId: value.currentVersionId,
     categories: value.categories,
     items: value.items,
+    categorySelectionRules: normalizeCategorySelectionRules(value.categorySelectionRules),
     expiresAt: normalizeTimestamp(value.expiresAt)!,
   };
 };
@@ -225,6 +241,7 @@ const normalizePublicMenuVersion = (id: string, value: unknown): PublicMenuVersi
     categories: value.categories,
     itemIds: value.itemIds,
     items: value.items,
+    categorySelectionRules: normalizeCategorySelectionRules(value.categorySelectionRules),
     createdAt: normalizeTimestamp(value.createdAt)!,
   };
 };
@@ -269,13 +286,16 @@ const buildSelectedItemsSnapshot = (
   categories: string[],
   complements: Item[],
   daySelection: string[],
-): Pick<PublicMenu, 'categories' | 'items'> => {
+  categorySelectionRules: CategorySelectionRule[],
+): Pick<PublicMenu, 'categories' | 'items' | 'categorySelectionRules'> => {
   const selected = complements.filter(item => daySelection.includes(item.id));
   const categorySet = new Set(selected.map(item => item.categoria));
 
   return {
     categories: categories.filter(category => categorySet.has(category)),
     items: selected.map(item => ({ ...item })),
+    categorySelectionRules: normalizeCategorySelectionRules(categorySelectionRules)
+      .filter(rule => categorySet.has(rule.category)),
   };
 };
 
@@ -291,11 +311,12 @@ const buildPublicMenuDocument = ({
   categories,
   complements,
   daySelection,
+  categorySelectionRules,
   acceptingOrders,
   now,
 }: CreateDailyShareLinkInput & { token: string; currentVersionId: string; now: number; acceptingOrders: boolean }) => {
   const expiresAt = buildExpiryDate(dateKey);
-  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection);
+  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection, categorySelectionRules);
 
   return {
     token,
@@ -304,6 +325,7 @@ const buildPublicMenuDocument = ({
     currentVersionId,
     categories: snapshot.categories,
     items: snapshot.items,
+    categorySelectionRules: snapshot.categorySelectionRules,
     createdAt: new Date(now),
     expiresAt,
   };
@@ -316,9 +338,10 @@ const buildPublicMenuVersionDocument = ({
   categories,
   complements,
   daySelection,
+  categorySelectionRules,
   now,
 }: CreateDailyShareLinkInput & { token: string; versionId: string; now: number }) => {
-  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection);
+  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection, categorySelectionRules);
 
   return {
     id: versionId,
@@ -327,6 +350,7 @@ const buildPublicMenuVersionDocument = ({
     categories: snapshot.categories,
     itemIds: snapshot.items.map(item => item.id),
     items: snapshot.items,
+    categorySelectionRules: snapshot.categorySelectionRules,
     createdAt: new Date(now),
   };
 };
@@ -374,6 +398,22 @@ export const loadComplements = async (): Promise<Item[]> => {
 export const saveComplements = (items: Item[]): Promise<void> => {
   return setDoc(complementsRef(), { items });
 };
+
+export const loadCategorySelectionRules = async (): Promise<CategorySelectionRule[]> => {
+  const snap = await getDoc(categorySelectionRulesRef());
+  return snap.exists() ? normalizeCategorySelectionRules(snap.data().rules) : [];
+};
+
+export const saveCategorySelectionRules = (rules: CategorySelectionRule[]): Promise<void> => {
+  return setDoc(categorySelectionRulesRef(), { rules: normalizeCategorySelectionRules(rules) });
+};
+
+export const subscribeCategorySelectionRules = (
+  onValue: (rules: CategorySelectionRule[]) => void,
+  onError?: (error: Error) => void,
+) => onSnapshot(categorySelectionRulesRef(), (snap) => {
+  onValue(snap.exists() ? normalizeCategorySelectionRules(snap.data().rules) : []);
+}, error => onError?.(error));
 
 export const subscribeComplements = (
   onValue: (items: Item[]) => void,
@@ -511,6 +551,7 @@ export const getOrCreateDailyShareLink = async ({
   categories,
   complements,
   daySelection,
+  categorySelectionRules,
 }: CreateDailyShareLinkInput): Promise<ShareLinkResult> => {
   const now = Date.now();
 
@@ -528,6 +569,7 @@ export const getOrCreateDailyShareLink = async ({
         categories,
         complements,
         daySelection,
+        categorySelectionRules,
         now,
       });
       const publicMenu = buildPublicMenuDocument({
@@ -537,6 +579,7 @@ export const getOrCreateDailyShareLink = async ({
         categories,
         complements,
         daySelection,
+        categorySelectionRules,
         acceptingOrders: existingLink.acceptingOrders,
         now,
       });
@@ -559,6 +602,7 @@ export const getOrCreateDailyShareLink = async ({
       categories,
       complements,
       daySelection,
+      categorySelectionRules,
       now,
     });
     const publicMenu = buildPublicMenuDocument({
@@ -568,6 +612,7 @@ export const getOrCreateDailyShareLink = async ({
       categories,
       complements,
       daySelection,
+      categorySelectionRules,
       acceptingOrders: true,
       now,
     });
@@ -615,6 +660,7 @@ export const syncPublicMenuSnapshotForDate = async ({
   categories,
   complements,
   daySelection,
+  categorySelectionRules,
 }: CreateDailyShareLinkInput): Promise<void> => {
   const linkSnap = await getDoc(shareLinkRef(dateKey));
   if (!linkSnap.exists()) return;
@@ -631,6 +677,7 @@ export const syncPublicMenuSnapshotForDate = async ({
     categories,
     complements,
     daySelection,
+    categorySelectionRules,
     now,
   });
   const publicMenu = buildPublicMenuDocument({
@@ -640,6 +687,7 @@ export const syncPublicMenuSnapshotForDate = async ({
     categories,
     complements,
     daySelection,
+    categorySelectionRules,
     acceptingOrders: existingLink.acceptingOrders,
     now,
   });
@@ -667,6 +715,7 @@ export const setOrderIntakeStatus = async ({
   categories,
   complements,
   daySelection,
+  categorySelectionRules,
   acceptingOrders,
 }: SetOrderIntakeStatusInput): Promise<void> => {
   const now = Date.now();
@@ -696,6 +745,7 @@ export const setOrderIntakeStatus = async ({
       categories,
       complements,
       daySelection,
+      categorySelectionRules,
       now,
     }));
     transaction.set(publicMenuRef(token), buildPublicMenuDocument({
@@ -705,6 +755,7 @@ export const setOrderIntakeStatus = async ({
       categories,
       complements,
       daySelection,
+      categorySelectionRules,
       acceptingOrders,
       now,
     }));
@@ -732,6 +783,15 @@ export const submitPublicOrder = async ({
 
   if (submittedItemIds.length === 0) {
     throw new Error('Nenhum item valido encontrado para este pedido.');
+  }
+
+  const selectionViolations = validateSelectionRules(
+    publicMenu.items,
+    submittedItemIds,
+    publicMenu.categorySelectionRules,
+  );
+  if (selectionViolations.length > 0) {
+    throw new Error(selectionViolations[0]?.message ?? 'Selecao invalida para este pedido.');
   }
 
   await setDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId), {

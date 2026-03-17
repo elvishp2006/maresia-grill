@@ -6,6 +6,12 @@ import { deletePublicOrder, submitPublicOrder, subscribePublicMenu } from './lib
 import { useToast } from './contexts/ToastContext';
 import { useHapticFeedback } from './hooks/useHapticFeedback';
 import { useModal } from './contexts/ModalContext';
+import {
+  canSelectItem,
+  describeCategorySelectionRule,
+  getItemSelectionAvailability,
+  validateSelectionRules,
+} from './lib/categorySelectionRules';
 
 const CUSTOMER_NAME_STORAGE_KEY = 'public-menu-customer-name';
 
@@ -439,14 +445,29 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const canStartNewOrder = Boolean(menu?.acceptingOrders);
   const isMenuExpired = menu === null;
   const selectedCount = selection.length;
+  const selectionViolations = useMemo(() => (
+    menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
+  ), [menu, selection]);
 
   const toggleItem = (id: string) => {
+    if (!menu) return;
     lightTap();
-    setSelection(prev => (
-      prev.includes(id)
-        ? prev.filter(itemId => itemId !== id)
-        : [...prev, id]
-    ));
+    setSelection(prev => {
+      if (prev.includes(id)) return prev.filter(itemId => itemId !== id);
+
+      const result = canSelectItem({
+        items: menu.items,
+        selectedItemIds: prev,
+        itemId: id,
+        rules: menu.categorySelectionRules,
+      });
+      if (!result.allowed) {
+        showToast(result.violation.message, 'info');
+        return prev;
+      }
+
+      return [...prev, id];
+    });
   };
 
   const handleSubmit = async () => {
@@ -454,11 +475,15 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     const trimmedName = customerName.trim();
     if (!trimmedName) {
-      showToast('Informe o nome do cliente.', 'info');
+      showToast('Informe seu nome.', 'info');
       return;
     }
     if (selection.length === 0) {
       showToast('Selecione pelo menos um item.', 'info');
+      return;
+    }
+    if (selectionViolations.length > 0) {
+      showToast(selectionViolations[0]?.message ?? 'Ajuste os itens selecionados antes de enviar.', 'info');
       return;
     }
 
@@ -528,7 +553,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (removedState) {
     return (
       <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
-        <PublicHeader eyebrow="Pedido removido" title="Maresia Grill" accent="red" />
+        <PublicHeader eyebrow="Removido" title="Maresia Grill" accent="red" />
         <PublicStateCard
           icon={(
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -540,7 +565,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           body={
             canStartNewOrder
               ? `${removedState.customerName}, você ainda pode montar um novo pedido neste cardápio.`
-              : `${removedState.customerName}, a confirmação da remoção do seu pedido foi preservada neste link.`
+              : `${removedState.customerName}, a confirmação foi preservada neste link.`
           }
         />
         {canStartNewOrder ? (
@@ -568,7 +593,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (successState) {
     return (
       <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
-        <PublicHeader eyebrow="Pedido salvo" title="Maresia Grill" />
+        <PublicHeader eyebrow="Enviado" title="Maresia Grill" />
         <PublicStateCard
           icon={(
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -578,21 +603,21 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           title="Seu pedido foi enviado"
           body={
             canModifyExistingOrder
-              ? 'Se você enviar novamente por este link, o pedido anterior será atualizado.'
+              ? 'Se quiser, você ainda pode editar ou remover este pedido.'
               : isMenuExpired
-                ? 'A confirmação do seu pedido foi preservada, mas este cardápio não está mais disponível.'
-                : 'A confirmação do seu pedido foi preservada, mas o recebimento já foi encerrado.'
+                ? 'A confirmação foi preservada, mas este cardápio não está mais disponível.'
+                : 'A confirmação foi preservada, mas os pedidos já foram encerrados.'
           }
           summary={(
             <>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
-                Cliente
+                Seu nome
               </p>
               <p className="mt-[6px] text-[18px] font-semibold text-[var(--text)]">
                 {successState.customerName}
               </p>
               <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[13px] text-[var(--text-dim)]">
-                <span>Resumo do pedido</span>
+                <span>Itens escolhidos</span>
                 <span>{successState.selectedItemIds.length} selecionados</span>
               </div>
             </>
@@ -635,7 +660,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (!menu) {
     return (
       <main className="public-shell">
-        <PublicHeader eyebrow="Link expirado" title="Pedido do dia" accent="red" />
+        <PublicHeader eyebrow="Link expirado" title="Maresia Grill" accent="red" />
         <PublicStateCard
           icon={(
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -654,7 +679,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (!menu.acceptingOrders) {
     return (
       <main className="public-shell">
-        <PublicHeader eyebrow="Pedidos encerrados" title="Pedido do dia" accent="red" />
+        <PublicHeader eyebrow="Encerrado" title="Maresia Grill" accent="red" />
         <PublicStateCard
           icon={(
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -673,16 +698,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   return (
     <main className="public-shell" style={{ paddingBottom: `${footerHeight + 24}px` }}>
       <PublicHeader
-        eyebrow="Cardápio do dia"
+        eyebrow="Hoje"
         title="Faça seu pedido"
         trailing={(
           <div className="public-inline-panel px-[12px] py-[8px] text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
-              Itens
-            </p>
-            <p className="mt-[3px] text-[16px] font-semibold text-[var(--accent)]">
-              {menu.items.length}
-            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">Opções</p>
+            <p className="mt-[3px] text-[16px] font-semibold text-[var(--accent)]">{menu.items.length}</p>
           </div>
         )}
       />
@@ -690,11 +711,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       <section className="public-panel px-[18px] py-[18px]">
         <div className="flex items-start justify-between gap-[12px]">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
-              Identificação
-            </p>
             <h2 className="mt-[8px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold leading-[1.04] tracking-[-0.02em] text-[var(--text)]">
-              Nome do cliente
+              Identificação
             </h2>
           </div>
           <div className="public-inline-panel min-w-[92px] px-[12px] py-[8px] text-right">
@@ -707,11 +725,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           </div>
         </div>
         <p className="mt-[10px] text-[14px] leading-[1.7] text-[var(--text-dim)]">
-          Informe seu nome e toque nos itens para montar o prato.
+          Digite seu nome e escolha os itens do seu pedido.
         </p>
 
         <label className="mt-[18px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          Nome do cliente
+          Seu nome
           <input
             type="text"
             value={customerName}
@@ -730,9 +748,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           >
             <div className="flex items-start justify-between gap-[12px]">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-dim)]">
-                  Categoria
-                </p>
                 <h2 className="mt-[6px] font-[Georgia,'Times_New_Roman',serif] text-[25px] font-bold leading-[1.04] tracking-[-0.02em] text-[var(--text)]">
                   {category}
                 </h2>
@@ -741,26 +756,38 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 {items.length}
               </div>
             </div>
-            <div className="mt-[10px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
-              Toque para selecionar ou remover cada complemento.
-            </div>
+            {describeCategorySelectionRule(category, menu.categorySelectionRules) ? (
+              <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--accent)]">
+                {describeCategorySelectionRule(category, menu.categorySelectionRules)}
+              </p>
+            ) : null}
             <ul className="mt-[14px] flex list-none flex-col gap-[10px]">
               {items.map(item => {
-                const active = selection.includes(item.id);
+                const availability = getItemSelectionAvailability({
+                  items: menu.items,
+                  selectedItemIds: selection,
+                  item,
+                  rules: menu.categorySelectionRules,
+                });
+                const active = availability.active;
                 return (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => toggleItem(item.id)}
-                      disabled={submitting}
+                      disabled={submitting || availability.disabled}
                       aria-pressed={active}
                       aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
-                      className="public-choice flex min-h-[72px] w-full items-center gap-[14px] px-[14px] py-[13px] text-left disabled:cursor-not-allowed disabled:opacity-60"
+                      className={`public-choice flex min-h-[72px] w-full items-center gap-[14px] px-[14px] py-[13px] text-left disabled:cursor-not-allowed ${
+                        availability.disabled ? 'opacity-45 grayscale-[0.2]' : 'disabled:opacity-60'
+                      }`}
                     >
                       <span
                         className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[14px] border text-[16px] font-bold transition-colors ${
                           active
                             ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
+                            : availability.disabled
+                              ? 'border-[var(--border)] bg-[rgba(255,255,255,0.01)] text-transparent'
                             : 'border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] text-transparent'
                         }`}
                         aria-hidden="true"
@@ -768,11 +795,17 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                         ✓
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-[16px] leading-[1.35] ${active ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--text-muted)]'}`}>
+                        <span className={`block text-[16px] leading-[1.35] ${
+                          active
+                            ? 'font-semibold text-[var(--text)]'
+                            : availability.disabled
+                              ? 'font-medium text-[var(--text-dim)]'
+                              : 'font-medium text-[var(--text-muted)]'
+                        }`}>
                           {item.nome}
                         </span>
                         <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
-                          {active ? 'Selecionado no pedido' : 'Disponível para incluir'}
+                          {availability.helperText}
                         </span>
                       </span>
                     </button>
@@ -787,12 +820,14 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       <PublicActionBar footerRef={footerRef}>
         <div className="public-inline-panel mb-[10px] px-[14px] py-[12px]">
           <div className="mb-[12px]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
-              Pedido em andamento
-            </p>
             <p className="mt-[4px] text-[14px] text-[var(--text-muted)]">
               {selectedCount === 0 ? 'Selecione os complementos desejados.' : `${selectedCount} item(ns) pronto(s) para envio`}
             </p>
+            {selectionViolations[0] ? (
+              <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--accent-red)]">
+                {selectionViolations[0].message}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"

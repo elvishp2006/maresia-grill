@@ -57,6 +57,7 @@ Para adicionar ou remover alguém:
 |---|---|
 | `config/categories` | `{ items: string[] }` |
 | `config/complements` | `{ items: Item[] }` |
+| `config/categorySelectionRules` | `{ rules: CategorySelectionRule[] }` |
 | `selections/YYYY-MM-DD` | `{ ids: string[] }` — um doc por dia |
 
 ## Deploy

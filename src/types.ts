@@ -6,6 +6,12 @@ export interface Item {
   categoria: Categoria;
 }
 
+export interface CategorySelectionRule {
+  category: Categoria;
+  maxSelections?: number | null;
+  sharedLimitGroupId?: string | null;
+}
+
 export interface EditorLock {
   sessionId: string;
   userEmail: string;
@@ -24,6 +30,7 @@ export interface PublicMenu {
   currentVersionId: string;
   categories: Categoria[];
   items: Item[];
+  categorySelectionRules: CategorySelectionRule[];
 }
 
 export interface OrderEntry {
@@ -45,6 +52,7 @@ export interface PublicMenuVersion {
   categories: Categoria[];
   itemIds: string[];
   items: Item[];
+  categorySelectionRules: CategorySelectionRule[];
   createdAt: number;
 }
 

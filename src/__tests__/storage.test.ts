@@ -105,6 +105,41 @@ describe('storage', () => {
     });
   });
 
+  describe('category selection rules', () => {
+    it('loads normalized rules from config/categorySelectionRules', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          rules: [
+            { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+            { category: 'Saladas', maxSelections: 1 },
+            { broken: true },
+          ],
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { loadCategorySelectionRules } = await import('../lib/storage');
+      const result = await loadCategorySelectionRules();
+
+      expect(result).toEqual([
+        { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+        { category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null },
+      ]);
+    });
+
+    it('saves rules to config/categorySelectionRules', async () => {
+      const { saveCategorySelectionRules } = await import('../lib/storage');
+      await saveCategorySelectionRules([
+        { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+      ]);
+
+      expect(mockSetDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'config/categorySelectionRules' }),
+        { rules: [{ category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' }] }
+      );
+    });
+  });
+
   describe('saveDaySelection', () => {
     it('calls setDoc with the provided date key', async () => {
       const { saveDaySelection } = await import('../lib/storage');
@@ -343,6 +378,7 @@ describe('storage', () => {
         categories: ['Saladas'],
         complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
         daySelection: ['1'],
+        categorySelectionRules: [{ category: 'Saladas', maxSelections: 1 }],
       });
 
       expect(result.token).toBe('token-1');
@@ -363,6 +399,7 @@ describe('storage', () => {
           currentVersionId: expect.any(String),
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [{ category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null }],
         })
       );
     });
@@ -380,6 +417,10 @@ describe('storage', () => {
           { id: '2', nome: 'Frango', categoria: 'Carnes' },
         ],
         daySelection: ['1'],
+        categorySelectionRules: [
+          { category: 'Saladas', maxSelections: 1 },
+          { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+        ],
       });
 
       expect(result.token).toBe('token-2');
@@ -410,6 +451,7 @@ describe('storage', () => {
           currentVersionId: expect.any(String),
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [{ category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null }],
         })
       );
     });
@@ -446,6 +488,7 @@ describe('storage', () => {
         categories: ['Saladas'],
         complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
         daySelection: ['1'],
+        categorySelectionRules: [{ category: 'Saladas', maxSelections: 1 }],
         acceptingOrders: false,
       });
 
@@ -480,6 +523,7 @@ describe('storage', () => {
           currentVersionId: 'version-1',
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
           expiresAt: new Date('2026-03-17T10:01:00Z'),
         }),
@@ -502,6 +546,7 @@ describe('storage', () => {
             currentVersionId: 'version-1',
             categories: ['Saladas'],
             items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+            categorySelectionRules: [],
             createdAt: new Date('2026-03-17T10:00:00Z'),
             expiresAt: new Date('2026-03-17T23:59:59Z'),
           }),
@@ -543,6 +588,10 @@ describe('storage', () => {
           { id: '2', nome: 'Frango', categoria: 'Carnes' },
         ],
         daySelection: ['1', '2'],
+        categorySelectionRules: [
+          { category: 'Saladas', maxSelections: 1 },
+          { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+        ],
       });
 
       expect(mockSetDoc).toHaveBeenCalledWith(
@@ -561,6 +610,10 @@ describe('storage', () => {
           acceptingOrders: false,
           currentVersionId: expect.any(String),
           categories: ['Saladas', 'Carnes'],
+          categorySelectionRules: [
+            { category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null },
+            { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+          ],
           items: [
             { id: '1', nome: 'Alface', categoria: 'Saladas' },
             { id: '2', nome: 'Frango', categoria: 'Carnes' },
@@ -581,6 +634,7 @@ describe('storage', () => {
           currentVersionId: 'version-1',
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
           expiresAt: new Date('2026-03-17T23:59:59Z'),
         }),
@@ -619,6 +673,7 @@ describe('storage', () => {
           currentVersionId: 'version-1',
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
           expiresAt: new Date('2026-03-17T23:59:59Z'),
         }),
@@ -645,6 +700,7 @@ describe('storage', () => {
           currentVersionId: 'version-2',
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
           expiresAt: new Date('2026-03-17T23:59:59Z'),
         }),
@@ -667,6 +723,70 @@ describe('storage', () => {
           selectedItemIds: ['1'],
         })
       );
+    });
+
+    it('rejects public orders when a category limit is exceeded', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-2',
+          categories: ['Saladas'],
+          items: [
+            { id: '1', nome: 'Alface', categoria: 'Saladas' },
+            { id: '2', nome: 'Tomate', categoria: 'Saladas' },
+          ],
+          categorySelectionRules: [{ category: 'Saladas', maxSelections: 1 }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { submitPublicOrder } = await import('../lib/storage');
+
+      await expect(submitPublicOrder({
+        orderId: 'order-3',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Ana',
+        selectedItemIds: ['1', '2'],
+      })).rejects.toThrow('Voce pode escolher ate 1 item(ns) em Saladas.');
+    });
+
+    it('rejects public orders when a shared group limit is exceeded', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-2',
+          categories: ['Churrasco', 'Carnes'],
+          items: [
+            { id: '1', nome: 'Picanha', categoria: 'Churrasco' },
+            { id: '2', nome: 'Frango', categoria: 'Carnes' },
+            { id: '3', nome: 'Linguica', categoria: 'Carnes' },
+          ],
+          categorySelectionRules: [
+            { category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+            { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+          ],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { submitPublicOrder } = await import('../lib/storage');
+
+      await expect(submitPublicOrder({
+        orderId: 'order-4',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Ana',
+        selectedItemIds: ['1', '2', '3'],
+      })).rejects.toThrow('Voce pode escolher ate 2 item(ns) entre Churrasco e Carnes.');
     });
 
     it('subscribes to orders sorted by submittedAt', async () => {
@@ -712,6 +832,7 @@ describe('storage', () => {
           currentVersionId: 'version-1',
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
           expiresAt: new Date('2026-03-17T23:59:59Z'),
         }),
@@ -740,6 +861,7 @@ describe('storage', () => {
           currentVersionId: 'version-1',
           categories: ['Saladas'],
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
           expiresAt: new Date('2026-03-17T23:59:59Z'),
         }),

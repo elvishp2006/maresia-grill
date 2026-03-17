@@ -98,6 +98,7 @@ const defaultMenuState = {
     { id: '1', nome: 'Alface', categoria: 'Saladas' },
     { id: '2', nome: 'Frango', categoria: 'Carnes' },
   ],
+  categorySelectionRules: [] as Array<{ category: string; maxSelections?: number | null; sharedLimitGroupId?: string | null }>,
   daySelection: ['1'] as string[],
   usageCounts: {} as Record<string, number>,
   sortMode: 'alpha' as const,
@@ -111,6 +112,7 @@ const defaultMenuState = {
   addCategory: vi.fn(),
   removeCategory: vi.fn(),
   moveCategory: vi.fn(),
+  saveCategoryRule: vi.fn(),
 };
 
 const useMenuStateMock = vi.fn(() => defaultMenuState);
@@ -184,6 +186,7 @@ describe('App', () => {
         currentVersionId: 'version-1',
         categories: ['Saladas'],
         items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        categorySelectionRules: [],
       });
       return vi.fn();
     });
@@ -630,6 +633,7 @@ describe('App', () => {
         currentVersionId: 'version-1',
         categories: ['Saladas'],
         items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        categorySelectionRules: [],
       });
       return vi.fn();
     });
@@ -643,7 +647,7 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('O recebimento de pedidos foi encerrado')).toBeInTheDocument();
-    expect(screen.queryByText('Nome do cliente')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Digite seu nome')).not.toBeInTheDocument();
   });
 
   it('syncs the public menu snapshot while the authenticated menu changes', async () => {
@@ -692,14 +696,119 @@ describe('App', () => {
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
     expect(window.location.hash).toBe('#/enviado');
+    expect(screen.getByText('Seu nome')).toBeInTheDocument();
+    expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar pedido' }));
 
     await waitFor(() => {
+      expect(screen.getByText('Identificação')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Ana')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
     });
     expect(window.location.hash).toBe('#/pedido');
+  });
+
+  it('opens the limit sheet in the manage tab and saves linked categories', async () => {
+    const saveCategoryRule = vi.fn();
+    useMenuStateMock.mockReturnValue({
+      ...defaultMenuState,
+      saveCategoryRule,
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carnes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
+
+    expect(saveCategoryRule).toHaveBeenCalledWith('Saladas', {
+      maxSelections: 2,
+      sharedLimitGroupId: null,
+      linkedCategories: ['Carnes'],
+    });
+  });
+
+  it('disables the remaining public items when a category reaches its maximum', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [
+          { id: '1', nome: 'Alface', categoria: 'Saladas' },
+          { id: '3', nome: 'Tomate', categoria: 'Saladas' },
+        ],
+        categorySelectionRules: [{ category: 'Saladas', maxSelections: 1 }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+
+    const tomateButton = screen.getByRole('button', { name: 'Adicionar Tomate do menu do dia' });
+    expect(tomateButton).toBeDisabled();
+    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('disables remaining items in linked categories when the shared maximum is reached', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Churrasco', 'Carnes'],
+        items: [
+          { id: '1', nome: 'Picanha', categoria: 'Churrasco' },
+          { id: '2', nome: 'Frango', categoria: 'Carnes' },
+          { id: '3', nome: 'Linguica', categoria: 'Carnes' },
+        ],
+        categorySelectionRules: [
+          { category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+          { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+        ],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar Picanha do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Frango do menu do dia' }));
+
+    const linguicaButton = screen.getByRole('button', { name: 'Adicionar Linguica do menu do dia' });
+    expect(linguicaButton).toBeDisabled();
+    expect(screen.getAllByText('Limite atingido').length).toBeGreaterThan(0);
   });
 
   it('allows removing the public order while intake is open and shows a removal confirmation state', async () => {
@@ -838,6 +947,7 @@ describe('App', () => {
         currentVersionId: 'version-1',
         categories: ['Saladas'],
         items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        categorySelectionRules: [],
       });
       return vi.fn();
     });
@@ -885,6 +995,7 @@ describe('App', () => {
         currentVersionId: 'version-1',
         categories: ['Saladas'],
         items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        categorySelectionRules: [],
       });
       return vi.fn();
     });

@@ -8,8 +8,10 @@ vi.mock('../lib/firebase', () => ({ db: {} }));
 
 const subscribeCategories = vi.fn();
 const subscribeComplements = vi.fn();
+const subscribeCategorySelectionRules = vi.fn();
 const subscribeDaySelection = vi.fn();
 const loadRecentSelections = vi.fn().mockResolvedValue({ '1': 3 });
+const saveCategorySelectionRules = vi.fn().mockResolvedValue(undefined);
 const saveCategories = vi.fn().mockResolvedValue(undefined);
 const saveComplements = vi.fn().mockResolvedValue(undefined);
 const saveDaySelection = vi.fn().mockResolvedValue(undefined);
@@ -25,8 +27,10 @@ vi.mock('../lib/storage', () => ({
   }),
   subscribeCategories: (...args: unknown[]) => subscribeCategories(...args),
   subscribeComplements: (...args: unknown[]) => subscribeComplements(...args),
+  subscribeCategorySelectionRules: (...args: unknown[]) => subscribeCategorySelectionRules(...args),
   subscribeDaySelection: (...args: unknown[]) => subscribeDaySelection(...args),
   loadRecentSelections: (...args: unknown[]) => loadRecentSelections(...args),
+  saveCategorySelectionRules: (...args: unknown[]) => saveCategorySelectionRules(...args),
   saveCategories: (...args: unknown[]) => saveCategories(...args),
   saveComplements: (...args: unknown[]) => saveComplements(...args),
   saveDaySelection: (...args: unknown[]) => saveDaySelection(...args),
@@ -47,6 +51,10 @@ beforeEach(() => {
       { id: '1', nome: 'Alface', categoria: 'Saladas' },
       { id: '2', nome: 'Frango', categoria: 'Carnes' },
     ]));
+    return vi.fn();
+  });
+  subscribeCategorySelectionRules.mockImplementation((onValue: (value: unknown[]) => void) => {
+    queueMicrotask(() => onValue([]));
     return vi.fn();
   });
   subscribeDaySelection.mockImplementation((_dateKey: string, onValue: (value: string[]) => void) => {
@@ -73,6 +81,7 @@ describe('useMenuState', () => {
     await waitForReady(result);
     expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
     expect(result.current.complements).toHaveLength(2);
+    expect(result.current.categorySelectionRules).toEqual([]);
     expect(result.current.daySelection).toEqual(['1']);
     expect(result.current.usageCounts).toEqual({ '1': 3 });
   });
@@ -139,6 +148,21 @@ describe('useMenuState', () => {
     expect(result.current.sortMode).toBe('usage');
     act(() => result.current.toggleSortMode());
     expect(result.current.sortMode).toBe('alpha');
+  });
+
+  it('saves category rules and links categories under the same shared limit', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    act(() => result.current.saveCategoryRule('Churrasco', {
+      maxSelections: 2,
+      linkedCategories: ['Carnes'],
+    }));
+
+    expect(saveCategorySelectionRules).toHaveBeenCalledWith([
+      { category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' },
+      { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' },
+    ]);
   });
 
   it('blocks remote actions and preserves state when offline', async () => {

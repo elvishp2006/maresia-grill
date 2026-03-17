@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { Categoria, Item } from './types';
+import type { Categoria, CategorySelectionRule, Item } from './types';
+import type { CategorySelectionRuleInput } from './lib/categorySelectionRules';
 import CategoryCard from './components/CategoryCard';
 import AddForm from './components/AddForm';
 import BottomSheet from './components/BottomSheet';
@@ -12,6 +13,7 @@ interface MenuViewProps {
   visibleCategories: Categoria[];
   categories: Categoria[];
   complements: Item[];
+  categorySelectionRules: CategorySelectionRule[];
   daySelection: string[];
   usageCounts: Record<string, number>;
   sortMode: 'alpha' | 'usage';
@@ -28,6 +30,7 @@ interface MenuViewProps {
   onMoveCategory: (categoria: Categoria, dir: 'up' | 'down') => void;
   onRemoveCategory: (categoria: Categoria) => void;
   onAddCategory: (nome: string) => void;
+  onSaveCategoryRule: (categoria: Categoria, input: CategorySelectionRuleInput) => void;
   onClearSearch: () => void;
   onShare: () => void;
 }
@@ -37,6 +40,7 @@ export default function MenuView({
   visibleCategories,
   categories,
   complements,
+  categorySelectionRules,
   daySelection,
   usageCounts,
   sortMode,
@@ -53,6 +57,7 @@ export default function MenuView({
   onMoveCategory,
   onRemoveCategory,
   onAddCategory,
+  onSaveCategoryRule,
   onClearSearch,
   onShare,
 }: MenuViewProps) {
@@ -119,6 +124,9 @@ export default function MenuView({
                 key={`${categoria}-${viewMode}-${search ? 'filtered' : 'default'}`}
                 categoria={categoria}
                 items={complements.filter(item => item.categoria === categoria)}
+                allCategories={categories}
+                categoryRule={categorySelectionRules.find(rule => rule.category === categoria) ?? null}
+                allCategoryRules={categorySelectionRules}
                 daySelection={daySelection}
                 onToggle={onToggle}
                 onAdd={onAddItem}
@@ -130,6 +138,7 @@ export default function MenuView({
                 onMoveUp={() => onMoveCategory(categoria, 'up')}
                 onMoveDown={() => onMoveCategory(categoria, 'down')}
                 onRemoveCategory={() => onRemoveCategory(categoria)}
+                onSaveCategoryRule={(input) => onSaveCategoryRule(categoria, input)}
                 isFirst={categories.indexOf(categoria) === 0}
                 isLast={categories.indexOf(categoria) === categories.length - 1}
                 viewMode={viewMode === 'menu' ? 'select' : 'manage'}

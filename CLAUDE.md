@@ -49,6 +49,7 @@ src/
 **Firestore schema:**
 - `config/categories` → `{ items: string[] }`
 - `config/complements` → `{ items: Item[] }`
+- `config/categorySelectionRules` → `{ rules: CategorySelectionRule[] }`
 - `selections/YYYY-MM-DD` → `{ ids: string[] }` — one doc per day; `loadSelectionHistory(n)` fetches `n` docs in parallel (7 days for `usageCounts`, 90 days for insights)
 
 ### Auth

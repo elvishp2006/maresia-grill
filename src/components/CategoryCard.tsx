@@ -1,14 +1,22 @@
 import { useState } from 'react';
-import type { Categoria, Item } from '../types';
+import type { Categoria, CategorySelectionRule, Item } from '../types';
 import ItemList from './ItemList';
 import AddForm from './AddForm';
 import BottomSheet from './BottomSheet';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { useModal } from '../contexts/ModalContext';
+import {
+  describeCategorySelectionRule,
+  getLinkedCategories,
+  type CategorySelectionRuleInput,
+} from '../lib/categorySelectionRules';
 
 interface CategoryCardProps {
   categoria: Categoria;
   items: Item[];
+  allCategories: Categoria[];
+  categoryRule?: CategorySelectionRule | null;
+  allCategoryRules?: CategorySelectionRule[];
   daySelection: string[];
   onToggle: (id: string) => void;
   onAdd: (nome: string, categoria: Categoria) => void;
@@ -20,6 +28,7 @@ interface CategoryCardProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onRemoveCategory: () => void;
+  onSaveCategoryRule?: (input: CategorySelectionRuleInput) => void;
   isFirst: boolean;
   isLast: boolean;
   viewMode: 'select' | 'manage';
@@ -28,9 +37,15 @@ interface CategoryCardProps {
   isOnline?: boolean;
 }
 
+const DEFAULT_LIMIT = 1;
+const EMPTY_RULES: CategorySelectionRule[] = [];
+
 export default function CategoryCard({
   categoria,
   items,
+  allCategories,
+  categoryRule = null,
+  allCategoryRules = EMPTY_RULES,
   daySelection,
   onToggle,
   onAdd,
@@ -42,6 +57,7 @@ export default function CategoryCard({
   onMoveUp,
   onMoveDown,
   onRemoveCategory,
+  onSaveCategoryRule,
   isFirst,
   isLast,
   viewMode,
@@ -50,10 +66,17 @@ export default function CategoryCard({
   isOnline = true,
 }: CategoryCardProps) {
   const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showRuleSheet, setShowRuleSheet] = useState(false);
+  const [draftMaxSelections, setDraftMaxSelections] = useState<number | null>(categoryRule?.maxSelections ?? null);
+  const [draftLinkedCategories, setDraftLinkedCategories] = useState<string[]>(() => getLinkedCategories(categoria, allCategoryRules));
   const { lightTap, mediumTap } = useHapticFeedback();
   const { confirm } = useModal();
 
   const selectedCount = items.filter(item => daySelection.includes(item.id)).length;
+  const ruleSummary = describeCategorySelectionRule(categoria, allCategoryRules);
+  const hasRule = typeof categoryRule?.maxSelections === 'number';
+
+  const availableLinkedCategories = allCategories.filter(category => category !== categoria);
 
   const handleRemoveCategory = async () => {
     if (!isOnline) return;
@@ -72,9 +95,59 @@ export default function CategoryCard({
     onToggleCollapse();
   };
 
-  const handleShowAddSheet = () => {
+  const handleOpenAddSheet = () => {
     lightTap();
     setShowAddSheet(true);
+  };
+
+  const handleOpenRuleSheet = () => {
+    if (!onSaveCategoryRule) return;
+    lightTap();
+    setDraftMaxSelections(categoryRule?.maxSelections ?? DEFAULT_LIMIT);
+    setDraftLinkedCategories(getLinkedCategories(categoria, allCategoryRules));
+    setShowRuleSheet(true);
+  };
+
+  const handleToggleLinkedCategory = (targetCategory: string) => {
+    lightTap();
+    setDraftLinkedCategories(prev => (
+      prev.includes(targetCategory)
+        ? prev.filter(category => category !== targetCategory)
+        : [...prev, targetCategory]
+    ));
+  };
+
+  const handleIncrementLimit = () => {
+    lightTap();
+    setDraftMaxSelections(prev => Math.max(1, (prev ?? DEFAULT_LIMIT) + 1));
+  };
+
+  const handleDecrementLimit = () => {
+    lightTap();
+    setDraftMaxSelections(prev => {
+      const nextValue = (prev ?? DEFAULT_LIMIT) - 1;
+      return nextValue < 1 ? 1 : nextValue;
+    });
+  };
+
+  const handleSaveCategoryRule = () => {
+    if (!onSaveCategoryRule || !isOnline || draftMaxSelections === null) return;
+    lightTap();
+    onSaveCategoryRule({
+      maxSelections: draftMaxSelections,
+      sharedLimitGroupId: categoryRule?.sharedLimitGroupId ?? null,
+      linkedCategories: draftLinkedCategories,
+    });
+    setShowRuleSheet(false);
+  };
+
+  const handleClearCategoryRule = () => {
+    if (!onSaveCategoryRule || !isOnline) return;
+    lightTap();
+    setDraftMaxSelections(null);
+    setDraftLinkedCategories([]);
+    onSaveCategoryRule({ maxSelections: null, sharedLimitGroupId: null, linkedCategories: [] });
+    setShowRuleSheet(false);
   };
 
   return (
@@ -127,6 +200,9 @@ export default function CategoryCard({
                   <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
                     {selectedCount}/{items.length} itens
                   </p>
+                  <p className={`mt-[6px] text-[12px] leading-[1.5] ${hasRule ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
+                    {ruleSummary ?? 'Sem limite no pedido publico'}
+                  </p>
                 </div>
                 <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
                   <svg
@@ -163,6 +239,11 @@ export default function CategoryCard({
                 <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
                   {selectedCount}/{items.length} itens
                 </p>
+                {ruleSummary ? (
+                  <p className="mt-[6px] text-[12px] leading-[1.5] text-[var(--accent)]">
+                    {ruleSummary}
+                  </p>
+                ) : null}
               </div>
               <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
                 <svg
@@ -187,32 +268,55 @@ export default function CategoryCard({
         {expanded ? (
           <div className="mt-[16px] border-t border-[var(--border)] pt-[16px]">
             {viewMode === 'manage' ? (
-              <div className="mb-[16px] flex gap-[8px]">
-                <button
-                  type="button"
-                  className="neon-gold-fill flex h-[40px] flex-1 items-center justify-center rounded-[14px] bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
-                  onClick={handleShowAddSheet}
-                  aria-label={`Adicionar item em ${categoria}`}
-                  disabled={!isOnline}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"/>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
-                  onClick={handleRemoveCategory}
-                  aria-label={`Remover categoria ${categoria}`}
-                  disabled={!isOnline}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6l-1 14H6L5 6"/>
-                    <path d="M10 11v6M14 11v6"/>
-                    <path d="M9 6V4h6v2"/>
-                  </svg>
-                </button>
+              <div className="mb-[16px] space-y-[12px]">
+                <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-elevated)] p-[14px]">
+                  <div className="flex items-start justify-between gap-[12px]">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+                        Pedido publico
+                      </p>
+                      <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
+                        {ruleSummary ?? 'Sem limite de selecao para esta categoria.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="neon-gold-fill min-h-[42px] rounded-[16px] bg-[var(--accent)] px-[14px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                      onClick={handleOpenRuleSheet}
+                      disabled={!isOnline}
+                    >
+                      Configurar limite
+                    </button>
+                  </div>
+                </section>
+
+                <div className="flex gap-[8px]">
+                  <button
+                    type="button"
+                    className="neon-gold-fill flex h-[40px] flex-1 items-center justify-center rounded-[14px] bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={handleOpenAddSheet}
+                    aria-label={`Adicionar item em ${categoria}`}
+                    disabled={!isOnline}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={handleRemoveCategory}
+                    aria-label={`Remover categoria ${categoria}`}
+                    disabled={!isOnline}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14H6L5 6"/>
+                      <path d="M10 11v6M14 11v6"/>
+                      <path d="M9 6V4h6v2"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -246,6 +350,140 @@ export default function CategoryCard({
           onClose={() => setShowAddSheet(false)}
           disabled={!isOnline}
         />
+      </BottomSheet>
+
+      <BottomSheet
+        open={showRuleSheet}
+        onClose={() => setShowRuleSheet(false)}
+        title={`Limite de ${categoria}`}
+        description="Defina quantos itens o cliente pode escolher e, se quiser, vincule outras categorias ao mesmo limite."
+      >
+        <div className="space-y-[16px]">
+          <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+              Quantidade maxima
+            </p>
+            <div className="mt-[12px] flex items-center gap-[10px]">
+              <button
+                type="button"
+                className="flex h-[44px] w-[44px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[22px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={handleDecrementLimit}
+                disabled={!isOnline || draftMaxSelections === null || draftMaxSelections <= 1}
+                aria-label={`Diminuir limite de ${categoria}`}
+              >
+                -
+              </button>
+              <div className="flex min-h-[52px] flex-1 items-center justify-center rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] text-[20px] font-semibold text-[var(--text)]">
+                {draftMaxSelections ?? 'Sem limite'}
+              </div>
+              <button
+                type="button"
+                className="flex h-[44px] w-[44px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[22px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={handleIncrementLimit}
+                disabled={!isOnline}
+                aria-label={`Aumentar limite de ${categoria}`}
+              >
+                +
+              </button>
+            </div>
+            <div className="mt-[12px] flex gap-[8px]">
+              {[1, 2, 3, 4].map(value => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`min-h-[38px] rounded-full border px-[14px] text-[13px] font-semibold transition-colors ${
+                    draftMaxSelections === value
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
+                      : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                  }`}
+                  onClick={() => {
+                    lightTap();
+                    setDraftMaxSelections(value);
+                  }}
+                  disabled={!isOnline}
+                >
+                  {value}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`min-h-[38px] rounded-full border px-[14px] text-[13px] font-semibold transition-colors ${
+                  draftMaxSelections === null
+                    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
+                    : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                }`}
+                onClick={() => {
+                  lightTap();
+                  setDraftMaxSelections(null);
+                  setDraftLinkedCategories([]);
+                }}
+                disabled={!isOnline}
+              >
+                Sem limite
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px]">
+            <div className="flex items-start justify-between gap-[10px]">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+                  Compartilhar com outras categorias
+                </p>
+                <p className="mt-[6px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
+                  As categorias marcadas usam o mesmo limite total do pedido publico.
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-[10px] py-[5px] text-[12px] font-semibold text-[var(--accent)]">
+                {draftLinkedCategories.length}
+              </span>
+            </div>
+            <div className="mt-[12px] flex flex-wrap gap-[8px]">
+              {availableLinkedCategories.length === 0 ? (
+                <p className="text-[13px] text-[var(--text-dim)]">
+                  Crie outra categoria para usar limite compartilhado.
+                </p>
+              ) : availableLinkedCategories.map(category => {
+                const active = draftLinkedCategories.includes(category);
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    className={`min-h-[42px] rounded-[16px] border px-[14px] text-[13px] font-semibold transition-colors ${
+                      active
+                        ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
+                        : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                    }`}
+                    onClick={() => handleToggleLinkedCategory(category)}
+                    disabled={!isOnline || draftMaxSelections === null}
+                    aria-pressed={active}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <div className="flex gap-[10px]">
+            <button
+              type="button"
+              className="min-h-[52px] flex-1 rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={handleClearCategoryRule}
+              disabled={!isOnline}
+            >
+              Limpar regra
+            </button>
+            <button
+              type="button"
+              className="neon-gold-fill min-h-[52px] flex-1 rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={handleSaveCategoryRule}
+              disabled={!isOnline || draftMaxSelections === null}
+            >
+              Salvar limite
+            </button>
+          </div>
+        </div>
       </BottomSheet>
     </>
   );
