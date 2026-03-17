@@ -1,22 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { Item, Categoria } from '../types';
 import { DEFAULT_CATEGORIES } from '../types';
 import {
-  loadCategories,
-  saveCategories,
-  loadComplements,
-  saveComplements,
-  loadDaySelection,
-  saveDaySelection,
   loadRecentSelections,
+  saveCategories,
+  saveComplements,
+  saveDaySelection,
+  subscribeCategories,
+  subscribeComplements,
+  subscribeDaySelection,
 } from '../lib/storage';
 import { useToast } from '../contexts/ToastContext';
 
 let nextId = Date.now();
 const genId = () => String(nextId++);
 const OFFLINE_ACTION_MESSAGE = 'Esta acao requer conexao com a internet.';
+const READ_ONLY_ACTION_MESSAGE = 'Outro dispositivo esta editando o cardapio neste momento.';
 
-export const useMenuState = (isOnline = true) => {
+export const useMenuState = (isOnline = true, canEdit = true) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [complements, setComplements] = useState<Item[]>([]);
   const [daySelection, setDaySelection] = useState<string[]>([]);
@@ -25,55 +26,91 @@ export const useMenuState = (isOnline = true) => {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const guardOnlineAction = () => {
-    if (isOnline) return true;
-    showToast(OFFLINE_ACTION_MESSAGE, 'info');
+  const guardWritableAction = () => {
+    if (!isOnline) {
+      showToast(OFFLINE_ACTION_MESSAGE, 'info');
+      return false;
+    }
+    if (canEdit) return true;
+    showToast(READ_ONLY_ACTION_MESSAGE, 'info');
     return false;
   };
 
   useEffect(() => {
-    Promise.all([
-      loadCategories(),
-      loadComplements(),
-      loadDaySelection(),
-      loadRecentSelections(7),
-    ]).then(([cats, items, ids, counts]) => {
-      setCategories(cats.length > 0 ? cats : DEFAULT_CATEGORIES);
-      setComplements(items);
-      setDaySelection(ids);
-      setUsageCounts(counts);
-      setLoading(false);
-    }).catch(() => {
+    let active = true;
+    const ready = {
+      categories: false,
+      complements: false,
+      selection: false,
+    };
+
+    const markReady = (key: keyof typeof ready) => {
+      ready[key] = true;
+      if (active && Object.values(ready).every(Boolean)) setLoading(false);
+    };
+
+    const handleError = () => {
+      if (!active) return;
       showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
       setLoading(false);
-    });
+    };
+
+    const unsubscribeCategories = subscribeCategories((cats) => {
+      if (!active) return;
+      setCategories(cats.length > 0 ? cats : DEFAULT_CATEGORIES);
+      markReady('categories');
+    }, handleError);
+
+    const unsubscribeComplements = subscribeComplements((items) => {
+      if (!active) return;
+      setComplements(items);
+      markReady('complements');
+    }, handleError);
+
+    const unsubscribeSelection = subscribeDaySelection((ids) => {
+      if (!active) return;
+      setDaySelection(ids);
+      markReady('selection');
+    }, handleError);
+
+    return () => {
+      active = false;
+      unsubscribeCategories();
+      unsubscribeComplements();
+      unsubscribeSelection();
+    };
   }, [showToast]);
+
+  useEffect(() => {
+    let active = true;
+    loadRecentSelections(7)
+      .then((counts) => {
+        if (!active) return;
+        setUsageCounts(counts);
+      })
+      .catch(() => {
+        if (!active) return;
+        showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [daySelection, showToast]);
 
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
 
   const toggleItem = (id: string) => {
-    if (!guardOnlineAction()) return;
+    if (!guardWritableAction()) return;
     setDaySelection(prev => {
-      const wasSelected = prev.includes(id);
-      const next = wasSelected ? prev.filter(x => x !== id) : [...prev, id];
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
       saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
-      setUsageCounts(counts => {
-        const current = counts[id] ?? 0;
-        const nextCount = wasSelected ? Math.max(0, current - 1) : current + 1;
-        if (nextCount === current) return counts;
-        if (nextCount === 0) {
-          const rest = { ...counts };
-          delete rest[id];
-          return rest;
-        }
-        return { ...counts, [id]: nextCount };
-      });
       return next;
     });
   };
 
   const addItem = (nome: string, categoria: Categoria) => {
-    if (!guardOnlineAction()) return;
+    if (!guardWritableAction()) return;
     const item: Item = { id: genId(), nome: nome.trim(), categoria };
     setComplements(prev => {
       const next = [...prev, item];
@@ -85,12 +122,10 @@ export const useMenuState = (isOnline = true) => {
       saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
-    setUsageCounts(counts => ({ ...counts, [item.id]: (counts[item.id] ?? 0) + 1 }));
   };
 
   const removeItem = (id: string) => {
-    if (!guardOnlineAction()) return;
-    const wasSelected = daySelection.includes(id);
+    if (!guardWritableAction()) return;
     setComplements(prev => {
       const next = prev.filter(x => x.id !== id);
       saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
@@ -101,22 +136,10 @@ export const useMenuState = (isOnline = true) => {
       saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
       return next;
     });
-    if (wasSelected) {
-      setUsageCounts(counts => {
-        const current = counts[id] ?? 0;
-        const nextCount = Math.max(0, current - 1);
-        if (nextCount === 0) {
-          const rest = { ...counts };
-          delete rest[id];
-          return rest;
-        }
-        return { ...counts, [id]: nextCount };
-      });
-    }
   };
 
   const renameItem = (id: string, newNome: string) => {
-    if (!guardOnlineAction()) return;
+    if (!guardWritableAction()) return;
     setComplements(prev => {
       const next = prev.map(item =>
         item.id === id ? { ...item, nome: newNome.trim() } : item
@@ -127,7 +150,7 @@ export const useMenuState = (isOnline = true) => {
   };
 
   const addCategory = (nome: string) => {
-    if (!guardOnlineAction()) return;
+    if (!guardWritableAction()) return;
     setCategories(prev => {
       const next = [...prev, nome.trim()];
       saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
@@ -136,7 +159,7 @@ export const useMenuState = (isOnline = true) => {
   };
 
   const removeCategory = (nome: string) => {
-    if (!guardOnlineAction()) return;
+    if (!guardWritableAction()) return;
     const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
     setCategories(prev => {
       const next = prev.filter(c => c !== nome);
@@ -154,21 +177,11 @@ export const useMenuState = (isOnline = true) => {
         saveDaySelection(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
         return next;
       });
-      setUsageCounts(counts => {
-        const nextCounts = { ...counts };
-        for (const id of removedIds) {
-          if (!daySelection.includes(id)) continue;
-          const nextCount = Math.max(0, (nextCounts[id] ?? 0) - 1);
-          if (nextCount === 0) delete nextCounts[id];
-          else nextCounts[id] = nextCount;
-        }
-        return nextCounts;
-      });
     }
   };
 
   const moveCategory = (nome: string, direction: 'up' | 'down') => {
-    if (!guardOnlineAction()) return;
+    if (!guardWritableAction()) return;
     setCategories(prev => {
       const idx = prev.indexOf(nome);
       if (idx < 0) return prev;

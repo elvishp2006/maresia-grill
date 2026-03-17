@@ -19,6 +19,7 @@ interface MenuViewProps {
   expandedCategory: string | null;
   onToggleCollapse: (categoria: string) => void;
   isOnline: boolean;
+  canEdit: boolean;
   insights: ReturnType<typeof useMenuInsights>;
   onToggle: (id: string) => void;
   onAddItem: (nome: string, categoria: Categoria) => void;
@@ -43,6 +44,7 @@ export default function MenuView({
   expandedCategory,
   onToggleCollapse,
   isOnline,
+  canEdit,
   insights,
   onToggle,
   onAddItem,
@@ -97,7 +99,7 @@ export default function MenuView({
                 ? `Nenhum resultado para "${search}".`
                 : 'Ajuste a busca para encontrar itens.'}
             </p>
-            {search.trim() && isOnline && categories.length > 0 ? (
+            {search.trim() && canEdit && categories.length > 0 ? (
               <button
                 type="button"
                 className="neon-gold-border neon-gold-text mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
@@ -130,7 +132,7 @@ export default function MenuView({
                 viewMode={viewMode === 'menu' ? 'select' : 'manage'}
                 expanded={expandedCategory === categoria}
                 onToggleCollapse={() => onToggleCollapse(categoria)}
-                isOnline={isOnline}
+                isOnline={canEdit}
               />
             ))}
           </div>
@@ -141,7 +143,7 @@ export default function MenuView({
             type="button"
             className="neon-gold-text mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={() => setShowAddCategorySheet(true)}
-            disabled={!isOnline}
+            disabled={!canEdit}
           >
             + Nova categoria
           </button>
@@ -176,7 +178,8 @@ export default function MenuView({
           }}
           onClose={() => setShowAddCategorySheet(false)}
           placeholder="Nome da categoria"
-          disabled={!isOnline}
+          disabled={!canEdit}
+          disabledMessage={canEdit ? undefined : 'Outro dispositivo está editando o cardápio neste momento.'}
         />
       </BottomSheet>
 
@@ -196,6 +199,8 @@ export default function MenuView({
               setQuickAddCategory(null);
             }}
             onClose={() => { setShowQuickAddSheet(false); setQuickAddCategory(null); }}
+            disabled={!canEdit}
+            disabledMessage="Outro dispositivo está editando o cardápio neste momento."
           />
         ) : (
           <ul className="flex flex-col gap-[10px]">
@@ -205,6 +210,7 @@ export default function MenuView({
                   type="button"
                   className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px] text-left text-[15px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
                   onClick={() => setQuickAddCategory(cat)}
+                  disabled={!canEdit}
                 >
                   {cat}
                 </button>

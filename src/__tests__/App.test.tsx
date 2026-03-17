@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import App from '../App';
 import { ModalProvider } from '../contexts/ModalContext';
 import { ToastProvider } from '../contexts/ToastContext';
+import type { EditorLock } from '../types';
 
 vi.mock('../hooks/useMenuInsights', () => ({
   useMenuInsights: vi.fn(() => ({
@@ -40,6 +41,20 @@ const useOnlineStatusMock = vi.fn(() => ({ isOnline: true }));
 
 vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => useOnlineStatusMock(),
+}));
+
+const useEditorLockMock = vi.fn(() => ({
+  canEdit: true,
+  loading: false,
+  lock: null as EditorLock | null,
+  isExpired: false,
+  isOwner: true,
+  requestEditAccess: vi.fn().mockResolvedValue(true),
+  releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../hooks/useEditorLock', () => ({
+  useEditorLock: () => useEditorLockMock(),
 }));
 
 const toggleItem = vi.fn();
@@ -89,6 +104,15 @@ describe('App', () => {
       signOut: vi.fn(),
     });
     useOnlineStatusMock.mockReturnValue({ isOnline: true });
+    useEditorLockMock.mockReturnValue({
+      canEdit: true,
+      loading: false,
+      lock: null as EditorLock | null,
+      isExpired: false,
+      isOwner: true,
+      requestEditAccess: vi.fn().mockResolvedValue(true),
+      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+    });
     vi.stubGlobal('alert', vi.fn());
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -260,6 +284,37 @@ describe('App', () => {
 
     expect(screen.getByText('Estatísticas indisponíveis')).toBeInTheDocument();
     expect(screen.getByText(/Conecte-se a internet para consultar sugestões e histórico/i)).toBeInTheDocument();
+  });
+
+  it('shows the read-only banner when another device owns the editor lock', () => {
+    useEditorLockMock.mockReturnValue({
+      canEdit: false,
+      loading: false,
+      lock: {
+        sessionId: 'other-session',
+        userEmail: 'outra@maresia.com',
+        deviceLabel: 'iPhone',
+        status: 'active',
+        acquiredAt: Date.now(),
+        lastHeartbeatAt: Date.now(),
+        expiresAt: Date.now() + 30_000,
+      },
+      isExpired: false,
+      isOwner: false,
+      requestEditAccess: vi.fn().mockResolvedValue(false),
+      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText('Leitura somente')).toBeInTheDocument();
+    expect(screen.getByText(/outra@maresia.com está editando em iPhone/i)).toBeInTheDocument();
   });
 
   it('renders the sign-in screen when there is no session', () => {

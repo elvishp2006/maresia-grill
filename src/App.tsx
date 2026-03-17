@@ -14,6 +14,8 @@ import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { useToast } from './contexts/ToastContext';
 import { useModal } from './contexts/ModalContext';
 import MenuView from './MenuView';
+import { useEditorLock } from './hooks/useEditorLock';
+import { LOCK_TIMEOUT_MS } from './lib/storage';
 
 interface AuthenticatedAppProps {
   onSignOut: () => void;
@@ -24,6 +26,13 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
   const { showToast } = useToast();
   const { confirm } = useModal();
+  const {
+    canEdit,
+    lock,
+    isExpired,
+    requestEditAccess,
+    releaseEditAccess,
+  } = useEditorLock(userEmail, isOnline);
   const {
     categories,
     complements,
@@ -39,7 +48,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
     addCategory,
     removeCategory,
     moveCategory,
-  } = useMenuState(isOnline);
+  } = useMenuState(isOnline, canEdit);
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
 
@@ -88,10 +97,16 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
 
   const handleSignOut = async () => {
     const ok = await confirm('Sair da conta', 'Deseja encerrar a sessão?');
-    if (ok) onSignOut();
+    if (ok) {
+      await releaseEditAccess();
+      onSignOut();
+    }
   };
 
   if (loading) return <LoadingSpinner />;
+
+  const isReadOnly = isOnline && !canEdit;
+  const canTakeOver = isReadOnly && isExpired;
 
   return (
     <div className="app-shell">
@@ -114,6 +129,37 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
             Edição, seleção do menu e estatísticas estão indisponíveis até a conexão voltar.
           </p>
+        </section>
+      ) : null}
+
+      {isReadOnly ? (
+        <section className="section-card mb-[18px] border border-[var(--accent)] bg-[var(--accent-soft)]">
+          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+            Leitura somente
+          </p>
+          <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
+            {isExpired
+              ? `${lock?.userEmail ?? 'Outra pessoa'} ficou com a edição travada em ${lock?.deviceLabel ?? 'outro dispositivo'}.`
+              : `${lock?.userEmail ?? 'Outra pessoa'} está editando em ${lock?.deviceLabel ?? 'outro dispositivo'}.`}
+          </p>
+          <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+            {isExpired
+              ? 'A sessão anterior expirou. Você já pode assumir a edição.'
+              : `Se essa sessão parar de responder, o bloqueio expira em até ${Math.ceil(LOCK_TIMEOUT_MS / 1000)}s.`}
+          </p>
+          {canTakeOver ? (
+            <button
+              type="button"
+              className="neon-gold-fill mt-[14px] min-h-[48px] rounded-[18px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
+              onClick={() => {
+                void requestEditAccess().then((granted) => {
+                  if (!granted) showToast('Nao foi possivel assumir a edição.', 'error');
+                });
+              }}
+            >
+              Assumir edição
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -140,6 +186,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         expandedCategory={expandedCategory}
         onToggleCollapse={(categoria) => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
         isOnline={isOnline}
+        canEdit={canEdit}
         insights={insights}
         onToggle={toggleItem}
         onAddItem={addItem}
