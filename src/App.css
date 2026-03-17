@@ -138,6 +138,14 @@ input[type='search']::-webkit-search-results-decoration {
     drop-shadow(0 18px 26px rgba(0, 0, 0, 0.22));
 }
 
+.neon-gold-mark-strong {
+  filter:
+    drop-shadow(0 0 16px rgba(215, 176, 92, 0.52))
+    drop-shadow(0 0 34px rgba(215, 176, 92, 0.32))
+    drop-shadow(0 0 52px rgba(215, 176, 92, 0.16))
+    drop-shadow(0 18px 26px rgba(0, 0, 0, 0.22));
+}
+
 .neon-gold-spinner {
   filter:
     drop-shadow(0 0 10px var(--accent-glow-strong))
@@ -189,7 +197,7 @@ input[type='search']::-webkit-search-results-decoration {
   height: auto;
 }
 
-.auth-screen__mark.neon-gold-mark {
+.auth-screen__mark--hero {
   filter:
     drop-shadow(0 0 16px rgba(215, 176, 92, 0.52))
     drop-shadow(0 0 34px rgba(215, 176, 92, 0.32))

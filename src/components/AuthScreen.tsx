@@ -17,7 +17,7 @@ export default function AuthScreen({
         <img
           src="/brand/menu-mark.svg"
           alt="Logo do Marésia Grill"
-          className="auth-screen__mark neon-gold-mark"
+          className="auth-screen__mark neon-gold-mark-strong auth-screen__mark--hero"
         />
         <button
           type="button"

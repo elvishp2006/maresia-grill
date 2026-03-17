@@ -59,7 +59,7 @@ export default function Header({
           <img
             src="/brand/menu-mark.svg"
             alt="Logo do Maresia Grill"
-            className="neon-gold-mark h-[28px] w-[28px] shrink-0 object-cover object-top"
+            className="neon-gold-mark-strong h-[28px] w-[28px] shrink-0 object-cover object-top"
           />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">
             Maresia Grill

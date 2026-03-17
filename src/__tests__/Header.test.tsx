@@ -34,6 +34,12 @@ describe('Header', () => {
     expect(screen.queryByRole('button', { name: 'Aplicar atualização do app' })).not.toBeInTheDocument();
   });
 
+  it('applies the strong neon treatment to the header logo', () => {
+    render(<Header {...defaultProps} />);
+
+    expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toHaveClass('neon-gold-mark-strong');
+  });
+
   it('renders the update button when an update is available', () => {
     render(<Header {...defaultProps} showUpdateIndicator />);
 
