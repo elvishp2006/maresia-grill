@@ -5,6 +5,7 @@ import AddForm from './components/AddForm';
 import BottomSheet from './components/BottomSheet';
 import InsightsPanel from './components/InsightsPanel';
 import type { useMenuInsights } from './hooks/useMenuInsights';
+import { useHapticFeedback } from './hooks/useHapticFeedback';
 
 interface MenuViewProps {
   viewMode: 'menu' | 'stats' | 'manage';
@@ -27,6 +28,7 @@ interface MenuViewProps {
   onRemoveCategory: (categoria: Categoria) => void;
   onAddCategory: (nome: string) => void;
   onClearSearch: () => void;
+  onShare: () => void;
 }
 
 export default function MenuView({
@@ -50,7 +52,9 @@ export default function MenuView({
   onRemoveCategory,
   onAddCategory,
   onClearSearch,
+  onShare,
 }: MenuViewProps) {
+  const { success } = useHapticFeedback();
   const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
   const [showQuickAddSheet, setShowQuickAddSheet] = useState(false);
   const [quickAddCategory, setQuickAddCategory] = useState<Categoria | null>(null);
@@ -158,6 +162,21 @@ export default function MenuView({
           </button>
         ) : null}
       </main>
+
+      {viewMode === 'menu' && daySelection.length > 0 ? (
+        <button
+          type="button"
+          aria-label="Compartilhar menu"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] right-[16px] z-[45] flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition-all hover:opacity-90 active:scale-95"
+          onClick={() => { success(); onShare(); }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+        </button>
+      ) : null}
 
       <BottomSheet
         open={showAddCategorySheet}
