@@ -1,5 +1,6 @@
 import type { OrderEntry, PublicMenuVersion } from '../types';
 import { groupOrderItemsByCategory } from '../lib/utils';
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface OrdersPanelProps {
   orders: OrderEntry[];
@@ -24,6 +25,8 @@ export default function OrdersPanel({
   loading,
   error,
 }: OrdersPanelProps) {
+  const { mediumTap } = useHapticFeedback();
+
   return (
     <section className="space-y-[12px]">
       <section className={`section-card border ${acceptingOrders ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)]'}`}>
@@ -42,7 +45,10 @@ export default function OrdersPanel({
             aria-label="Recebimento de pedidos"
             aria-checked={acceptingOrders}
             className={`relative inline-flex h-[34px] w-[60px] shrink-0 items-center rounded-full border transition-colors ${acceptingOrders ? 'border-[var(--accent)] bg-[rgba(215,176,92,0.28)]' : 'border-[rgba(208,109,86,0.44)] bg-[rgba(208,109,86,0.18)]'} disabled:cursor-not-allowed disabled:opacity-50`}
-            onClick={onToggleIntake}
+            onClick={() => {
+              mediumTap();
+              onToggleIntake();
+            }}
             disabled={!canManageIntake || intakePending}
           >
             <span className="sr-only">

@@ -55,4 +55,14 @@ describe('Header', () => {
     expect(lightTapMock).toHaveBeenCalledTimes(1);
     expect(onApplyUpdate).toHaveBeenCalledTimes(1);
   });
+
+  it('triggers haptic feedback before sign out', () => {
+    const onSignOut = vi.fn();
+    render(<Header {...defaultProps} onSignOut={onSignOut} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair da conta' }));
+
+    expect(lightTapMock).toHaveBeenCalledTimes(1);
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
 });

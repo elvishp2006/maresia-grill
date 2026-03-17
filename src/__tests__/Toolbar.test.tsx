@@ -1,6 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Toolbar from '../components/Toolbar';
+
+const lightTapMock = vi.fn();
+
+vi.mock('../hooks/useHapticFeedback', () => ({
+  useHapticFeedback: () => ({
+    lightTap: lightTapMock,
+  }),
+}));
 
 const defaultProps = {
   search: '',
@@ -12,6 +20,10 @@ const defaultProps = {
 };
 
 describe('Toolbar', () => {
+  beforeEach(() => {
+    lightTapMock.mockReset();
+  });
+
   it('renders search input and sort button', () => {
     render(<Toolbar {...defaultProps} />);
     expect(screen.getByPlaceholderText('Buscar item para o menu...')).toBeInTheDocument();
@@ -48,6 +60,7 @@ describe('Toolbar', () => {
     input.focus();
     fireEvent.click(screen.getByRole('button', { name: 'Limpar busca' }));
 
+    expect(lightTapMock).toHaveBeenCalledTimes(1);
     expect(onSearchChange).toHaveBeenCalledWith('');
     expect(input).toHaveFocus();
   });
@@ -56,6 +69,7 @@ describe('Toolbar', () => {
     const onToggleSort = vi.fn();
     render(<Toolbar {...defaultProps} onToggleSort={onToggleSort} />);
     fireEvent.click(screen.getByRole('button', { name: 'Ordenar por uso recente' }));
+    expect(lightTapMock).toHaveBeenCalledTimes(1);
     expect(onToggleSort).toHaveBeenCalledTimes(1);
   });
 

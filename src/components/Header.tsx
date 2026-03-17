@@ -99,7 +99,10 @@ export default function Header({
               aria-label="Sair da conta"
               title={userEmail ?? undefined}
               className="neon-gold-text flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[12px] font-bold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
-              onClick={onSignOut}
+              onClick={() => {
+                lightTap();
+                onSignOut();
+              }}
             >
               {(userEmail?.[0] ?? '?').toUpperCase()}
             </button>

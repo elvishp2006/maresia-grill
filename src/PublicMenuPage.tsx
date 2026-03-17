@@ -4,6 +4,7 @@ import ItemList from './components/ItemList';
 import LoadingSpinner from './components/LoadingSpinner';
 import { submitPublicOrder, subscribePublicMenu } from './lib/storage';
 import { useToast } from './contexts/ToastContext';
+import { useHapticFeedback } from './hooks/useHapticFeedback';
 
 const CUSTOMER_NAME_STORAGE_KEY = 'public-menu-customer-name';
 
@@ -85,6 +86,7 @@ const setCachedOrder = (token: string, order: CachedPublicOrder) => {
 
 export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const { showToast } = useToast();
+  const { lightTap, mediumTap } = useHapticFeedback();
   const [menu, setMenu] = useState<PublicMenu | null | undefined>(undefined);
   const [customerName, setCustomerName] = useState(() => getStoredCustomerName());
   const [selection, setSelection] = useState<string[]>([]);
@@ -345,6 +347,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           <button
             type="button"
             onClick={() => {
+              lightTap();
               setCustomerName(successState.customerName);
               setSelection(successState.selectedItemIds);
               setSuccessState(null);
@@ -443,7 +446,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         <div className="mx-auto w-full max-w-[960px]">
           <button
             type="button"
-            onClick={() => { void handleSubmit(); }}
+            onClick={() => {
+              mediumTap();
+              void handleSubmit();
+            }}
             disabled={submitting}
             className="neon-gold-fill min-h-[54px] w-full rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >

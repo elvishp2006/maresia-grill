@@ -1,3 +1,5 @@
+import { useHapticFeedback } from '../hooks/useHapticFeedback';
+
 interface AuthScreenProps {
   error?: string | null;
   onPrimaryAction: () => void;
@@ -11,6 +13,8 @@ export default function AuthScreen({
   primaryActionLabel,
   primaryDisabled = false,
 }: AuthScreenProps) {
+  const { mediumTap } = useHapticFeedback();
+
   return (
     <div className="auth-screen">
       <div className="auth-screen__content">
@@ -22,7 +26,10 @@ export default function AuthScreen({
         <button
           type="button"
           className="neon-gold-fill flex items-center gap-3 rounded-full bg-[var(--accent)] px-8 py-4 text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_24px_rgba(215,176,92,0.25)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
-          onClick={onPrimaryAction}
+          onClick={() => {
+            mediumTap();
+            onPrimaryAction();
+          }}
           disabled={primaryDisabled}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">

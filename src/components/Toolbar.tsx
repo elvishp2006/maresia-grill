@@ -27,6 +27,7 @@ export default function Toolbar({
   };
 
   const handleClearSearch = () => {
+    lightTap();
     onSearchChange('');
     searchInputRef.current?.focus();
   };

@@ -56,12 +56,13 @@ export default function CategoryCard({
   const selectedCount = items.filter(item => daySelection.includes(item.id)).length;
 
   const handleRemoveCategory = async () => {
+    if (!isOnline) return;
+    mediumTap();
     const msg = items.length > 0
       ? `Remover também os ${items.length} itens desta categoria?`
       : 'Esta ação não pode ser desfeita.';
     const ok = await confirm(`Remover "${categoria}"`, msg);
     if (ok) {
-      mediumTap();
       onRemoveCategory();
     }
   };
@@ -85,7 +86,10 @@ export default function CategoryCard({
               <button
                 type="button"
                 className="flex h-[32px] w-[32px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={onMoveUp}
+                onClick={() => {
+                  lightTap();
+                  onMoveUp?.();
+                }}
                 disabled={isFirst || !isOnline}
                 aria-label={`Mover ${categoria} para cima`}
               >
@@ -96,7 +100,10 @@ export default function CategoryCard({
               <button
                 type="button"
                 className="flex h-[32px] w-[32px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={onMoveDown}
+                onClick={() => {
+                  lightTap();
+                  onMoveDown?.();
+                }}
                 disabled={isLast || !isOnline}
                 aria-label={`Mover ${categoria} para baixo`}
               >

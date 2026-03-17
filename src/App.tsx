@@ -28,6 +28,7 @@ import {
 import type { OrderEntry, PublicMenuVersion } from './types';
 import PublicMenuPage from './PublicMenuPage';
 import NotFoundPage from './NotFoundPage';
+import { useHapticFeedback } from './hooks/useHapticFeedback';
 
 type AppRoute =
   | { kind: 'root' }
@@ -55,6 +56,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { showToast } = useToast();
   const { confirm } = useModal();
   const { needRefresh, applyUpdate } = useUpdateNotification();
+  const { lightTap, mediumTap, success } = useHapticFeedback();
   const {
     canEdit,
     lock,
@@ -312,6 +314,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
               type="button"
               className="neon-gold-fill mt-[14px] min-h-[48px] rounded-[18px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
               onClick={() => {
+                mediumTap();
                 void takeControl().then((granted) => {
                   if (!granted) showToast('Nao foi possivel assumir o controle.', 'error');
                 });
@@ -385,6 +388,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
             type="button"
             className="neon-gold-fill min-h-[52px] rounded-[18px] bg-[var(--accent)] px-[18px] text-left text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
             onClick={() => {
+              success();
               setShowShareSheet(false);
               void shareMenu();
             }}
@@ -394,7 +398,10 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
           <button
             type="button"
             className="min-h-[52px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-card)] px-[18px] text-left text-[15px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => { void shareDailyLink(); }}
+            onClick={() => {
+              lightTap();
+              void shareDailyLink();
+            }}
             disabled={shareLinkPending || !acceptingOrders}
           >
             {shareLinkPending ? 'Gerando link...' : 'Compartilhar link único'}

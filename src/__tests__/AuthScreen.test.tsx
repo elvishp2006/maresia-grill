@@ -1,8 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import AuthScreen from '../components/AuthScreen';
 
+const mediumTapMock = vi.fn();
+
+vi.mock('../hooks/useHapticFeedback', () => ({
+  useHapticFeedback: () => ({
+    mediumTap: mediumTapMock,
+  }),
+}));
+
 describe('AuthScreen', () => {
+  beforeEach(() => {
+    mediumTapMock.mockReset();
+  });
+
   it('renders the login logo without neon glow classes', () => {
     render(
       <AuthScreen
@@ -30,6 +42,7 @@ describe('AuthScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Entrar com Google' }));
 
+    expect(mediumTapMock).toHaveBeenCalledTimes(1);
     expect(onPrimaryAction).toHaveBeenCalledTimes(1);
   });
 });
