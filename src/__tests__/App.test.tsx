@@ -144,7 +144,7 @@ describe('App', () => {
 
     expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Menu do Dia' })).not.toBeInTheDocument();
-    expect(screen.getByText(/1 iten selecionado • 16\/03/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 • 16\/03/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Colapsar Saladas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expandir Carnes' })).toBeInTheDocument();
     expect(screen.queryByText('Sugestões inteligentes')).not.toBeInTheDocument();
