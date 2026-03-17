@@ -38,7 +38,7 @@ export default function Toolbar({
     >
       <div className="mb-[10px] flex items-center justify-between gap-[10px]">
         <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          {viewMode === 'menu' ? 'Seleção rápida' : 'Busca e organizacao'}
+          {viewMode === 'menu' ? 'Seleção rápida' : 'Busca e organização'}
         </p>
         <p className="text-[12px] text-[var(--text-dim)]">
           {sortMode === 'alpha' ? 'Ordem alfabética' : 'Prioridade por frequência'}

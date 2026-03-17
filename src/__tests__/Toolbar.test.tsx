@@ -24,7 +24,7 @@ describe('Toolbar', () => {
     expect(screen.getByText('Ordem alfabética')).toBeInTheDocument();
 
     rerender(<Toolbar {...defaultProps} viewMode="manage" />);
-    expect(screen.getByText('Busca e organizacao')).toBeInTheDocument();
+    expect(screen.getByText('Busca e organização')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar item ou categoria')).toBeInTheDocument();
   });
 

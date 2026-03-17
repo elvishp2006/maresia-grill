@@ -57,8 +57,8 @@ export default function CategoryCard({
 
   const handleRemoveCategory = async () => {
     const msg = items.length > 0
-      ? `Remover tambem os ${items.length} itens desta categoria?`
-      : 'Esta acao nao pode ser desfeita.';
+      ? `Remover também os ${items.length} itens desta categoria?`
+      : 'Esta ação não pode ser desfeita.';
     const ok = await confirm(`Remover "${categoria}"`, msg);
     if (ok) {
       mediumTap();
@@ -89,7 +89,7 @@ export default function CategoryCard({
           <div className="flex items-start gap-[14px]">
             <div className="min-w-0 flex-1">
               <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-                {viewMode === 'select' ? 'Categoria' : 'Edicao'}
+                {viewMode === 'select' ? 'Categoria' : 'Edição'}
               </p>
               <h2 className="mt-[4px] overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
                 {categoria}

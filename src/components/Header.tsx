@@ -96,9 +96,11 @@ export default function Header({
         </div>
       </div>
 
-      <div className="subtle-panel mt-[16px] grid grid-cols-3 gap-[6px] p-[4px]">
+      <div role="tablist" className="subtle-panel mt-[16px] grid grid-cols-3 gap-[6px] p-[4px]">
         <button
           type="button"
+          role="tab"
+          aria-selected={viewMode === 'menu'}
           className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors ${viewMode === 'menu' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
@@ -109,6 +111,8 @@ export default function Header({
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={viewMode === 'stats'}
           className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'stats' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
@@ -122,6 +126,8 @@ export default function Header({
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={viewMode === 'manage'}
           className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors ${viewMode === 'manage' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
@@ -135,7 +141,7 @@ export default function Header({
       {onSignOut ? (
         <div className="mt-[12px] flex items-center justify-between gap-[12px]">
           <span className="min-w-0 truncate text-[12px] text-[var(--text-dim)]">
-            {userEmail ?? 'Sessao autenticada'}
+            {userEmail ?? 'Sessão autenticada'}
           </span>
           <button
             type="button"

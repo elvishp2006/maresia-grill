@@ -98,7 +98,7 @@ describe('App', () => {
     expect(screen.getByText(/1 iten selecionado • 16\/03/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Colapsar Saladas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expandir Carnes' })).toBeInTheDocument();
-    expect(screen.queryByText('Sugestoes inteligentes')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sugestões inteligentes')).not.toBeInTheDocument();
   });
 
   it('allows collapsing the currently open category', () => {
@@ -138,8 +138,8 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Estatísticas' }));
-    expect(screen.getByText('Sugestoes inteligentes')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Estatísticas' }));
+    expect(screen.getByText('Sugestões inteligentes')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Selecionar' }));
     expect(toggleItem).toHaveBeenCalledWith('2');
   });
@@ -151,7 +151,7 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Estatísticas' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Estatísticas' }));
 
     expect(screen.queryByPlaceholderText('Buscar item para o menu de hoje')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Colapsar Saladas' })).not.toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('App', () => {
 
     expect(screen.getByText('Sem internet')).toBeInTheDocument();
     expect(screen.getByText(/Edição, seleção do menu e estatísticas estão indisponíveis/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Estatísticas' })).toBeDisabled();
+    expect(screen.getByRole('tab', { name: 'Estatísticas' })).toBeDisabled();
   });
 
   it('renders an offline empty state when the statistics view is open and connection drops', () => {
@@ -179,8 +179,8 @@ describe('App', () => {
       </ModalProvider>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Estatísticas' }));
-    expect(screen.getByText('Sugestoes inteligentes')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Estatísticas' }));
+    expect(screen.getByText('Sugestões inteligentes')).toBeInTheDocument();
 
     useOnlineStatusMock.mockReturnValue({ isOnline: false });
 

@@ -71,7 +71,7 @@ export default function InsightsPanel({
         <div className="flex items-start justify-between gap-[12px]">
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-              Sugestoes inteligentes
+              Sugestões inteligentes
             </p>
             <h2 className="mt-[4px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
               O que faz sentido hoje
@@ -126,7 +126,7 @@ export default function InsightsPanel({
         </h2>
 
         {loading ? (
-          <p className="mt-[14px] text-[14px] text-[var(--text-dim)]">Carregando estatisticas...</p>
+          <p className="mt-[14px] text-[14px] text-[var(--text-dim)]">Carregando estatísticas...</p>
         ) : error ? (
           <p className="mt-[14px] text-[14px] text-[var(--accent-red)]">{error}</p>
         ) : (
@@ -192,7 +192,7 @@ export default function InsightsPanel({
             <div className="rounded-[22px] border border-[var(--border)] bg-[var(--bg-card)] p-[16px] shadow-[0_8px_20px_rgba(0,0,0,0.08)] lg:col-span-2">
               <h3 className="text-[16px] font-semibold text-[var(--text)]">Complementos esquecidos</h3>
               {neglectedItems.length === 0 ? (
-                <p className="mt-[12px] text-[14px] text-[var(--text-dim)]">Todos os itens tiveram alguma aparicao recente.</p>
+                <p className="mt-[12px] text-[14px] text-[var(--text-dim)]">Todos os itens tiveram alguma aparição recente.</p>
               ) : (
                 <ul className="mt-[12px] flex list-none flex-col gap-[10px]">
                   {neglectedItems.map(item => (
