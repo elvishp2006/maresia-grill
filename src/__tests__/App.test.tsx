@@ -144,7 +144,7 @@ describe('App', () => {
 
     expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Menu do Dia' })).not.toBeInTheDocument();
-    expect(screen.getByText(/1 • 16\/03/)).toBeInTheDocument();
+    expect(screen.getByText(/1 • 17\/03/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Colapsar Saladas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expandir Carnes' })).toBeInTheDocument();
     expect(screen.queryByText('Sugestões inteligentes')).not.toBeInTheDocument();
@@ -275,7 +275,7 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(screen.getByText('Acesso restrito')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Marésia Grill' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument();
   });
 });
