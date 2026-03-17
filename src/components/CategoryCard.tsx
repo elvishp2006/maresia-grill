@@ -88,14 +88,11 @@ export default function CategoryCard({
         >
           <div className="flex items-start gap-[14px]">
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--text-dim)]">
-                {viewMode === 'select' ? 'Categoria' : 'Edição'}
-              </p>
-              <h2 className="mt-[4px] overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+              <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
                 {categoria}
               </h2>
-              <p className="mt-[10px] text-[14px] leading-[1.6] text-[var(--text-dim)]">
-                {selectedCount} de {items.length} itens no menu de hoje
+              <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+                {selectedCount}/{items.length} itens
               </p>
             </div>
             <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
@@ -120,42 +117,53 @@ export default function CategoryCard({
         {expanded ? (
           <div className="mt-[16px] border-t border-[var(--border)] pt-[16px]">
             {viewMode === 'manage' ? (
-              <div className="mb-[16px] grid grid-cols-2 gap-[10px]">
+              <div className="mb-[16px] flex gap-[8px]">
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onMoveUp}
                   disabled={isFirst || !isOnline}
                   aria-label={`Mover ${categoria} para cima`}
                 >
-                  Subir
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M18 15l-6-6-6 6"/>
+                  </svg>
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onMoveDown}
                   disabled={isLast || !isOnline}
                   aria-label={`Mover ${categoria} para baixo`}
                 >
-                  Descer
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] bg-[var(--accent)] px-[12px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="flex h-[40px] flex-1 items-center justify-center rounded-[14px] bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={handleShowAddSheet}
                   aria-label={`Adicionar item em ${categoria}`}
                   disabled={!isOnline}
                 >
-                  Novo item
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
                 </button>
                 <button
                   type="button"
-                  className="min-h-[44px] rounded-[18px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={handleRemoveCategory}
                   aria-label={`Remover categoria ${categoria}`}
                   disabled={!isOnline}
                 >
-                  Excluir
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14H6L5 6"/>
+                    <path d="M10 11v6M14 11v6"/>
+                    <path d="M9 6V4h6v2"/>
+                  </svg>
                 </button>
               </div>
             ) : null}

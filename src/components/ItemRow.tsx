@@ -61,7 +61,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
 
   return (
     <>
-      <li className="item rounded-[22px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[14px]">
+      <li className="item rounded-[22px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
         <div className="flex items-center gap-[14px]">
           <span
             className={`flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border text-[15px] font-bold transition-colors ${active ? 'border-[var(--green)] bg-[var(--green)] text-[var(--bg)]' : 'border-[var(--border-strong)] text-transparent'}`}
@@ -69,38 +69,41 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           >
             ✓
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-medium leading-[1.4] text-[var(--text)]">
-              {item.nome}
-            </p>
-            <p className="mt-[2px] text-[13px] text-[var(--text-dim)]">
-              {active ? 'Já aparece no menu de hoje' : 'Ainda não selecionado'}
-            </p>
+          <p className="min-w-0 flex-1 truncate text-[15px] font-medium leading-[1.4] text-[var(--text)]">
+            {item.nome}
+          </p>
+          <div className="flex shrink-0 gap-[8px]">
+            <button
+              type="button"
+              className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => {
+                if (!isOnline) return;
+                lightTap();
+                setShowRenameSheet(true);
+              }}
+              aria-label={`Renomear ${item.nome}`}
+              disabled={!isOnline}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={handleRemove}
+              aria-label={`Remover ${item.nome}`}
+              disabled={!isOnline}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4h6v2"/>
+              </svg>
+            </button>
           </div>
-        </div>
-        <div className="mt-[14px] flex gap-[10px]">
-          <button
-            type="button"
-            className="min-h-[44px] flex-1 rounded-[16px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => {
-              if (!isOnline) return;
-              lightTap();
-              setShowRenameSheet(true);
-            }}
-            aria-label={`Renomear ${item.nome}`}
-            disabled={!isOnline}
-          >
-            Renomear
-          </button>
-          <button
-            type="button"
-            className="min-h-[44px] flex-1 rounded-[16px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.06)] px-[12px] text-[13px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={handleRemove}
-            aria-label={`Remover ${item.nome}`}
-            disabled={!isOnline}
-          >
-            Remover
-          </button>
         </div>
       </li>
 
