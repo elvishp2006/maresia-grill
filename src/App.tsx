@@ -7,7 +7,6 @@ import Toolbar from './components/Toolbar';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthScreen from './components/AuthScreen';
 import InstallBanner from './components/InstallBanner';
-import UpdateBanner from './components/UpdateBanner';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useMenuInsights } from './hooks/useMenuInsights';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
@@ -16,6 +15,7 @@ import { useModal } from './contexts/ModalContext';
 import MenuView from './MenuView';
 import { useEditorLock } from './hooks/useEditorLock';
 import { LOCK_TIMEOUT_MS } from './lib/storage';
+import { useUpdateNotification } from './hooks/useUpdateNotification';
 
 interface AuthenticatedAppProps {
   onSignOut: () => void;
@@ -26,6 +26,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
   const { showToast } = useToast();
   const { confirm } = useModal();
+  const { needRefresh, applyUpdate } = useUpdateNotification();
   const {
     canEdit,
     lock,
@@ -117,6 +118,8 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         dateShort={dateShort}
         isOnline={isOnline}
         onSignOut={() => { void handleSignOut(); }}
+        showUpdateIndicator={needRefresh}
+        onApplyUpdate={() => { void applyUpdate(); }}
         userEmail={userEmail}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -204,8 +207,6 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
         onClearSearch={() => setSearch('')}
         onShare={shareMenu}
       />
-
-      <UpdateBanner />
       <InstallBanner />
     </div>
   );
