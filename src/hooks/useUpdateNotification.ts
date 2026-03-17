@@ -4,9 +4,21 @@ import { useToast } from '../contexts/ToastContext';
 
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
-export function useUpdateNotification() {
+interface UseUpdateNotificationOptions {
+  autoApply?: boolean;
+  reloadOnControllerChange?: boolean;
+  showUpdatedToast?: boolean;
+}
+
+export function useUpdateNotification({
+  autoApply = false,
+  reloadOnControllerChange = false,
+  showUpdatedToast = true,
+}: UseUpdateNotificationOptions = {}) {
   const { showToast } = useToast();
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  const autoApplyTriggeredRef = useRef(false);
+  const reloadedRef = useRef(false);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -42,12 +54,33 @@ export function useUpdateNotification() {
     if (typeof navigator.serviceWorker === 'undefined') return;
 
     const handleControllerChange = () => {
-      showToast('✓ App atualizado', 'success', 3000);
+      if (reloadOnControllerChange) {
+        if (reloadedRef.current) return;
+        reloadedRef.current = true;
+        window.location.reload();
+        return;
+      }
+
+      if (showUpdatedToast) {
+        showToast('✓ App atualizado', 'success', 3000);
+      }
     };
 
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     return () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
-  }, [showToast]);
+  }, [reloadOnControllerChange, showToast, showUpdatedToast]);
+
+  useEffect(() => {
+    if (!autoApply || !needRefresh) {
+      autoApplyTriggeredRef.current = false;
+      return;
+    }
+
+    if (autoApplyTriggeredRef.current) return;
+
+    autoApplyTriggeredRef.current = true;
+    void applyUpdate();
+  }, [applyUpdate, autoApply, needRefresh]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {

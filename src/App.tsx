@@ -49,13 +49,14 @@ const resolveRoute = (pathname: string): AppRoute => {
 interface AuthenticatedAppProps {
   onSignOut: () => void;
   userEmail?: string | null;
+  updateNotification: ReturnType<typeof useUpdateNotification>;
 }
 
-function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
+function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: AuthenticatedAppProps) {
   const { isOnline } = useOnlineStatus();
   const { showToast } = useToast();
   const { confirm } = useModal();
-  const { needRefresh, applyUpdate } = useUpdateNotification();
+  const { needRefresh, applyUpdate } = updateNotification;
   const { lightTap, mediumTap, success } = useHapticFeedback();
   const {
     canEdit,
@@ -426,6 +427,12 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
 
 export default function App() {
   const route = resolveRoute(window.location.pathname);
+  const isPublicMenuRoute = route.kind === 'public-menu';
+  const updateNotification = useUpdateNotification({
+    autoApply: isPublicMenuRoute,
+    reloadOnControllerChange: isPublicMenuRoute,
+    showUpdatedToast: !isPublicMenuRoute,
+  });
 
   if (route.kind === 'public-menu') {
     return <PublicMenuPage token={route.token} />;
@@ -435,10 +442,10 @@ export default function App() {
     return <NotFoundPage />;
   }
 
-  return <RootApp />;
+  return <RootApp updateNotification={updateNotification} />;
 }
 
-function RootApp() {
+function RootApp({ updateNotification }: { updateNotification: ReturnType<typeof useUpdateNotification> }) {
   const {
     user,
     loading,
@@ -461,5 +468,11 @@ function RootApp() {
     );
   }
 
-  return <AuthenticatedApp onSignOut={() => { void signOut(); }} userEmail={user.email} />;
+  return (
+    <AuthenticatedApp
+      onSignOut={() => { void signOut(); }}
+      updateNotification={updateNotification}
+      userEmail={user.email}
+    />
+  );
 }

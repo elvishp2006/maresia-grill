@@ -48,6 +48,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
         globIgnores: ['splash/*.png', 'brand/*.svg'],
+        cleanupOutdatedCaches: true,
+        navigateFallbackDenylist: [/^\/s\//],
       },
     }),
   ],

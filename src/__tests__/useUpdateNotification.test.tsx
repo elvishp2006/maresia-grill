@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { ToastProvider } from '../contexts/ToastContext';
@@ -84,5 +84,16 @@ describe('useUpdateNotification', () => {
     const { result } = renderHook(() => useUpdateNotification(), { wrapper });
 
     expect(result.current.needRefresh).toBe(true);
+  });
+
+  it('applies updates automatically when configured for auto-apply', async () => {
+    currentNeedRefresh = true;
+
+    renderHook(() => useUpdateNotification({ autoApply: true }), { wrapper });
+
+    await waitFor(() => {
+      expect(setNeedRefreshMock).toHaveBeenCalledWith(false);
+      expect(updateServiceWorkerMock).toHaveBeenCalledWith(true);
+    });
   });
 });

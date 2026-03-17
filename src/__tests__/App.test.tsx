@@ -47,7 +47,7 @@ const useUpdateNotificationMock = vi.fn(() => ({
 }));
 
 vi.mock('../hooks/useUpdateNotification', () => ({
-  useUpdateNotification: () => useUpdateNotificationMock(),
+  useUpdateNotification: (...args: unknown[]) => useUpdateNotificationMock(...args),
 }));
 
 const useEditorLockMock = vi.fn(() => ({
@@ -295,6 +295,24 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(applyUpdateMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('configures automatic updates on public menu routes', () => {
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(useUpdateNotificationMock).toHaveBeenCalledWith({
+      autoApply: true,
+      reloadOnControllerChange: true,
+      showUpdatedToast: false,
     });
   });
 
