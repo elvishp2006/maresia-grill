@@ -27,7 +27,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       manifest: {
         name: 'Maresia Grill',
         short_name: 'Maresia Grill',

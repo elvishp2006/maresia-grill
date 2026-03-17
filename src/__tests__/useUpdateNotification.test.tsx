@@ -75,6 +75,7 @@ describe('useUpdateNotification', () => {
     });
 
     expect(registrationUpdateMock).toHaveBeenCalledTimes(2);
+    expect(updateServiceWorkerMock).not.toHaveBeenCalled();
   });
 
   it('exposes the plugin state for refresh prompts', () => {
