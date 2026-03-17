@@ -48,49 +48,63 @@ export default function Header({
   return (
     <header
       ref={headerRef}
-      className="sticky top-0 z-30 -mx-[16px] mb-[14px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[14px] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[18px]"
+      className="sticky top-0 z-30 -mx-[16px] mb-[14px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[10px] pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-[18px]"
     >
-      <div className="flex flex-col items-center">
-        <div className="flex w-full justify-center">
-          <div className="flex items-center justify-center md:hidden">
-            <img
-              src="/brand/menu-mark.svg"
-              alt="Logo do Maresia Grill"
-              className="h-[52px] w-[52px] max-w-none shrink-0 object-cover object-top drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)]"
-            />
-          </div>
+      <div className="flex items-center justify-between gap-[8px]">
+        <div className="flex items-center gap-[8px]">
           <img
             src="/brand/menu-mark.svg"
-            alt=""
-            aria-hidden="true"
-            className="hidden h-[84px] w-[132px] shrink-0 object-contain px-[2px] py-[2px] drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] md:block"
+            alt="Logo do Maresia Grill"
+            className="h-[28px] w-[28px] shrink-0 object-cover object-top"
           />
-        </div>
-        <div className="mt-[10px] flex w-full items-center justify-between gap-[12px]">
-          <span className="min-w-0 text-[13px] text-[var(--text-dim)] md:text-[14px]">
-            {activeCount} iten{activeCount !== 1 ? 's' : ''} selecionado{activeCount !== 1 ? 's' : ''} • {dateShort}
+          <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">
+            Maresia Grill
           </span>
+        </div>
+
+        <div className="flex items-center gap-[8px]">
+          {activeCount > 0 ? (
+            <span className="rounded-full bg-[var(--accent-soft)] px-[10px] py-[3px] text-[12px] font-semibold text-[var(--accent)]">
+              {activeCount} • {dateShort}
+            </span>
+          ) : (
+            <span className="text-[12px] text-[var(--text-dim)]">{dateShort}</span>
+          )}
+          {onSignOut ? (
+            <button
+              type="button"
+              aria-label="Sair da conta"
+              title={userEmail ?? undefined}
+              className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[12px] font-bold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
+              onClick={onSignOut}
+            >
+              {(userEmail?.[0] ?? '?').toUpperCase()}
+            </button>
+          ) : null}
         </div>
       </div>
 
-      <div role="tablist" className="subtle-panel mt-[16px] grid grid-cols-3 gap-[6px] p-[4px]">
+      <div role="tablist" className="subtle-panel mt-[10px] grid grid-cols-3 gap-[6px] p-[4px]">
         <button
           type="button"
           role="tab"
           aria-selected={viewMode === 'menu'}
-          className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors ${viewMode === 'menu' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`flex min-h-[44px] flex-col items-center justify-center gap-[3px] rounded-[16px] px-[10px] transition-colors ${viewMode === 'menu' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('menu');
           }}
         >
-          Montar menu
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
+          </svg>
+          <span className="text-[11px] font-semibold">Menu</span>
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={viewMode === 'stats'}
-          className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'stats' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`flex min-h-[44px] flex-col items-center justify-center gap-[3px] rounded-[16px] px-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'stats' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('stats');
@@ -99,36 +113,28 @@ export default function Header({
           aria-disabled={!isOnline}
           title={isOnline ? undefined : 'Estatísticas indisponíveis sem internet'}
         >
-          Estatísticas
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
+          <span className="text-[11px] font-semibold">Estatísticas</span>
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={viewMode === 'manage'}
-          className={`min-h-[44px] rounded-[16px] px-[10px] text-[13px] font-semibold transition-colors ${viewMode === 'manage' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`flex min-h-[44px] flex-col items-center justify-center gap-[3px] rounded-[16px] px-[10px] transition-colors ${viewMode === 'manage' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('manage');
           }}
         >
-          Editar catálogo
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <span className="text-[11px] font-semibold">Catálogo</span>
         </button>
       </div>
-
-      {onSignOut ? (
-        <div className="mt-[12px] flex items-center justify-between gap-[12px]">
-          <span className="min-w-0 truncate text-[12px] text-[var(--text-dim)]">
-            {userEmail ?? 'Sessão autenticada'}
-          </span>
-          <button
-            type="button"
-            className="min-h-[38px] shrink-0 rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] px-[12px] text-[12px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
-            onClick={onSignOut}
-          >
-            Sair
-          </button>
-        </div>
-      ) : null}
     </header>
   );
 }
