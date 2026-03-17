@@ -28,8 +28,10 @@ export default function BottomSheet({
     const dialogEl = dialogRef.current;
 
     if (dialogEl) {
-      const first = dialogEl.querySelector<HTMLElement>(FOCUSABLE);
-      first?.focus();
+      const target = dialogEl.contains(document.activeElement)
+        ? (document.activeElement as HTMLElement)
+        : dialogEl.querySelector<HTMLElement>(FOCUSABLE);
+      target?.focus();
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
