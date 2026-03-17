@@ -16,10 +16,17 @@ const getDateKey = (date = new Date()) => [
   String(date.getDate()).padStart(2, '0'),
 ].join('-');
 
-const categoriesRef = () => doc(db, 'config', 'categories');
-const complementsRef = () => doc(db, 'config', 'complements');
-const selectionRef = (date = new Date()) => doc(db, 'selections', getDateKey(date));
-const editorLockRef = () => doc(db, 'config', 'editorLock');
+const getDb = () => {
+  if (!db) {
+    throw new Error('Firestore indisponivel. Verifique a configuracao do Firebase.');
+  }
+  return db;
+};
+
+const categoriesRef = () => doc(getDb(), 'config', 'categories');
+const complementsRef = () => doc(getDb(), 'config', 'complements');
+const selectionRef = (date = new Date()) => doc(getDb(), 'selections', getDateKey(date));
+const editorLockRef = () => doc(getDb(), 'config', 'editorLock');
 
 export interface SelectionHistoryEntry {
   dateKey: string;
@@ -144,7 +151,7 @@ export const loadSelectionHistory = async (days: number): Promise<SelectionHisto
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     const dateKey = getDateKey(d);
-    return { dateKey, ref: doc(db, 'selections', dateKey) };
+    return { dateKey, ref: doc(getDb(), 'selections', dateKey) };
   });
 
   const snaps = await Promise.all(refs.map(({ ref }) => getDoc(ref)));
@@ -171,7 +178,7 @@ export const subscribeEditorLock = (
 }, error => onError?.(error));
 
 export const acquireEditorLock = async (input: AcquireEditorLockInput): Promise<EditorLock | null> => {
-  return runTransaction(db, async (transaction) => {
+  return runTransaction(getDb(), async (transaction) => {
     const ref = editorLockRef();
     const snap = await transaction.get(ref);
     const current = snap.exists() ? normalizeEditorLock(snap.data()) : null;
@@ -198,7 +205,7 @@ export const acquireEditorLock = async (input: AcquireEditorLockInput): Promise<
 };
 
 export const renewEditorLock = async (sessionId: string): Promise<EditorLock | null> => {
-  return runTransaction(db, async (transaction) => {
+  return runTransaction(getDb(), async (transaction) => {
     const ref = editorLockRef();
     const snap = await transaction.get(ref);
     if (!snap.exists()) return null;
@@ -220,7 +227,7 @@ export const renewEditorLock = async (sessionId: string): Promise<EditorLock | n
 };
 
 export const releaseEditorLock = async (sessionId: string): Promise<void> => {
-  await runTransaction(db, async (transaction) => {
+  await runTransaction(getDb(), async (transaction) => {
     const ref = editorLockRef();
     const snap = await transaction.get(ref);
     if (!snap.exists()) return;

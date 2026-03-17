@@ -56,12 +56,14 @@ export interface EditorLockState {
   lock: EditorLock | null;
   isExpired: boolean;
   isOwner: boolean;
+  error: string | null;
   requestEditAccess: () => Promise<boolean>;
   releaseEditAccess: () => Promise<void>;
 }
 
 export function useEditorLock(userEmail?: string | null, isOnline = true): EditorLockState {
   const [lock, setLock] = useState<EditorLock | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const sessionId = useMemo(
     () => getOrCreateStoredValue(SESSION_STORAGE_KEY, 'sessionStorage', randomId),
@@ -77,6 +79,9 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
 
     const unsubscribe = subscribeEditorLock((nextLock) => {
       setLock(nextLock);
+      setError(null);
+    }, (nextError) => {
+      setError(nextError.message);
     });
 
     return unsubscribe;
@@ -84,18 +89,30 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
 
   const requestEditAccess = async () => {
     if (!userEmail || !isOnline) return false;
-    const acquired = await acquireEditorLock({ sessionId, userEmail, deviceLabel });
-    return acquired?.sessionId === sessionId;
+    try {
+      const acquired = await acquireEditorLock({ sessionId, userEmail, deviceLabel });
+      setError(null);
+      return acquired?.sessionId === sessionId;
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel assumir a edicao.');
+      return false;
+    }
   };
 
   const releaseEditAccess = async () => {
-    await releaseEditorLock(sessionId);
+    try {
+      await releaseEditorLock(sessionId);
+    } catch {
+      // Ignore release errors during teardown/sign-out.
+    }
   };
 
   useEffect(() => {
     if (!userEmail || !isOnline) return;
     if (lock) return;
-    void acquireEditorLock({ sessionId, userEmail, deviceLabel });
+    void acquireEditorLock({ sessionId, userEmail, deviceLabel }).catch((nextError) => {
+      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel verificar a edicao ativa.');
+    });
   }, [deviceLabel, isOnline, lock, sessionId, userEmail]);
 
   const effectiveLock = userEmail ? lock : null;
@@ -107,8 +124,13 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
     if (!canEdit) return;
 
     const id = window.setInterval(async () => {
-      const nextLock = await renewEditorLock(sessionId);
-      if (!nextLock) setLock(current => current?.sessionId === sessionId ? null : current);
+      try {
+        const nextLock = await renewEditorLock(sessionId);
+        if (!nextLock) setLock(current => current?.sessionId === sessionId ? null : current);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel renovar a sessao de edicao.');
+        setLock(current => current?.sessionId === sessionId ? null : current);
+      }
     }, HEARTBEAT_INTERVAL_MS);
 
     return () => window.clearInterval(id);
@@ -135,6 +157,7 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
     lock: effectiveLock,
     isExpired,
     isOwner,
+    error,
     requestEditAccess,
     releaseEditAccess,
   };

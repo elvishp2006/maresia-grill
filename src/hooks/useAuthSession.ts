@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth, googleProvider } from '../lib/firebase';
+import { auth, googleProvider, hasFirebaseConfig } from '../lib/firebase';
 
 const getSignInErrorMessage = (error: unknown) => {
   if (typeof error === 'object' && error !== null && 'code' in error) {
@@ -19,6 +19,13 @@ export function useAuthSession() {
   const [signInPending, setSignInPending] = useState(false);
 
   useEffect(() => {
+    if (!hasFirebaseConfig || !auth) {
+      setLoading(false);
+      setAuthError('Configuracao do Firebase ausente.');
+      setUser(null);
+      return;
+    }
+
     let active = true;
 
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
@@ -36,6 +43,11 @@ export function useAuthSession() {
   }, []);
 
   const signIn = async () => {
+    if (!hasFirebaseConfig || !auth || !googleProvider) {
+      setAuthError('Configuracao do Firebase ausente.');
+      return;
+    }
+
     setSignInPending(true);
     setAuthError(null);
 
@@ -49,6 +61,7 @@ export function useAuthSession() {
   };
 
   const signOut = async () => {
+    if (!auth) return;
     await firebaseSignOut(auth);
   };
 

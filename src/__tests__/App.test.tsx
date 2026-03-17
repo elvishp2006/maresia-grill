@@ -49,6 +49,7 @@ const useEditorLockMock = vi.fn(() => ({
   lock: null as EditorLock | null,
   isExpired: false,
   isOwner: true,
+  error: null as string | null,
   requestEditAccess: vi.fn().mockResolvedValue(true),
   releaseEditAccess: vi.fn().mockResolvedValue(undefined),
 }));
@@ -110,6 +111,7 @@ describe('App', () => {
       lock: null as EditorLock | null,
       isExpired: false,
       isOwner: true,
+      error: null,
       requestEditAccess: vi.fn().mockResolvedValue(true),
       releaseEditAccess: vi.fn().mockResolvedValue(undefined),
     });
@@ -301,6 +303,7 @@ describe('App', () => {
       },
       isExpired: false,
       isOwner: false,
+      error: null,
       requestEditAccess: vi.fn().mockResolvedValue(false),
       releaseEditAccess: vi.fn().mockResolvedValue(undefined),
     });
@@ -315,6 +318,31 @@ describe('App', () => {
 
     expect(screen.getByText('Leitura somente')).toBeInTheDocument();
     expect(screen.getByText(/outra@maresia.com está editando em iPhone/i)).toBeInTheDocument();
+  });
+
+  it('shows a Firestore rules hint when the editor lock read is denied', () => {
+    useEditorLockMock.mockReturnValue({
+      canEdit: false,
+      loading: false,
+      lock: null,
+      isExpired: false,
+      isOwner: false,
+      error: 'Missing or insufficient permissions.',
+      requestEditAccess: vi.fn().mockResolvedValue(false),
+      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText(/não conseguiu acessar o documento de lock no Firestore/i)).toBeInTheDocument();
+    expect(screen.getByText(/Publique as regras mais recentes do Firestore/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assumir edição' })).not.toBeInTheDocument();
   });
 
   it('renders the sign-in screen when there is no session', () => {

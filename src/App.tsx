@@ -30,6 +30,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
     canEdit,
     lock,
     isExpired,
+    error: editorLockError,
     requestEditAccess,
     releaseEditAccess,
   } = useEditorLock(userEmail, isOnline);
@@ -107,6 +108,7 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
 
   const isReadOnly = isOnline && !canEdit;
   const canTakeOver = isReadOnly && isExpired;
+  const hasEditorLockPermissionIssue = editorLockError?.toLowerCase().includes('permission') ?? false;
 
   return (
     <div className="app-shell">
@@ -138,16 +140,20 @@ function AuthenticatedApp({ onSignOut, userEmail }: AuthenticatedAppProps) {
             Leitura somente
           </p>
           <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
-            {isExpired
-              ? `${lock?.userEmail ?? 'Outra pessoa'} ficou com a edição travada em ${lock?.deviceLabel ?? 'outro dispositivo'}.`
-              : `${lock?.userEmail ?? 'Outra pessoa'} está editando em ${lock?.deviceLabel ?? 'outro dispositivo'}.`}
+            {hasEditorLockPermissionIssue
+              ? 'O controle de edição não conseguiu acessar o documento de lock no Firestore.'
+              : isExpired
+                ? `${lock?.userEmail ?? 'Outra pessoa'} ficou com a edição travada em ${lock?.deviceLabel ?? 'outro dispositivo'}.`
+                : `${lock?.userEmail ?? 'Outra pessoa'} está editando em ${lock?.deviceLabel ?? 'outro dispositivo'}.`}
           </p>
           <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
-            {isExpired
-              ? 'A sessão anterior expirou. Você já pode assumir a edição.'
-              : `Se essa sessão parar de responder, o bloqueio expira em até ${Math.ceil(LOCK_TIMEOUT_MS / 1000)}s.`}
+            {hasEditorLockPermissionIssue
+              ? 'Publique as regras mais recentes do Firestore para liberar leitura e escrita em config/editorLock.'
+              : isExpired
+                ? 'A sessão anterior expirou. Você já pode assumir a edição.'
+                : `Se essa sessão parar de responder, o bloqueio expira em até ${Math.ceil(LOCK_TIMEOUT_MS / 1000)}s.`}
           </p>
-          {canTakeOver ? (
+          {canTakeOver && !hasEditorLockPermissionIssue ? (
             <button
               type="button"
               className="neon-gold-fill mt-[14px] min-h-[48px] rounded-[18px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"

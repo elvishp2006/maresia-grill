@@ -4,6 +4,25 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase')) return 'firebase';
+          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) return 'react-vendor';
+          if (id.includes('node_modules/workbox-window') || id.includes('virtual:pwa-register')) return 'pwa';
+          if (
+            id.includes('/src/components/InsightsPanel.tsx')
+            || id.includes('/src/hooks/useMenuInsights.ts')
+            || id.includes('/src/lib/insights.ts')
+          ) {
+            return 'insights';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
