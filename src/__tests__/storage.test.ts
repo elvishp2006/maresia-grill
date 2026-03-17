@@ -5,6 +5,7 @@ vi.mock('../lib/firebase', () => ({ db: {} }));
 
 const mockGetDoc = vi.fn();
 const mockSetDoc = vi.fn().mockResolvedValue(undefined);
+const mockDeleteDoc = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') }));
 const mockCollection = vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') }));
 const mockQuery = vi.fn((ref: unknown, ordering?: unknown) => {
@@ -18,6 +19,7 @@ const mockRunTransaction = vi.fn();
 vi.mock('firebase/firestore', () => ({
   getDoc: (ref: unknown) => mockGetDoc(ref),
   setDoc: (ref: unknown, data: unknown) => mockSetDoc(ref, data),
+  deleteDoc: (ref: unknown) => mockDeleteDoc(ref),
   doc: (db: unknown, ...segments: string[]) => mockDoc(db, ...segments),
   collection: (db: unknown, ...segments: string[]) => mockCollection(db, ...segments),
   query: (ref: unknown, ordering: unknown) => mockQuery(ref, ordering),
@@ -698,6 +700,58 @@ describe('storage', () => {
           submittedItems: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
         }),
       ]);
+    });
+
+    it('deletes a public order entry while order intake is open', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: true,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { deletePublicOrder } = await import('../lib/storage');
+
+      await expect(deletePublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      })).resolves.toBeUndefined();
+
+      expect(mockDeleteDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'orders/2026-03-17/entries/order-1' }),
+      );
+    });
+
+    it('rejects public order deletion when order intake is closed', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          token: 'token-1',
+          dateKey: '2026-03-17',
+          acceptingOrders: false,
+          currentVersionId: 'version-1',
+          categories: ['Saladas'],
+          items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+          createdAt: new Date('2026-03-17T10:00:00Z'),
+          expiresAt: new Date('2026-03-17T23:59:59Z'),
+        }),
+      } as unknown as DocumentSnapshot);
+
+      const { deletePublicOrder } = await import('../lib/storage');
+
+      await expect(deletePublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      })).rejects.toThrow('Os pedidos deste cardapio foram encerrados.');
     });
   });
 });

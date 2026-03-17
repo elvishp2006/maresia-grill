@@ -126,6 +126,15 @@ service cloud.firestore {
         && request.resource.data.selectedItemIds.hasOnly(get(/databases/$(database)/documents/publicMenuVersions/$(request.resource.data.menuVersionId)).data.itemIds);
     }
 
+    function canDeletePublicOrder(dateKey, orderId) {
+      return resource.data.orderId == orderId
+        && resource.data.dateKey == dateKey
+        && resource.data.shareToken is string
+        && isPublicMenuActive(resource.data.shareToken)
+        && get(/databases/$(database)/documents/publicMenus/$(resource.data.shareToken)).data.acceptingOrders == true
+        && get(/databases/$(database)/documents/publicMenus/$(resource.data.shareToken)).data.dateKey == dateKey;
+    }
+
     match /config/categories {
       allow read: if isAuthorizedUser();
       allow create, update: if isAuthorizedUser()
@@ -178,7 +187,7 @@ service cloud.firestore {
     match /orders/{dateKey}/entries/{orderId} {
       allow read: if isAuthorizedUser();
       allow create, update: if isValidPublicOrder(dateKey, orderId);
-      allow delete: if false;
+      allow delete: if canDeletePublicOrder(dateKey, orderId);
     }
 
     match /{document=**} {

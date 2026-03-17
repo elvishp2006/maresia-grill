@@ -74,6 +74,7 @@ const getOrCreateDailyShareLinkMock = vi.fn().mockResolvedValue({
 });
 const subscribePublicMenuMock = vi.fn();
 const submitPublicOrderMock = vi.fn().mockResolvedValue({ selectedItemIds: ['1'] });
+const deletePublicOrderMock = vi.fn().mockResolvedValue(undefined);
 const syncPublicMenuSnapshotForDateMock = vi.fn().mockResolvedValue(undefined);
 const subscribeOrderIntakeStatusMock = vi.fn();
 const setOrderIntakeStatusMock = vi.fn().mockResolvedValue(undefined);
@@ -87,6 +88,7 @@ vi.mock('../lib/storage', () => ({
   setOrderIntakeStatus: (...args: unknown[]) => setOrderIntakeStatusMock(...args),
   subscribePublicMenu: (...args: unknown[]) => subscribePublicMenuMock(...args),
   submitPublicOrder: (...args: unknown[]) => submitPublicOrderMock(...args),
+  deletePublicOrder: (...args: unknown[]) => deletePublicOrderMock(...args),
   syncPublicMenuSnapshotForDate: (...args: unknown[]) => syncPublicMenuSnapshotForDateMock(...args),
 }));
 
@@ -172,6 +174,7 @@ describe('App', () => {
     setOrderIntakeStatusMock.mockResolvedValue(undefined);
     syncPublicMenuSnapshotForDateMock.mockResolvedValue(undefined);
     submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1'] });
+    deletePublicOrderMock.mockResolvedValue(undefined);
     subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
       onValue({
         token: 'token-1',
@@ -612,7 +615,7 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(await screen.findByText('Nome do cliente')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
     expect(screen.getByText('Saladas')).toBeInTheDocument();
   });
 
@@ -688,6 +691,7 @@ describe('App', () => {
     });
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/enviado');
 
     fireEvent.click(screen.getByRole('button', { name: 'Editar pedido' }));
 
@@ -695,6 +699,51 @@ describe('App', () => {
       expect(screen.getByDisplayValue('Ana')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
     });
+    expect(window.location.hash).toBe('#/pedido');
+  });
+
+  it('allows removing the public order while intake is open and shows a removal confirmation state', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover pedido' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
+
+    await waitFor(() => {
+      expect(deletePublicOrderMock).toHaveBeenCalledWith({
+        orderId: 'public-order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      });
+    });
+
+    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(localStorage.getItem('public-menu-last-order:token-1')).toBeNull();
+    expect(window.location.hash).toBe('#/removido');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fazer novo pedido' }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ana')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' })).toBeInTheDocument();
+    });
+    expect(window.location.hash).toBe('#/pedido');
   });
 
   it('persists only the validated public selection after submit', async () => {
@@ -747,6 +796,181 @@ describe('App', () => {
 
     expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('keeps the submitted state after reload when the hash and cached order are present', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+    }));
+    localStorage.setItem('public-menu-view:token-1', 'submitted');
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/enviado');
+  });
+
+  it('keeps the submitted confirmation after reload even when intake is closed', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+    }));
+    localStorage.setItem('public-menu-view:token-1', 'submitted');
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: false,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remover pedido' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the removed state after reload when the hash and customer name are present', async () => {
+    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/removido');
+  });
+
+  it('keeps the removed confirmation after reload even when intake is closed', async () => {
+    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: false,
+        currentVersionId: 'version-1',
+        categories: ['Saladas'],
+        items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fazer novo pedido' })).not.toBeInTheDocument();
+  });
+
+  it('restores the removed state using token-scoped data instead of the global customer name', async () => {
+    localStorage.setItem('public-menu-customer-name', 'Beatriz');
+    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText(/Ana, você ainda pode montar um novo pedido neste cardápio/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Beatriz, você ainda pode montar um novo pedido neste cardápio/i)).not.toBeInTheDocument();
+  });
+
+  it('falls back to the form when the removed hash has no token-scoped removed state', async () => {
+    localStorage.setItem('public-menu-customer-name', 'Ana');
+    localStorage.setItem('public-menu-view:token-1', 'removed');
+    window.history.pushState({}, '', '/s/token-1/#/removido');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/pedido');
+    });
+  });
+
+  it('preserves query parameters when normalizing the public hash route', async () => {
+    window.history.pushState({}, '', '/s/token-1?ref=whatsapp');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.search).toBe('?ref=whatsapp');
+      expect(window.location.href).toContain('/s/token-1/?ref=whatsapp#/pedido');
+    });
+  });
+
+  it('falls back to the form when the submitted hash has no cached order', async () => {
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/pedido');
+    });
   });
 
   it('sanitizes cached public selections that no longer exist in the current menu', async () => {

@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -80,6 +81,12 @@ export interface SubmitPublicOrderInput {
 
 export interface SubmitPublicOrderResult {
   selectedItemIds: string[];
+}
+
+export interface DeletePublicOrderInput {
+  orderId: string;
+  dateKey: string;
+  shareToken: string;
 }
 
 export interface SetOrderIntakeStatusInput extends CreateDailyShareLinkInput {
@@ -738,6 +745,22 @@ export const submitPublicOrder = async ({
   });
 
   return { selectedItemIds: submittedItemIds };
+};
+
+export const deletePublicOrder = async ({
+  orderId,
+  dateKey,
+  shareToken,
+}: DeletePublicOrderInput): Promise<void> => {
+  const publicMenu = await loadPublicMenu(shareToken);
+  if (!publicMenu || publicMenu.dateKey !== dateKey) {
+    throw new Error('Cardapio publico indisponivel para este pedido.');
+  }
+  if (!publicMenu.acceptingOrders) {
+    throw new Error('Os pedidos deste cardapio foram encerrados.');
+  }
+
+  await deleteDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId));
 };
 
 export const loadPublicMenuVersions = async (versionIds: string[]): Promise<Record<string, PublicMenuVersion>> => {

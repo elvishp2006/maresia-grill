@@ -38,7 +38,7 @@ type AppRoute =
 const resolveRoute = (pathname: string): AppRoute => {
   if (pathname === '/') return { kind: 'root' };
 
-  const publicMenuMatch = pathname.match(/^\/s\/([^/]+)$/);
+  const publicMenuMatch = pathname.match(/^\/s\/([^/]+)\/?$/);
   if (publicMenuMatch?.[1]) {
     return { kind: 'public-menu', token: decodeURIComponent(publicMenuMatch[1]) };
   }
