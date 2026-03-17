@@ -38,11 +38,11 @@ function RankingList({
               <p className="truncate text-[14px] font-semibold text-[var(--text)]">{item.nome}</p>
               <p className="mt-[2px] text-[12px] text-[var(--text-dim)]">{item.categoria}</p>
             </div>
-            <span className="shrink-0 text-[13px] font-semibold text-[var(--accent)]">{valueLabel(item.count)}</span>
+            <span className="neon-gold-text shrink-0 text-[13px] font-semibold text-[var(--accent)]">{valueLabel(item.count)}</span>
           </div>
           <div className="mt-[8px] h-[6px] overflow-hidden rounded-full bg-[var(--input-bg)]">
             <div
-              className="h-full rounded-full bg-[var(--accent)]"
+              className="neon-gold-fill h-full rounded-full bg-[var(--accent)]"
               style={{ width: `${Math.max(14, (item.count / maxCount) * 100)}%` }}
             />
           </div>
@@ -105,7 +105,7 @@ export default function InsightsPanel({
                   </div>
                   <button
                     type="button"
-                    className="min-h-[42px] shrink-0 rounded-[16px] bg-[var(--accent)] px-[14px] py-[10px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
+                    className="neon-gold-fill min-h-[42px] shrink-0 rounded-[16px] bg-[var(--accent)] px-[14px] py-[10px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
                     onClick={() => onSelectSuggestion(item.id)}
                   >
                     Selecionar
@@ -151,7 +151,7 @@ export default function InsightsPanel({
                       <p className="text-[14px] font-semibold text-[var(--text)]">{entry.label}</p>
                       <p className="text-[12px] text-[var(--text-dim)]">{entry.sampleSize} registro(s)</p>
                     </div>
-                    <span className="text-[14px] font-semibold text-[var(--accent)]">{entry.average.toFixed(1)}</span>
+                    <span className="neon-gold-text text-[14px] font-semibold text-[var(--accent)]">{entry.average.toFixed(1)}</span>
                   </li>
                 ))}
               </ul>
@@ -181,7 +181,7 @@ export default function InsightsPanel({
                           <p className="truncate text-[14px] font-semibold text-[var(--text)]">{item.nome}</p>
                           <p className="mt-[2px] text-[12px] text-[var(--text-dim)]">{item.categoria}</p>
                         </div>
-                        <span className="shrink-0 text-[13px] font-semibold text-[var(--accent)]">{item.streak} dias</span>
+                        <span className="neon-gold-text shrink-0 text-[13px] font-semibold text-[var(--accent)]">{item.streak} dias</span>
                       </div>
                     </li>
                   ))}
@@ -203,7 +203,7 @@ export default function InsightsPanel({
                           {item.categoria} • {item.lastSeen ? `Última vez: ${item.lastSeen}` : 'Nunca apareceu'}
                         </p>
                       </div>
-                      <span className="shrink-0 text-[13px] font-semibold text-[var(--accent)]">{item.count}x</span>
+                      <span className="neon-gold-text shrink-0 text-[13px] font-semibold text-[var(--accent)]">{item.count}x</span>
                     </li>
                   ))}
                 </ul>

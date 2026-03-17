@@ -183,7 +183,7 @@ export default function CategoryCard({
               <div className="mb-[16px] flex gap-[8px]">
                 <button
                   type="button"
-                  className="flex h-[40px] flex-1 items-center justify-center rounded-[14px] bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="neon-gold-fill flex h-[40px] flex-1 items-center justify-center rounded-[14px] bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                   onClick={handleShowAddSheet}
                   aria-label={`Adicionar item em ${categoria}`}
                   disabled={!isOnline}

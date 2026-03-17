@@ -59,7 +59,7 @@ export default function AddForm({
         type="text"
         autoFocus
         onFocus={() => inputRef.current?.select()}
-        className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+        className="neon-gold-focus w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
         placeholder={placeholder}
         value={nome}
         disabled={disabled}
@@ -74,7 +74,7 @@ export default function AddForm({
       <div className="flex gap-[10px]">
         <button
           type="submit"
-          className="min-h-[48px] flex-1 rounded-[18px] bg-[var(--accent)] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+          className="neon-gold-fill min-h-[48px] flex-1 rounded-[18px] bg-[var(--accent)] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
           disabled={disabled}
         >
           {submitLabel}

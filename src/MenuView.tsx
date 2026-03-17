@@ -100,7 +100,7 @@ export default function MenuView({
             {search.trim() && isOnline && categories.length > 0 ? (
               <button
                 type="button"
-                className="mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+                className="neon-gold-border neon-gold-text mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
                 onClick={() => setShowQuickAddSheet(true)}
               >
                 + Cadastrar "{search}" no catálogo
@@ -139,7 +139,7 @@ export default function MenuView({
         {viewMode === 'manage' ? (
           <button
             type="button"
-            className="mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+            className="neon-gold-text mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={() => setShowAddCategorySheet(true)}
             disabled={!isOnline}
           >
@@ -152,7 +152,7 @@ export default function MenuView({
         <button
           type="button"
           aria-label="Compartilhar menu"
-          className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] right-[16px] z-[45] flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition-all hover:opacity-90 active:scale-95"
+          className="neon-gold-fill fixed bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] right-[16px] z-[45] flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition-all hover:opacity-90 active:scale-95"
           onClick={() => { success(); onShare(); }}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

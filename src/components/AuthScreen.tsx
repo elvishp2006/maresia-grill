@@ -17,11 +17,11 @@ export default function AuthScreen({
         <img
           src="/brand/menu-mark.svg"
           alt="Logo do Marésia Grill"
-          className="auth-screen__mark"
+          className="auth-screen__mark neon-gold-mark"
         />
         <button
           type="button"
-          className="flex items-center gap-3 rounded-full bg-[var(--accent)] px-8 py-4 text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_24px_rgba(215,176,92,0.25)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+          className="neon-gold-fill flex items-center gap-3 rounded-full bg-[var(--accent)] px-8 py-4 text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_24px_rgba(215,176,92,0.25)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
           onClick={onPrimaryAction}
           disabled={primaryDisabled}
         >

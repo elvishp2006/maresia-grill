@@ -55,7 +55,7 @@ export default function Header({
           <img
             src="/brand/menu-mark.svg"
             alt="Logo do Maresia Grill"
-            className="h-[28px] w-[28px] shrink-0 object-cover object-top"
+            className="neon-gold-mark h-[28px] w-[28px] shrink-0 object-cover object-top"
           />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">
             Maresia Grill
@@ -64,7 +64,7 @@ export default function Header({
 
         <div className="flex items-center gap-[8px]">
           {activeCount > 0 ? (
-            <span className="rounded-full bg-[var(--accent-soft)] px-[10px] py-[3px] text-[12px] font-semibold text-[var(--accent)]">
+            <span className="neon-gold-border neon-gold-text rounded-full bg-[var(--accent-soft)] px-[10px] py-[3px] text-[12px] font-semibold text-[var(--accent)]">
               {activeCount} • {dateShort}
             </span>
           ) : (
@@ -75,7 +75,7 @@ export default function Header({
               type="button"
               aria-label="Sair da conta"
               title={userEmail ?? undefined}
-              className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[12px] font-bold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
+              className="neon-gold-text flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[12px] font-bold text-[var(--accent)] transition-colors hover:border-[var(--accent)]"
               onClick={onSignOut}
             >
               {(userEmail?.[0] ?? '?').toUpperCase()}
@@ -90,7 +90,7 @@ export default function Header({
           role="tab"
           aria-selected={viewMode === 'menu'}
           aria-label="Menu"
-          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors ${viewMode === 'menu' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors ${viewMode === 'menu' ? 'neon-gold-fill bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('menu');
@@ -105,7 +105,7 @@ export default function Header({
           role="tab"
           aria-selected={viewMode === 'stats'}
           aria-label="Estatísticas"
-          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'stats' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'stats' ? 'neon-gold-fill bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('stats');
@@ -123,7 +123,7 @@ export default function Header({
           role="tab"
           aria-selected={viewMode === 'manage'}
           aria-label="Catálogo"
-          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors ${viewMode === 'manage' ? 'bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors ${viewMode === 'manage' ? 'neon-gold-fill bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
           onClick={() => {
             lightTap();
             onViewModeChange('manage');

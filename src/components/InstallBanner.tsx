@@ -45,7 +45,7 @@ export default function InstallBanner() {
         </div>
         <button
           type="button"
-          className="min-h-[44px] shrink-0 rounded-[14px] bg-[var(--accent)] px-[14px] py-[10px] text-[14px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
+          className="neon-gold-fill min-h-[44px] shrink-0 rounded-[14px] bg-[var(--accent)] px-[14px] py-[10px] text-[14px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90"
           onClick={handleInstall}
         >
           {actionLabel}

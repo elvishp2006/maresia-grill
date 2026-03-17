@@ -35,7 +35,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
 
   if (mode === 'select') {
     return (
-      <li className={`item rounded-[22px] border px-[14px] py-[13px] transition-colors ${active ? 'active border-[var(--accent)] bg-[var(--accent-soft)] shadow-[0_8px_18px_rgba(0,0,0,0.08)]' : 'border-[var(--border)] bg-[var(--bg-elevated)]'}`}>
+      <li className={`item rounded-[22px] border px-[14px] py-[13px] transition-colors ${active ? 'active neon-gold-border border-[var(--accent)] bg-[var(--accent-soft)] shadow-[0_8px_18px_rgba(0,0,0,0.08)]' : 'border-[var(--border)] bg-[var(--bg-elevated)]'}`}>
         <button
           type="button"
           className="flex w-full items-center gap-[14px] text-left"
@@ -46,7 +46,7 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
         >
           <span
-            className={`flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border text-[15px] font-bold transition-colors ${active ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]' : 'border-[var(--border-strong)] text-transparent'}`}
+            className={`flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border text-[15px] font-bold transition-colors ${active ? 'neon-gold-fill border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]' : 'border-[var(--border-strong)] text-transparent'}`}
             aria-hidden="true"
           >
             ✓
