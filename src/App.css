@@ -183,7 +183,7 @@ input[type='search']::-webkit-search-results-decoration {
 }
 
 .auth-screen__mark {
-  width: min(62vw, 220px);
+  width: min(50vw, 176px);
   max-width: 100%;
   height: auto;
   filter: drop-shadow(0 30px 28px rgba(0, 0, 0, 0.24));
@@ -213,6 +213,6 @@ input[type='search']::-webkit-search-results-decoration {
   }
 
   .auth-screen__mark {
-    width: min(34vw, 280px);
+    width: min(26vw, 220px);
   }
 }
