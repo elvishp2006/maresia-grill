@@ -2,6 +2,8 @@ services:
   - type: web
     name: maresia-grill
     runtime: static
+    domains:
+      - maresiagrill.com
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     previews:
