@@ -79,67 +79,108 @@ export default function CategoryCard({
   return (
     <>
       <section className="rounded-[24px] border border-[var(--border)] bg-[var(--bg-card)] p-[16px] shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-        <button
-          type="button"
-          className="w-full rounded-[20px] bg-transparent text-left"
-          onClick={handleExpandToggle}
-          aria-expanded={expanded}
-          aria-label={expanded ? `Colapsar ${categoria}` : `Expandir ${categoria}`}
-        >
-          <div className="flex items-start gap-[14px]">
-            <div className="min-w-0 flex-1">
-              <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
-                {categoria}
-              </h2>
-              <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
-                {selectedCount}/{items.length} itens
-              </p>
-            </div>
-            <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
-              <svg
-                className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
-                viewBox="0 0 20 20"
-                fill="none"
-                aria-hidden="true"
+        {viewMode === 'manage' ? (
+          <div className="flex items-start gap-[10px]">
+            <div className="flex shrink-0 flex-col gap-[6px] pt-[4px]">
+              <button
+                type="button"
+                className="flex h-[32px] w-[32px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={onMoveUp}
+                disabled={isFirst || !isOnline}
+                aria-label={`Mover ${categoria} para cima`}
               >
-                <path
-                  d="M5 7.5L10 12.5L15 7.5"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 15l-6-6-6 6"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="flex h-[32px] w-[32px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={onMoveDown}
+                disabled={isLast || !isOnline}
+                aria-label={`Mover ${categoria} para baixo`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </button>
             </div>
+            <button
+              type="button"
+              className="min-w-0 flex-1 rounded-[20px] bg-transparent text-left"
+              onClick={handleExpandToggle}
+              aria-expanded={expanded}
+              aria-label={expanded ? `Colapsar ${categoria}` : `Expandir ${categoria}`}
+            >
+              <div className="flex items-start gap-[14px]">
+                <div className="min-w-0 flex-1">
+                  <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                    {categoria}
+                  </h2>
+                  <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+                    {selectedCount}/{items.length} itens
+                  </p>
+                </div>
+                <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
+                  <svg
+                    className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 7.5L10 12.5L15 7.5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </button>
           </div>
-        </button>
+        ) : (
+          <button
+            type="button"
+            className="w-full rounded-[20px] bg-transparent text-left"
+            onClick={handleExpandToggle}
+            aria-expanded={expanded}
+            aria-label={expanded ? `Colapsar ${categoria}` : `Expandir ${categoria}`}
+          >
+            <div className="flex items-start gap-[14px]">
+              <div className="min-w-0 flex-1">
+                <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                  {categoria}
+                </h2>
+                <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+                  {selectedCount}/{items.length} itens
+                </p>
+              </div>
+              <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
+                <svg
+                  className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5 7.5L10 12.5L15 7.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </button>
+        )}
 
         {expanded ? (
           <div className="mt-[16px] border-t border-[var(--border)] pt-[16px]">
             {viewMode === 'manage' ? (
               <div className="mb-[16px] flex gap-[8px]">
-                <button
-                  type="button"
-                  className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
-                  onClick={onMoveUp}
-                  disabled={isFirst || !isOnline}
-                  aria-label={`Mover ${categoria} para cima`}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M18 15l-6-6-6 6"/>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
-                  onClick={onMoveDown}
-                  disabled={isLast || !isOnline}
-                  aria-label={`Mover ${categoria} para baixo`}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M6 9l6 6 6-6"/>
-                  </svg>
-                </button>
                 <button
                   type="button"
                   className="flex h-[40px] flex-1 items-center justify-center rounded-[14px] bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"

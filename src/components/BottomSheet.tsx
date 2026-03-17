@@ -95,7 +95,7 @@ export default function BottomSheet({
           </div>
           <button
             type="button"
-            className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[22px] leading-none text-[var(--text-dim)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text)]"
+            className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[22px] leading-none text-[var(--text-dim)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text)]"
             onClick={onClose}
             aria-label="Fechar painel"
           >
