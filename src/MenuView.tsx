@@ -8,7 +8,7 @@ import type { useMenuInsights } from './hooks/useMenuInsights';
 import { useHapticFeedback } from './hooks/useHapticFeedback';
 
 interface MenuViewProps {
-  viewMode: 'menu' | 'stats' | 'manage';
+  viewMode: 'menu' | 'stats' | 'manage' | 'orders';
   visibleCategories: Categoria[];
   categories: Categoria[];
   complements: Item[];

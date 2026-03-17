@@ -1,12 +1,15 @@
 import {
+  collection,
   doc,
   getDoc,
   onSnapshot,
+  query,
   runTransaction,
   setDoc,
+  orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { EditorLock, Item } from '../types';
+import type { EditorLock, Item, OrderEntry, PublicMenu, PublicMenuVersion } from '../types';
 
 export const LOCK_TIMEOUT_MS = 60_000;
 
@@ -27,6 +30,10 @@ const categoriesRef = () => doc(getDb(), 'config', 'categories');
 const complementsRef = () => doc(getDb(), 'config', 'complements');
 const selectionRef = (dateKey: string) => doc(getDb(), 'selections', dateKey);
 const editorLockRef = () => doc(getDb(), 'config', 'editorLock');
+const shareLinkRef = (dateKey: string) => doc(getDb(), 'shareLinks', dateKey);
+const publicMenuRef = (token: string) => doc(getDb(), 'publicMenus', token);
+const publicMenuVersionRef = (versionId: string) => doc(getDb(), 'publicMenuVersions', versionId);
+const ordersCollectionRef = (dateKey: string) => collection(getDb(), 'orders', dateKey, 'entries');
 
 export interface SelectionHistoryEntry {
   dateKey: string;
@@ -41,6 +48,42 @@ export interface AcquireEditorLockInput {
 
 export interface AcquireEditorLockOptions {
   force?: boolean;
+}
+
+interface StoredShareLink {
+  token: string;
+  dateKey: string;
+  createdAt: number;
+  expiresAt: number;
+  acceptingOrders: boolean;
+}
+
+export interface CreateDailyShareLinkInput {
+  dateKey: string;
+  categories: string[];
+  complements: Item[];
+  daySelection: string[];
+}
+
+export interface ShareLinkResult {
+  token: string;
+  url: string;
+}
+
+export interface SubmitPublicOrderInput {
+  orderId: string;
+  dateKey: string;
+  shareToken: string;
+  customerName: string;
+  selectedItemIds: string[];
+}
+
+export interface SubmitPublicOrderResult {
+  selectedItemIds: string[];
+}
+
+export interface SetOrderIntakeStatusInput extends CreateDailyShareLinkInput {
+  acceptingOrders: boolean;
 }
 
 const isStringArray = (value: unknown): value is string[] =>
@@ -77,6 +120,123 @@ const normalizeItems = (value: unknown): Item[] =>
 const normalizeEditorLock = (value: unknown): EditorLock | null =>
   isValidEditorLock(value) ? value : null;
 
+const normalizeTimestamp = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (value instanceof Date) return value.getTime();
+  if (value && typeof value === 'object' && 'toMillis' in value && typeof value.toMillis === 'function') {
+    return value.toMillis();
+  }
+  return null;
+};
+
+const isValidStoredShareLink = (value: unknown): value is StoredShareLink => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.token === 'string'
+    && typeof candidate.dateKey === 'string'
+    && normalizeTimestamp(candidate.createdAt) !== null
+    && normalizeTimestamp(candidate.expiresAt) !== null
+    && (candidate.acceptingOrders === undefined || typeof candidate.acceptingOrders === 'boolean');
+};
+
+const isValidPublicMenu = (value: unknown): value is PublicMenu & { createdAt: number } => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.token === 'string'
+    && typeof candidate.dateKey === 'string'
+    && (candidate.acceptingOrders === undefined || typeof candidate.acceptingOrders === 'boolean')
+    && typeof candidate.currentVersionId === 'string'
+    && Array.isArray(candidate.categories)
+    && candidate.categories.every(item => typeof item === 'string')
+    && Array.isArray(candidate.items)
+    && candidate.items.every(isValidItem)
+    && normalizeTimestamp(candidate.createdAt) !== null
+    && normalizeTimestamp(candidate.expiresAt) !== null;
+};
+
+const isValidPublicMenuVersion = (value: unknown): value is PublicMenuVersion => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.token === 'string'
+    && typeof candidate.dateKey === 'string'
+    && Array.isArray(candidate.categories)
+    && candidate.categories.every(item => typeof item === 'string')
+    && Array.isArray(candidate.itemIds)
+    && candidate.itemIds.every(item => typeof item === 'string')
+    && Array.isArray(candidate.items)
+    && candidate.items.every(isValidItem)
+    && normalizeTimestamp(candidate.createdAt) !== null;
+};
+
+const isValidOrderEntry = (value: unknown, id: string): value is OrderEntry => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof id === 'string'
+    && typeof candidate.dateKey === 'string'
+    && typeof candidate.shareToken === 'string'
+    && typeof candidate.orderId === 'string'
+    && typeof candidate.customerName === 'string'
+    && (candidate.menuVersionId === undefined || typeof candidate.menuVersionId === 'string')
+    && isStringArray(candidate.selectedItemIds)
+    && (candidate.submittedItems === undefined || (
+      Array.isArray(candidate.submittedItems)
+      && candidate.submittedItems.every(isValidItem)
+    ))
+    && normalizeTimestamp(candidate.submittedAt) !== null;
+};
+
+const normalizeStoredShareLink = (value: unknown): StoredShareLink | null => {
+  if (!isValidStoredShareLink(value)) return null;
+  return {
+    token: value.token,
+    dateKey: value.dateKey,
+    createdAt: normalizeTimestamp(value.createdAt)!,
+    expiresAt: normalizeTimestamp(value.expiresAt)!,
+    acceptingOrders: value.acceptingOrders ?? true,
+  };
+};
+
+const normalizePublicMenu = (value: unknown): PublicMenu | null => {
+  if (!isValidPublicMenu(value)) return null;
+  return {
+    token: value.token,
+    dateKey: value.dateKey,
+    acceptingOrders: value.acceptingOrders ?? true,
+    currentVersionId: value.currentVersionId,
+    categories: value.categories,
+    items: value.items,
+    expiresAt: normalizeTimestamp(value.expiresAt)!,
+  };
+};
+
+const normalizePublicMenuVersion = (id: string, value: unknown): PublicMenuVersion | null => {
+  if (!isValidPublicMenuVersion(value)) return null;
+  return {
+    id,
+    token: value.token,
+    dateKey: value.dateKey,
+    categories: value.categories,
+    itemIds: value.itemIds,
+    items: value.items,
+    createdAt: normalizeTimestamp(value.createdAt)!,
+  };
+};
+
+const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
+  if (!isValidOrderEntry(value, id)) return null;
+  return {
+    id,
+    dateKey: value.dateKey,
+    shareToken: value.shareToken,
+    orderId: value.orderId,
+    customerName: value.customerName,
+    menuVersionId: typeof value.menuVersionId === 'string' ? value.menuVersionId : undefined,
+    selectedItemIds: value.selectedItemIds,
+    submittedItems: Array.isArray(value.submittedItems) ? value.submittedItems : undefined,
+    submittedAt: normalizeTimestamp(value.submittedAt)!,
+  };
+};
+
 const buildEditorLock = ({ sessionId, userEmail, deviceLabel }: AcquireEditorLockInput, now: number): EditorLock => ({
   sessionId,
   userEmail,
@@ -89,6 +249,99 @@ const buildEditorLock = ({ sessionId, userEmail, deviceLabel }: AcquireEditorLoc
 
 export const isLockExpired = (lock: EditorLock | null, now = Date.now()) =>
   !lock || lock.expiresAt <= now;
+
+export const isMenuExpired = (menu: PublicMenu | null, now = Date.now()) =>
+  !menu || menu.expiresAt <= now;
+
+const buildExpiryDate = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1, 24, 0, 0, 0);
+};
+
+const buildSelectedItemsSnapshot = (
+  categories: string[],
+  complements: Item[],
+  daySelection: string[],
+): Pick<PublicMenu, 'categories' | 'items'> => {
+  const selected = complements.filter(item => daySelection.includes(item.id));
+  const categorySet = new Set(selected.map(item => item.categoria));
+
+  return {
+    categories: categories.filter(category => categorySet.has(category)),
+    items: selected.map(item => ({ ...item })),
+  };
+};
+
+const buildPublicUrl = (token: string) => {
+  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${base}/s/${token}`;
+};
+
+const buildPublicMenuDocument = ({
+  token,
+  currentVersionId,
+  dateKey,
+  categories,
+  complements,
+  daySelection,
+  acceptingOrders,
+  now,
+}: CreateDailyShareLinkInput & { token: string; currentVersionId: string; now: number; acceptingOrders: boolean }) => {
+  const expiresAt = buildExpiryDate(dateKey);
+  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection);
+
+  return {
+    token,
+    dateKey,
+    acceptingOrders,
+    currentVersionId,
+    categories: snapshot.categories,
+    items: snapshot.items,
+    createdAt: new Date(now),
+    expiresAt,
+  };
+};
+
+const buildPublicMenuVersionDocument = ({
+  token,
+  versionId,
+  dateKey,
+  categories,
+  complements,
+  daySelection,
+  now,
+}: CreateDailyShareLinkInput & { token: string; versionId: string; now: number }) => {
+  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection);
+
+  return {
+    id: versionId,
+    token,
+    dateKey,
+    categories: snapshot.categories,
+    itemIds: snapshot.items.map(item => item.id),
+    items: snapshot.items,
+    createdAt: new Date(now),
+  };
+};
+
+const createVersionId = (dateKey: string) => (
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`
+);
+
+const buildShareLinkDocument = ({
+  token,
+  dateKey,
+  acceptingOrders,
+  now,
+}: { token: string; dateKey: string; acceptingOrders: boolean; now: number }) => ({
+  token,
+  dateKey,
+  acceptingOrders,
+  createdAt: new Date(now),
+  expiresAt: buildExpiryDate(dateKey),
+});
 
 export const loadCategories = async (): Promise<string[]> => {
   const snap = await getDoc(categoriesRef());
@@ -245,3 +498,273 @@ export const releaseEditorLock = async (sessionId: string): Promise<void> => {
     transaction.delete(ref);
   });
 };
+
+export const getOrCreateDailyShareLink = async ({
+  dateKey,
+  categories,
+  complements,
+  daySelection,
+}: CreateDailyShareLinkInput): Promise<ShareLinkResult> => {
+  const now = Date.now();
+
+  return runTransaction(getDb(), async (transaction) => {
+    const linkRef = shareLinkRef(dateKey);
+    const linkSnap = await transaction.get(linkRef);
+    const existingLink = linkSnap.exists() ? normalizeStoredShareLink(linkSnap.data()) : null;
+
+    if (existingLink && existingLink.expiresAt > now) {
+      const versionId = createVersionId(dateKey);
+      const publicMenuVersion = buildPublicMenuVersionDocument({
+        token: existingLink.token,
+        versionId,
+        dateKey,
+        categories,
+        complements,
+        daySelection,
+        now,
+      });
+      const publicMenu = buildPublicMenuDocument({
+        token: existingLink.token,
+        currentVersionId: versionId,
+        dateKey,
+        categories,
+        complements,
+        daySelection,
+        acceptingOrders: existingLink.acceptingOrders,
+        now,
+      });
+      transaction.set(publicMenuVersionRef(versionId), publicMenuVersion);
+      transaction.set(publicMenuRef(existingLink.token), publicMenu);
+      return {
+        token: existingLink.token,
+        url: buildPublicUrl(existingLink.token),
+      };
+    }
+
+    const token = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`;
+    const versionId = createVersionId(dateKey);
+    const publicMenuVersion = buildPublicMenuVersionDocument({
+      token,
+      versionId,
+      dateKey,
+      categories,
+      complements,
+      daySelection,
+      now,
+    });
+    const publicMenu = buildPublicMenuDocument({
+      token,
+      currentVersionId: versionId,
+      dateKey,
+      categories,
+      complements,
+      daySelection,
+      acceptingOrders: true,
+      now,
+    });
+
+    transaction.set(linkRef, buildShareLinkDocument({
+      token,
+      dateKey,
+      acceptingOrders: true,
+      now,
+    }));
+    transaction.set(publicMenuVersionRef(versionId), publicMenuVersion);
+    transaction.set(publicMenuRef(token), publicMenu);
+
+    return {
+      token,
+      url: buildPublicUrl(token),
+    };
+  });
+};
+
+export const loadPublicMenu = async (token: string): Promise<PublicMenu | null> => {
+  const snap = await getDoc(publicMenuRef(token));
+  if (!snap.exists()) return null;
+  const menu = normalizePublicMenu(snap.data());
+  if (!menu || isMenuExpired(menu)) return null;
+  return menu;
+};
+
+export const subscribePublicMenu = (
+  token: string,
+  onValue: (menu: PublicMenu | null) => void,
+  onError?: (error: Error) => void,
+) => onSnapshot(publicMenuRef(token), (snap) => {
+  if (!snap.exists()) {
+    onValue(null);
+    return;
+  }
+
+  const menu = normalizePublicMenu(snap.data());
+  onValue(menu && !isMenuExpired(menu) ? menu : null);
+}, error => onError?.(error));
+
+export const syncPublicMenuSnapshotForDate = async ({
+  dateKey,
+  categories,
+  complements,
+  daySelection,
+}: CreateDailyShareLinkInput): Promise<void> => {
+  const linkSnap = await getDoc(shareLinkRef(dateKey));
+  if (!linkSnap.exists()) return;
+
+  const existingLink = normalizeStoredShareLink(linkSnap.data());
+  if (!existingLink || existingLink.expiresAt <= Date.now()) return;
+
+  const now = Date.now();
+  const versionId = createVersionId(dateKey);
+  const publicMenuVersion = buildPublicMenuVersionDocument({
+    token: existingLink.token,
+    versionId,
+    dateKey,
+    categories,
+    complements,
+    daySelection,
+    now,
+  });
+  const publicMenu = buildPublicMenuDocument({
+    token: existingLink.token,
+    currentVersionId: versionId,
+    dateKey,
+    categories,
+    complements,
+    daySelection,
+    acceptingOrders: existingLink.acceptingOrders,
+    now,
+  });
+
+  await setDoc(publicMenuVersionRef(versionId), publicMenuVersion);
+  await setDoc(publicMenuRef(existingLink.token), publicMenu);
+};
+
+export const subscribeOrderIntakeStatus = (
+  dateKey: string,
+  onValue: (acceptingOrders: boolean) => void,
+  onError?: (error: Error) => void,
+) => onSnapshot(shareLinkRef(dateKey), (snap) => {
+  if (!snap.exists()) {
+    onValue(true);
+    return;
+  }
+
+  const link = normalizeStoredShareLink(snap.data());
+  onValue(link?.acceptingOrders ?? true);
+}, error => onError?.(error));
+
+export const setOrderIntakeStatus = async ({
+  dateKey,
+  categories,
+  complements,
+  daySelection,
+  acceptingOrders,
+}: SetOrderIntakeStatusInput): Promise<void> => {
+  const now = Date.now();
+
+  await runTransaction(getDb(), async (transaction) => {
+    const linkRef = shareLinkRef(dateKey);
+    const linkSnap = await transaction.get(linkRef);
+    const existingLink = linkSnap.exists() ? normalizeStoredShareLink(linkSnap.data()) : null;
+    const validExistingLink = existingLink && existingLink.expiresAt > now ? existingLink : null;
+    const token = validExistingLink?.token ?? (
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`
+    );
+
+    transaction.set(linkRef, buildShareLinkDocument({
+      token,
+      dateKey,
+      acceptingOrders,
+      now,
+    }));
+    const versionId = createVersionId(dateKey);
+    transaction.set(publicMenuVersionRef(versionId), buildPublicMenuVersionDocument({
+      token,
+      versionId,
+      dateKey,
+      categories,
+      complements,
+      daySelection,
+      now,
+    }));
+    transaction.set(publicMenuRef(token), buildPublicMenuDocument({
+      token,
+      currentVersionId: versionId,
+      dateKey,
+      categories,
+      complements,
+      daySelection,
+      acceptingOrders,
+      now,
+    }));
+  });
+};
+
+export const submitPublicOrder = async ({
+  orderId,
+  dateKey,
+  shareToken,
+  customerName,
+  selectedItemIds,
+}: SubmitPublicOrderInput): Promise<SubmitPublicOrderResult> => {
+  const publicMenu = await loadPublicMenu(shareToken);
+  if (!publicMenu || publicMenu.dateKey !== dateKey) {
+    throw new Error('Cardapio publico indisponivel para este pedido.');
+  }
+  if (!publicMenu.acceptingOrders) {
+    throw new Error('Os pedidos deste cardapio foram encerrados.');
+  }
+
+  const submittedItemIds = publicMenu.items
+    .filter(item => selectedItemIds.includes(item.id))
+    .map(item => item.id);
+
+  if (submittedItemIds.length === 0) {
+    throw new Error('Nenhum item valido encontrado para este pedido.');
+  }
+
+  await setDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId), {
+    orderId,
+    dateKey,
+    shareToken,
+    customerName: customerName.trim(),
+    menuVersionId: publicMenu.currentVersionId,
+    selectedItemIds: submittedItemIds,
+    submittedAt: new Date(),
+  });
+
+  return { selectedItemIds: submittedItemIds };
+};
+
+export const loadPublicMenuVersions = async (versionIds: string[]): Promise<Record<string, PublicMenuVersion>> => {
+  const uniqueIds = Array.from(new Set(versionIds.filter(Boolean)));
+  const snaps = await Promise.all(uniqueIds.map(versionId => getDoc(publicMenuVersionRef(versionId))));
+
+  return snaps.reduce<Record<string, PublicMenuVersion>>((acc, snap, index) => {
+    if (!snap.exists()) return acc;
+    const versionId = uniqueIds[index];
+    if (!versionId) return acc;
+    const normalized = normalizePublicMenuVersion(versionId, snap.data());
+    if (normalized) acc[versionId] = normalized;
+    return acc;
+  }, {});
+};
+
+export const subscribeOrders = (
+  dateKey: string,
+  onValue: (orders: OrderEntry[]) => void,
+  onError?: (error: Error) => void,
+) => onSnapshot(
+  query(ordersCollectionRef(dateKey), orderBy('submittedAt', 'desc')),
+  (snap) => {
+    const orders = snap.docs
+      .map(docSnap => normalizeOrderEntry(docSnap.id, docSnap.data()))
+      .filter((entry): entry is OrderEntry => entry !== null);
+    onValue(orders);
+  },
+  error => onError?.(error),
+);

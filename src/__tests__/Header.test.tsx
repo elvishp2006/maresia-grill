@@ -34,10 +34,10 @@ describe('Header', () => {
     expect(screen.queryByRole('button', { name: 'Aplicar atualização do app' })).not.toBeInTheDocument();
   });
 
-  it('applies the strong neon treatment to the header logo', () => {
+  it('renders the header logo without neon glow classes', () => {
     render(<Header {...defaultProps} />);
 
-    expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).toHaveClass('neon-gold-mark-strong');
+    expect(screen.getByRole('img', { name: 'Logo do Maresia Grill' })).not.toHaveClass('neon-gold-mark-strong');
   });
 
   it('renders the update button when an update is available', () => {

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import AuthScreen from '../components/AuthScreen';
 
 describe('AuthScreen', () => {
-  it('renders the login logo with the shared neon glow class', () => {
+  it('renders the login logo without neon glow classes', () => {
     render(
       <AuthScreen
         onPrimaryAction={vi.fn()}
@@ -11,7 +11,8 @@ describe('AuthScreen', () => {
       />
     );
 
-    expect(screen.getByRole('img', { name: 'Logo do Marésia Grill' })).toHaveClass(
+    expect(screen.getByRole('img', { name: 'Logo do Marésia Grill' })).toHaveClass('auth-screen__mark');
+    expect(screen.getByRole('img', { name: 'Logo do Marésia Grill' })).not.toHaveClass(
       'neon-gold-mark-strong',
       'auth-screen__mark--hero'
     );

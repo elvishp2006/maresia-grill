@@ -62,10 +62,15 @@ afterEach(() => {
 });
 
 describe('useMenuState', () => {
+  const waitForReady = async (result: { current: ReturnType<typeof useMenuState> }) => {
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.usageCounts).toEqual({ '1': 3 }));
+  };
+
   it('starts with loading=true and resolves data from subscriptions', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
     expect(result.current.loading).toBe(true);
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitForReady(result);
     expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
     expect(result.current.complements).toHaveLength(2);
     expect(result.current.daySelection).toEqual(['1']);
@@ -74,49 +79,61 @@ describe('useMenuState', () => {
 
   it('toggleItem adds item to selection if not selected', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.toggleItem('2'));
-    expect(result.current.daySelection).toContain('2');
+    await waitForReady(result);
+    await act(async () => {
+      result.current.toggleItem('2');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.daySelection).toContain('2'));
     expect(saveDaySelection).toHaveBeenCalledWith(expect.any(String), ['1', '2']);
   });
 
   it('toggleItem removes item from selection if already selected', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.toggleItem('1'));
-    expect(result.current.daySelection).not.toContain('1');
+    await waitForReady(result);
+    await act(async () => {
+      result.current.toggleItem('1');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.daySelection).not.toContain('1'));
     expect(saveDaySelection).toHaveBeenCalledWith(expect.any(String), []);
   });
 
   it('addItem creates new item and auto-selects it', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.addItem('Tomate', 'Saladas'));
-    expect(result.current.complements.some(i => i.nome === 'Tomate')).toBe(true);
+    await waitForReady(result);
+    await act(async () => {
+      result.current.addItem('Tomate', 'Saladas');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.complements.some(i => i.nome === 'Tomate')).toBe(true));
     const tomate = result.current.complements.find(i => i.nome === 'Tomate');
-    expect(result.current.daySelection).toContain(tomate?.id);
+    await waitFor(() => expect(result.current.daySelection).toContain(tomate?.id));
     expect(saveComplements).toHaveBeenCalled();
     expect(saveDaySelection).toHaveBeenCalled();
   });
 
   it('removeItem removes item from complements and daySelection', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.removeItem('1'));
-    expect(result.current.complements.find(i => i.id === '1')).toBeUndefined();
-    expect(result.current.daySelection).not.toContain('1');
+    await waitForReady(result);
+    await act(async () => {
+      result.current.removeItem('1');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.complements.find(i => i.id === '1')).toBeUndefined());
+    await waitFor(() => expect(result.current.daySelection).not.toContain('1'));
   });
 
   it('renameItem updates item name', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitForReady(result);
     act(() => result.current.renameItem('1', 'Alface Americana'));
     expect(result.current.complements.find(i => i.id === '1')?.nome).toBe('Alface Americana');
   });
 
   it('toggleSortMode switches between alpha and usage', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitForReady(result);
     expect(result.current.sortMode).toBe('alpha');
     act(() => result.current.toggleSortMode());
     expect(result.current.sortMode).toBe('usage');
@@ -126,7 +143,7 @@ describe('useMenuState', () => {
 
   it('blocks remote actions and preserves state when offline', async () => {
     const { result } = renderHook(() => useMenuState(false, true), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitForReady(result);
 
     act(() => result.current.toggleItem('2'));
 
@@ -136,7 +153,7 @@ describe('useMenuState', () => {
 
   it('blocks remote actions when another device owns the lock', async () => {
     const { result } = renderHook(() => useMenuState(true, false), { wrapper });
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitForReady(result);
 
     act(() => result.current.addCategory('Sobremesas'));
 

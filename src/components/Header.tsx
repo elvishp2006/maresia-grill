@@ -9,8 +9,8 @@ interface HeaderProps {
   onApplyUpdate?: () => void;
   onSignOut?: () => void;
   userEmail?: string | null;
-  viewMode: 'menu' | 'stats' | 'manage';
-  onViewModeChange: (mode: 'menu' | 'stats' | 'manage') => void;
+  viewMode: 'menu' | 'stats' | 'manage' | 'orders';
+  onViewModeChange: (mode: 'menu' | 'stats' | 'manage' | 'orders') => void;
   onHeightChange?: (height: number) => void;
 }
 
@@ -59,7 +59,7 @@ export default function Header({
           <img
             src="/brand/menu-mark.svg"
             alt="Logo do Maresia Grill"
-            className="neon-gold-mark-strong h-[28px] w-[28px] shrink-0 object-cover object-top"
+            className="h-[28px] w-[28px] shrink-0 object-cover object-top"
           />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">
             Maresia Grill
@@ -107,7 +107,7 @@ export default function Header({
         </div>
       </div>
 
-      <div role="tablist" className="subtle-panel mt-[10px] grid grid-cols-3 gap-[6px] p-[4px]">
+      <div role="tablist" className="subtle-panel mt-[10px] grid grid-cols-4 gap-[6px] p-[4px]">
         <button
           type="button"
           role="tab"
@@ -139,6 +139,25 @@ export default function Header({
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'orders'}
+          aria-label="Pedidos"
+          className={`flex min-h-[44px] items-center justify-center rounded-[16px] px-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${viewMode === 'orders' ? 'neon-gold-fill bg-[var(--accent)] text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.14)]' : 'text-[var(--text-dim)]'}`}
+          onClick={() => {
+            lightTap();
+            onViewModeChange('orders');
+          }}
+          disabled={!isOnline}
+          aria-disabled={!isOnline}
+          title={isOnline ? undefined : 'Pedidos indisponíveis sem internet'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 11h6M9 15h6M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/>
+            <path d="M9 7h6"/>
           </svg>
         </button>
         <button

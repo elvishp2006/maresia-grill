@@ -8,6 +8,9 @@ services:
       generation: automatic
     routes:
       - type: rewrite
+        source: /s/*
+        destination: /index.html
+      - type: rewrite
         source: /*
         destination: /index.html
     envVars:
