@@ -84,7 +84,12 @@ describe('storage', () => {
   describe('saveDaySelection', () => {
     it('calls setDoc with today as key', async () => {
       const { saveDaySelection } = await import('../lib/storage');
-      const today = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const today = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+      ].join('-');
       await saveDaySelection(['1', '2']);
       expect(mockSetDoc).toHaveBeenCalledWith(
         expect.objectContaining({ path: `selections/${today}` }),
