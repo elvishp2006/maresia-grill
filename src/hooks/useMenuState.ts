@@ -30,6 +30,8 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   const lastDateKeyRef = useRef(currentDateKey);
   const { showToast } = useToast();
 
+  const handleSaveError = () => showToast('Erro ao salvar. Verifique sua conexão.', 'error');
+
   const guardWritableAction = () => {
     if (!isOnline) {
       showToast(OFFLINE_ACTION_MESSAGE, 'info');
@@ -42,7 +44,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   useEffect(() => {
     let active = true;
-    const ready = { categories: false, complements: false };
+    const ready = { categories: false, complements: false, selection: false };
 
     const markReady = (key: keyof typeof ready) => {
       ready[key] = true;
@@ -67,27 +69,16 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       markReady('complements');
     }, handleError);
 
+    const unsubscribeSelection = subscribeDaySelection(currentDateKey, (ids) => {
+      if (!active) return;
+      setDaySelection(ids);
+      markReady('selection');
+    }, handleError);
+
     return () => {
       active = false;
       unsubscribeCategories();
       unsubscribeComplements();
-    };
-  }, [showToast]);
-
-  useEffect(() => {
-    let active = true;
-    const unsubscribeSelection = subscribeDaySelection(currentDateKey, (ids) => {
-      if (!active) return;
-      setDaySelection(ids);
-      setLoading(false);
-    }, () => {
-      if (!active) return;
-      showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
-      setLoading(false);
-    });
-
-    return () => {
-      active = false;
       unsubscribeSelection();
     };
   }, [currentDateKey, showToast]);
@@ -114,8 +105,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     const nextMidnight = new Date(now);
     nextMidnight.setHours(24, 0, 0, 0);
     const timeoutId = window.setTimeout(() => {
-      const nextDateKey = getDateKey();
-      setCurrentDateKey((previousDateKey) => previousDateKey === nextDateKey ? previousDateKey : nextDateKey);
+      setCurrentDateKey(getDateKey());
     }, Math.max(1, nextMidnight.getTime() - now.getTime()));
 
     return () => window.clearTimeout(timeoutId);
@@ -133,7 +123,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     if (!guardWritableAction()) return;
     setDaySelection(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveDaySelection(currentDateKey, next).catch(handleSaveError);
       return next;
     });
   };
@@ -143,12 +133,12 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     const item: Item = { id: genId(), nome: nome.trim(), categoria };
     setComplements(prev => {
       const next = [...prev, item];
-      saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveComplements(next).catch(handleSaveError);
       return next;
     });
     setDaySelection(prev => {
       const next = [...prev, item.id];
-      saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveDaySelection(currentDateKey, next).catch(handleSaveError);
       return next;
     });
   };
@@ -157,12 +147,12 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     if (!guardWritableAction()) return;
     setComplements(prev => {
       const next = prev.filter(x => x.id !== id);
-      saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveComplements(next).catch(handleSaveError);
       return next;
     });
     setDaySelection(prev => {
       const next = prev.filter(x => x !== id);
-      saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveDaySelection(currentDateKey, next).catch(handleSaveError);
       return next;
     });
   };
@@ -173,7 +163,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       const next = prev.map(item =>
         item.id === id ? { ...item, nome: newNome.trim() } : item
       );
-      saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveComplements(next).catch(handleSaveError);
       return next;
     });
   };
@@ -182,7 +172,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     if (!guardWritableAction()) return;
     setCategories(prev => {
       const next = [...prev, nome.trim()];
-      saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveCategories(next).catch(handleSaveError);
       return next;
     });
   };
@@ -192,18 +182,18 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
     setCategories(prev => {
       const next = prev.filter(c => c !== nome);
-      saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveCategories(next).catch(handleSaveError);
       return next;
     });
     if (removedIds.length > 0) {
       setComplements(prev => {
         const next = prev.filter(item => item.categoria !== nome);
-        saveComplements(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+        saveComplements(next).catch(handleSaveError);
         return next;
       });
       setDaySelection(prev => {
         const next = prev.filter(id => !removedIds.includes(id));
-        saveDaySelection(currentDateKey, next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+        saveDaySelection(currentDateKey, next).catch(handleSaveError);
         return next;
       });
     }
@@ -218,7 +208,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
       if (swapIdx < 0 || swapIdx >= next.length) return prev;
       [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      saveCategories(next).catch(() => showToast('Erro ao salvar. Verifique sua conexão.', 'error'));
+      saveCategories(next).catch(handleSaveError);
       return next;
     });
   };

@@ -1,4 +1,5 @@
 import type { Item } from '../types';
+import { getDateKey } from './storage';
 import type { SelectionHistoryEntry } from './storage';
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -59,12 +60,6 @@ const sanitizeHistory = (history: SelectionHistoryEntry[]) =>
 
 const sanitizeDaySelection = (daySelection: string[]) =>
   daySelection.filter(id => typeof id === 'string');
-
-const getDateKey = (date: Date) => [
-  date.getFullYear(),
-  String(date.getMonth() + 1).padStart(2, '0'),
-  String(date.getDate()).padStart(2, '0'),
-].join('-');
 
 const getWeekdayFromDateKey = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
