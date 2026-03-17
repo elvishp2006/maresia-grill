@@ -132,8 +132,9 @@ input[type='search']::-webkit-search-results-decoration {
 
 .neon-gold-mark {
   filter:
-    drop-shadow(0 0 14px rgba(215, 176, 92, 0.38))
-    drop-shadow(0 0 28px rgba(215, 176, 92, 0.22))
+    drop-shadow(0 0 16px rgba(215, 176, 92, 0.52))
+    drop-shadow(0 0 34px rgba(215, 176, 92, 0.32))
+    drop-shadow(0 0 52px rgba(215, 176, 92, 0.16))
     drop-shadow(0 18px 26px rgba(0, 0, 0, 0.22));
 }
 
@@ -186,7 +187,14 @@ input[type='search']::-webkit-search-results-decoration {
   width: min(50vw, 176px);
   max-width: 100%;
   height: auto;
-  filter: drop-shadow(0 30px 28px rgba(0, 0, 0, 0.24));
+}
+
+.auth-screen__mark.neon-gold-mark {
+  filter:
+    drop-shadow(0 0 16px rgba(215, 176, 92, 0.52))
+    drop-shadow(0 0 34px rgba(215, 176, 92, 0.32))
+    drop-shadow(0 0 52px rgba(215, 176, 92, 0.16))
+    drop-shadow(0 30px 28px rgba(0, 0, 0, 0.24));
 }
 
 @media (min-width: 768px) {
