@@ -51,10 +51,10 @@ do
 done
 
 grant_service_account_role_if_missing "$RUNTIME_SA" "$DEPLOYER_MEMBER" "roles/iam.serviceAccountUser"
+grant_project_role_if_missing "$PROJECT_ID" "serviceAccount:${RUNTIME_SA}" "roles/datastore.user"
 grant_project_role_if_missing "$PROJECT_ID" "serviceAccount:${RUNTIME_SA}" "roles/cloudbuild.builds.builder"
 grant_project_role_if_missing "$PROJECT_ID" "serviceAccount:${CLOUDBUILD_AGENT}" "roles/cloudbuild.serviceAgent"
 
 log "Bootstrap complete."
 log "Runtime service account: $RUNTIME_SA"
 log "Active deployer email: $DEPLOYER_EMAIL"
-

@@ -53,6 +53,9 @@ done
 service_account_has_role_binding "$RUNTIME_SA" "$DEPLOYER_MEMBER" "roles/iam.serviceAccountUser" \
   || fail "Missing roles/iam.serviceAccountUser for $DEPLOYER_MEMBER on $RUNTIME_SA. Run: npm run gcp:bootstrap -- --project $PROJECT_ID --member \"$DEPLOYER_MEMBER\""
 
+project_has_role_binding "$PROJECT_ID" "serviceAccount:${RUNTIME_SA}" "roles/datastore.user" \
+  || fail "Missing roles/datastore.user for serviceAccount:${RUNTIME_SA}. Run: npm run gcp:bootstrap -- --project $PROJECT_ID --member \"$DEPLOYER_MEMBER\""
+
 project_has_role_binding "$PROJECT_ID" "serviceAccount:${RUNTIME_SA}" "roles/cloudbuild.builds.builder" \
   || fail "Missing roles/cloudbuild.builds.builder for serviceAccount:${RUNTIME_SA}. Run: npm run gcp:bootstrap -- --project $PROJECT_ID --member \"$DEPLOYER_MEMBER\""
 
@@ -60,4 +63,3 @@ project_has_role_binding "$PROJECT_ID" "serviceAccount:${CLOUDBUILD_AGENT}" "rol
   || log "Warning: roles/cloudbuild.serviceAgent not found for ${CLOUDBUILD_AGENT}. This may be intentional or organization-managed."
 
 log "GCP deploy prerequisites look good."
-

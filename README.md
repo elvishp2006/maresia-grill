@@ -205,12 +205,15 @@ O `gcp:bootstrap` faz:
 
 - habilita as APIs necessárias de Functions v2
 - concede `roles/iam.serviceAccountUser` no runtime service account padrão do projeto
+- concede `roles/datastore.user` para o runtime service account padrão acessar Firestore via Admin SDK
 - concede `roles/cloudbuild.builds.builder` para a compute service account do projeto
 - verifica o service agent do Cloud Build
 
 O `gcp:check` não altera nada; ele só valida o ambiente e falha com o comando de bootstrap recomendado.
 
 Se `--member` não for informado, os scripts usam automaticamente a identidade autenticada no `gcloud`.
+
+Os workflows de staging e produção executam `gcp:bootstrap` antes do deploy para corrigir automaticamente drift de IAM. Depois do deploy, eles validam tanto o preflight de CORS quanto uma chamada real ao endpoint `preparePublicOrderCheckout`, falhando se a Function responder `PERMISSION_DENIED` ao acessar Firestore.
 
 ## Segurança do Firestore
 

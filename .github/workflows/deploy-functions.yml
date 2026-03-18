@@ -32,6 +32,8 @@ jobs:
 
       - run: npm install -g firebase-tools
 
+      - run: npm run gcp:bootstrap -- --project menu-7f7cd
+
       - run: npm run gcp:check -- --project menu-7f7cd
 
       - run: npm --prefix functions ci
@@ -52,7 +54,7 @@ jobs:
 
       - run: firebase deploy --only functions --project menu-7f7cd --force
 
-      - name: Verify Public Checkout CORS in Production
+      - name: Verify Public Checkout Access in Production
         env:
           TEST_ORIGIN: ${{ secrets.PUBLIC_MENU_BASE_URL }}
         run: |
@@ -60,6 +62,7 @@ jobs:
 
           endpoint="https://us-central1-menu-7f7cd.cloudfunctions.net/preparePublicOrderCheckout"
           headers_file="$(mktemp)"
+          body_file="$(mktemp)"
 
           status="$(
             curl -sS -o /dev/null -D "$headers_file" \
@@ -79,5 +82,27 @@ jobs:
           if ! grep -Eiq '^access-control-allow-origin:' "$headers_file"; then
             echo "Header Access-Control-Allow-Origin ausente em $endpoint"
             cat "$headers_file"
+            exit 1
+          fi
+
+          status="$(
+            curl -sS -o "$body_file" \
+              -X POST \
+              -H "Origin: ${TEST_ORIGIN}" \
+              -H "Content-Type: application/json" \
+              --data '{}' \
+              "$endpoint" \
+              -w '%{http_code}'
+          )"
+
+          if grep -Eq 'PERMISSION_DENIED|Missing or insufficient permissions' "$body_file"; then
+            echo "A Function ainda nao consegue acessar o Firestore em $endpoint"
+            cat "$body_file"
+            exit 1
+          fi
+
+          if [ "$status" = "403" ] || [ "$status" = "500" ]; then
+            echo "Resposta inesperada ao testar acesso publico/Firestore em $endpoint"
+            cat "$body_file"
             exit 1
           fi
