@@ -5,6 +5,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import {
   buildReturnUrl,
+  canReplaceExistingOrderWithPaidDraft,
   createBasePaymentSummary,
   isDuplicatePaidDraft,
   isWinningOrderDraft,
@@ -92,6 +93,7 @@ interface StoredOrderEntry {
   orderId: string;
   customerName: string;
   selectedItemIds: string[];
+  submittedItems?: Item[];
   paymentSummary: OrderPaymentSummary;
   sourceDraftId?: string | null;
 }
@@ -156,20 +158,27 @@ const buildOrderPayload = (
     sourceDraftId?: string | null;
   },
   paymentSummary: OrderPaymentSummary,
-) => ({
-  orderId: input.orderId,
-  dateKey: menu.dateKey,
-  shareToken: menu.token,
-  menuVersionId: menu.currentVersionId,
-  customerName: input.customerName.trim(),
-  selectedItemIds: input.selectedItemIds,
-  sourceDraftId: input.sourceDraftId ?? null,
-  selectedPaidItemIds: menu.items
-    .filter(item => input.selectedItemIds.includes(item.id) && normalizePriceCents(item.priceCents) > 0)
-    .map(item => item.id),
-  paymentSummary,
-  submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-});
+) => {
+  const submittedItems = menu.items
+    .filter(item => input.selectedItemIds.includes(item.id))
+    .map(item => ({ ...item }));
+
+  return {
+    orderId: input.orderId,
+    dateKey: menu.dateKey,
+    shareToken: menu.token,
+    menuVersionId: menu.currentVersionId,
+    customerName: input.customerName.trim(),
+    selectedItemIds: input.selectedItemIds,
+    submittedItems,
+    sourceDraftId: input.sourceDraftId ?? null,
+    selectedPaidItemIds: submittedItems
+      .filter(item => normalizePriceCents(item.priceCents) > 0)
+      .map(item => item.id),
+    paymentSummary,
+    submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+};
 
 let stripeClient: Stripe | null = null;
 
@@ -263,30 +272,39 @@ const getStripePaymentMethod = async (paymentIntentId: string): Promise<PaymentM
 const finalizeOrderFromDraft = async (
   draft: PublicOrderDraft,
   paymentSummary: OrderPaymentSummary,
-) => {
+): Promise<'created' | 'replaced' | 'duplicate'> => {
   const version = await loadPublicMenuVersion(draft.menuVersionId);
   const orderRef = db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`);
-  let created = false;
+  let result: 'created' | 'replaced' | 'duplicate' = 'duplicate';
+
+  const orderPayload = buildOrderPayload({
+    dateKey: draft.dateKey,
+    token: draft.shareToken,
+    currentVersionId: draft.menuVersionId,
+    items: version.items,
+  }, {
+    orderId: draft.orderId,
+    customerName: draft.customerName,
+    selectedItemIds: draft.selectedItemIds,
+    sourceDraftId: draft.id,
+  }, paymentSummary);
 
   await db.runTransaction(async (transaction) => {
     const existingOrder = await transaction.get(orderRef);
-    if (existingOrder.exists) return;
-    created = true;
+    if (!existingOrder.exists) {
+      result = 'created';
+      transaction.set(orderRef, orderPayload);
+      return;
+    }
 
-    transaction.set(orderRef, buildOrderPayload({
-      dateKey: draft.dateKey,
-      token: draft.shareToken,
-      currentVersionId: draft.menuVersionId,
-      items: version.items,
-    }, {
-      orderId: draft.orderId,
-      customerName: draft.customerName,
-      selectedItemIds: draft.selectedItemIds,
-      sourceDraftId: draft.id,
-    }, paymentSummary));
+    const existing = existingOrder.data() as StoredOrderEntry;
+    if (!canReplaceExistingOrderWithPaidDraft(existing)) return;
+
+    result = 'replaced';
+    transaction.set(orderRef, orderPayload);
   });
 
-  return created;
+  return result;
 };
 
 const updateDraftPaymentSummary = async (
@@ -578,8 +596,8 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
       };
 
       if (paymentStatus === 'paid') {
-        const created = await finalizeOrderFromDraft(draft, nextSummary);
-        if (created) {
+        const finalizeResult = await finalizeOrderFromDraft(draft, nextSummary);
+        if (finalizeResult === 'created' || finalizeResult === 'replaced') {
           await updateDraftPaymentSummary(draftId, nextSummary);
           res.status(200).send('ok');
           return;

@@ -35,7 +35,7 @@ export interface OrderPaymentSummary {
 
 export interface FinalizedOrderReference {
   sourceDraftId?: string | null;
-  paymentSummary?: Pick<OrderPaymentSummary, 'providerPaymentId'> | null;
+  paymentSummary?: Partial<Pick<OrderPaymentSummary, 'providerPaymentId' | 'paidTotalCents'>> | null;
 }
 
 export const normalizePriceCents = (value: unknown) => (
@@ -155,6 +155,13 @@ export const isWinningOrderDraft = (
   if (order.sourceDraftId === draftId) return true;
   if (providerPaymentId && order.paymentSummary?.providerPaymentId === providerPaymentId) return true;
   return false;
+};
+
+export const canReplaceExistingOrderWithPaidDraft = (
+  order: FinalizedOrderReference | null | undefined,
+) => {
+  if (!order) return false;
+  return (order.paymentSummary?.paidTotalCents ?? 0) === 0;
 };
 
 export const isDuplicatePaidDraft = (

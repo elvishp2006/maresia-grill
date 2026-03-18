@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import type { FinalizedPublicOrder, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession } from './types';
 import EmbeddedStripeCheckout from './components/EmbeddedStripeCheckout';
+import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
 import {
   cancelPublicOrder,
@@ -24,7 +25,6 @@ import { calculateOrderPaymentSummary, formatCurrency } from './lib/billing';
 
 const CUSTOMER_NAME_STORAGE_KEY = 'public-menu-customer-name';
 const CUSTOMER_EMAIL_STORAGE_KEY = 'public-menu-customer-email';
-
 interface CachedPublicOrder {
   orderId: string;
   customerName: string;
@@ -32,7 +32,7 @@ interface CachedPublicOrder {
   paymentSummary: OrderPaymentSummary;
 }
 
-interface RemovedPublicOrderState {
+interface CancelledPublicOrderState {
   customerName: string;
 }
 
@@ -41,7 +41,7 @@ interface PendingPublicPaymentState {
   paymentStatus: OrderPaymentSummary['paymentStatus'];
 }
 
-type PublicMenuView = 'form' | 'submitted' | 'removed';
+type PublicMenuView = 'form' | 'submitted' | 'cancelled';
 
 interface PublicMenuPageProps {
   token: string;
@@ -93,15 +93,17 @@ const setStoredCustomerEmail = (email: string) => {
   }
 };
 
+const isValidCustomerEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
 const getOrderSessionStorageKey = (token: string) => `public-menu-order-session:${token}`;
 const getCachedOrderStorageKey = (token: string) => `public-menu-last-order:${token}`;
 const getViewStorageKey = (token: string) => `public-menu-view:${token}`;
-const getRemovedStateStorageKey = (token: string) => `public-menu-removed-state:${token}`;
+const getCancelledStateStorageKey = (token: string) => `public-menu-cancelled-state:${token}`;
 
 const VIEW_HASHES: Record<PublicMenuView, string> = {
   form: '#/pedido',
   submitted: '#/enviado',
-  removed: '#/removido',
+  cancelled: '#/cancelado',
 };
 
 const readViewFromHash = (): PublicMenuView | null => {
@@ -110,8 +112,8 @@ const readViewFromHash = (): PublicMenuView | null => {
       return 'form';
     case '#/enviado':
       return 'submitted';
-    case '#/removido':
-      return 'removed';
+    case '#/cancelado':
+      return 'cancelled';
     default:
       return null;
   }
@@ -120,7 +122,7 @@ const readViewFromHash = (): PublicMenuView | null => {
 const getStoredView = (token: string): PublicMenuView | null => {
   try {
     const value = localStorage.getItem(getViewStorageKey(token));
-    if (value === 'form' || value === 'submitted' || value === 'removed') return value;
+    if (value === 'form' || value === 'submitted' || value === 'cancelled') return value;
   } catch {
     // Ignore malformed local data.
   }
@@ -219,11 +221,11 @@ const clearCachedOrder = (token: string) => {
   }
 };
 
-const getStoredRemovedState = (token: string): RemovedPublicOrderState | null => {
+const getStoredCancelledState = (token: string): CancelledPublicOrderState | null => {
   try {
-    const raw = localStorage.getItem(getRemovedStateStorageKey(token));
+    const raw = localStorage.getItem(getCancelledStateStorageKey(token));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<RemovedPublicOrderState>;
+    const parsed = JSON.parse(raw) as Partial<CancelledPublicOrderState>;
     if (typeof parsed.customerName === 'string' && parsed.customerName.trim()) {
       return { customerName: parsed.customerName };
     }
@@ -233,17 +235,17 @@ const getStoredRemovedState = (token: string): RemovedPublicOrderState | null =>
   return null;
 };
 
-const setStoredRemovedState = (token: string, state: RemovedPublicOrderState) => {
+const setStoredCancelledState = (token: string, state: CancelledPublicOrderState) => {
   try {
-    localStorage.setItem(getRemovedStateStorageKey(token), JSON.stringify(state));
+    localStorage.setItem(getCancelledStateStorageKey(token), JSON.stringify(state));
   } catch {
     // Ignore local storage failures on unsupported browsers.
   }
 };
 
-const clearStoredRemovedState = (token: string) => {
+const clearStoredCancelledState = (token: string) => {
   try {
-    localStorage.removeItem(getRemovedStateStorageKey(token));
+    localStorage.removeItem(getCancelledStateStorageKey(token));
   } catch {
     // Ignore local storage failures on unsupported browsers.
   }
@@ -357,7 +359,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState(() => getStoredOrderId(token));
   const [successState, setSuccessState] = useState<CachedPublicOrder | null>(null);
-  const [removedState, setRemovedState] = useState<RemovedPublicOrderState | null>(null);
+  const [cancelledState, setCancelledState] = useState<CancelledPublicOrderState | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<PublicOrderCheckoutSession | null>(null);
   const [pendingPayment, setPendingPayment] = useState<PendingPublicPaymentState | null>(() => {
     const draftId = typeof window !== 'undefined' ? getDraftIdFromUrl() : null;
@@ -394,7 +396,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     const cachedOrder = getCachedOrder(token);
     const storedView = readViewFromHash() ?? getStoredView(token) ?? 'form';
-    const storedRemovedState = getStoredRemovedState(token);
+    const storedCancelledState = getStoredCancelledState(token);
     const urlDraftId = getDraftIdFromUrl();
     setPendingPayment(urlDraftId ? { draftId: urlDraftId, paymentStatus: 'awaiting_payment' } : null);
 
@@ -403,22 +405,22 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setSelection(cachedOrder.selectedItemIds);
       if (storedView === 'submitted') {
         setSuccessState(cachedOrder);
-        setRemovedState(null);
+        setCancelledState(null);
         setCurrentView('submitted');
         return;
       }
     }
 
-    if (storedView === 'removed' && storedRemovedState) {
-      setRemovedState(storedRemovedState);
+    if (storedView === 'cancelled' && storedCancelledState) {
+      setCancelledState(storedCancelledState);
       setSuccessState(null);
       setSelection([]);
-      setCurrentView('removed');
+      setCurrentView('cancelled');
       return;
     }
 
     setSuccessState(null);
-    setRemovedState(null);
+    setCancelledState(null);
     setCurrentView('form');
   }, [token]);
 
@@ -458,26 +460,26 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     if (currentView === 'submitted') {
       const cachedOrder = getCachedOrder(token);
       if (cachedOrder) {
-        clearStoredRemovedState(token);
+        clearStoredCancelledState(token);
         setSuccessState(cachedOrder);
-        setRemovedState(null);
+        setCancelledState(null);
         setSelection(cachedOrder.selectedItemIds);
         setCustomerName(cachedOrder.customerName);
         return;
       }
       if (pendingPayment?.draftId || getDraftIdFromUrl()) {
-        setRemovedState(null);
+        setCancelledState(null);
         return;
       }
       setCurrentView('form');
       return;
     }
 
-    if (currentView === 'removed') {
-      if (removedState) return;
-      const storedRemovedState = getStoredRemovedState(token);
-      if (storedRemovedState) {
-        setRemovedState(storedRemovedState);
+    if (currentView === 'cancelled') {
+      if (cancelledState) return;
+      const storedCancelledState = getStoredCancelledState(token);
+      if (storedCancelledState) {
+        setCancelledState(storedCancelledState);
         setSuccessState(null);
         setSelection([]);
         return;
@@ -487,8 +489,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     }
 
     setSuccessState(null);
-    setRemovedState(null);
-  }, [currentView, pendingPayment?.draftId, removedState, token]);
+    setCancelledState(null);
+  }, [currentView, pendingPayment?.draftId, cancelledState, token]);
 
   useEffect(() => {
     if (!menu) return;
@@ -531,9 +533,9 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         if (result.order) {
           const nextOrder = toCachedOrder(result.order);
           setCachedOrder(menu.token, nextOrder);
-          clearStoredRemovedState(menu.token);
+          clearStoredCancelledState(menu.token);
           setSuccessState(nextOrder);
-          setRemovedState(null);
+          setCancelledState(null);
           setSelection(nextOrder.selectedItemIds);
           setCustomerName(nextOrder.customerName);
           setPendingPayment(null);
@@ -613,7 +615,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const selectionViolations = useMemo(() => (
     menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
   ), [menu, selection]);
-  const canEditPaidOrder = ((successState?.paymentSummary?.paidTotalCents) ?? 0) === 0;
 
   const openSubmittedPaymentState = (draftId: string) => {
     setDraftIdInUrl(draftId);
@@ -647,8 +648,17 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     if (!menu) return;
 
     const trimmedName = customerName.trim();
+    const trimmedEmail = customerEmail.trim().toLowerCase();
     if (!trimmedName) {
       showToast('Informe seu nome.', 'info');
+      return;
+    }
+    if (!trimmedEmail) {
+      showToast('Informe seu e-mail.', 'info');
+      return;
+    }
+    if (!isValidCustomerEmail(trimmedEmail)) {
+      showToast('Informe um e-mail válido.', 'info');
       return;
     }
     if (selection.length === 0) {
@@ -680,12 +690,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         if (checkout.kind === 'free_order_confirmed' && checkout.order) {
           const nextOrder = toCachedOrder(checkout.order);
           setCachedOrder(menu.token, nextOrder);
-          clearStoredRemovedState(menu.token);
+          clearStoredCancelledState(menu.token);
           clearDraftIdFromUrl();
           setPendingPayment(null);
           setCheckoutSession(null);
           setSuccessState(nextOrder);
-          setRemovedState(null);
+          setCancelledState(null);
           setSelection(nextOrder.selectedItemIds);
           setCurrentView('submitted');
           return;
@@ -697,10 +707,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           && checkout.checkoutSession.draftId
         ) {
           setCheckoutSession(checkout.checkoutSession);
-          setPendingPayment({
-            draftId: checkout.checkoutSession.draftId,
-            paymentStatus: 'awaiting_payment',
-          });
           return;
         }
 
@@ -731,12 +737,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         },
       };
       setCachedOrder(menu.token, nextOrder);
-      clearStoredRemovedState(menu.token);
+      clearStoredCancelledState(menu.token);
       clearDraftIdFromUrl();
       setPendingPayment(null);
       setCheckoutSession(null);
       setSuccessState(nextOrder);
-      setRemovedState(null);
+      setCancelledState(null);
       setSelection(persistedSelection);
       setCurrentView('submitted');
     } catch (error) {
@@ -752,10 +758,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const isPaidOrder = successState.paymentSummary.paidTotalCents > 0;
 
     const ok = await confirm(
-      isPaidOrder ? 'Cancelar pedido' : 'Remover pedido',
+      'Cancelar pedido',
       isPaidOrder
         ? 'Este pedido tem itens pagos. O cancelamento solicitará o estorno antes de liberar um novo pedido.'
-        : 'Deseja remover o seu pedido deste cardápio? Você poderá fazer um novo pedido enquanto o recebimento estiver aberto.',
+        : 'Deseja cancelar o seu pedido deste cardápio? Você poderá fazer um novo pedido enquanto o recebimento estiver aberto.',
     );
     if (!ok) return;
 
@@ -783,12 +789,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setOrderId(nextOrderId);
       setSelection([]);
       setSuccessState(null);
-      const nextRemovedState = { customerName: successState.customerName };
-      setStoredRemovedState(menu.token, nextRemovedState);
-      setRemovedState(nextRemovedState);
-      setCurrentView('removed');
+      const nextCancelledState = { customerName: successState.customerName };
+      setStoredCancelledState(menu.token, nextCancelledState);
+      setCancelledState(nextCancelledState);
+      setCurrentView('cancelled');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível remover o pedido.', 'error');
+      showToast(error instanceof Error ? error.message : 'Não foi possível cancelar o pedido.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -796,54 +802,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
   if (menu === undefined) return <LoadingSpinner />;
 
-  if (checkoutSession?.clientSecret) {
+  if (cancelledState) {
     return (
       <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
-        <PublicHeader eyebrow="Pagamento" title="Finalize seu pedido" />
-        <section className="public-panel px-[18px] py-[20px]">
-          <div className="public-inline-panel px-[16px] py-[14px]">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-              Continue de onde parou
-            </p>
-            <p className="mt-[6px] text-[15px] leading-[1.7] text-[var(--text-dim)]">
-              Revise os dados e conclua o pagamento sem sair desta tela.
-            </p>
-          </div>
-          <div className="mt-[16px] overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-[12px] shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
-            <EmbeddedStripeCheckout
-              clientSecret={checkoutSession.clientSecret}
-              email={customerEmail}
-              onEmailChange={setCustomerEmail}
-              onComplete={() => openSubmittedPaymentState(checkoutSession.draftId)}
-              onError={(message) => {
-                showToast(message, 'error');
-                setSubmitting(false);
-              }}
-            />
-          </div>
-        </section>
-        <PublicActionBar footerRef={footerRef}>
-          <button
-            type="button"
-            onClick={() => {
-              lightTap();
-              setSubmitting(false);
-              setCheckoutSession(null);
-              setPendingPayment(null);
-            }}
-            className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
-          >
-            Voltar ao pedido
-          </button>
-        </PublicActionBar>
-      </main>
-    );
-  }
-
-  if (removedState) {
-    return (
-      <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
-        <PublicHeader eyebrow="Removido" title="Maresia Grill" accent="red" />
+        <PublicHeader eyebrow="Cancelado" title="Maresia Grill" accent="red" />
         <PublicStateCard
           icon={(
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -851,11 +813,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               <path d="m6 6 12 12" />
             </svg>
           )}
-          title="Seu pedido foi removido"
+          title="Seu pedido foi cancelado"
           body={
             canStartNewOrder
-              ? `${removedState.customerName}, você ainda pode montar um novo pedido neste cardápio.`
-              : `${removedState.customerName}, a confirmação foi preservada neste link.`
+              ? `${cancelledState.customerName}, você ainda pode montar um novo pedido neste cardápio.`
+              : `${cancelledState.customerName}, a confirmação do cancelamento foi preservada neste link.`
           }
         />
         {canStartNewOrder ? (
@@ -864,8 +826,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 type="button"
                 onClick={() => {
                   lightTap();
-                  clearStoredRemovedState(token);
-                  setRemovedState(null);
+                  clearStoredCancelledState(token);
+                  setCancelledState(null);
                   setSuccessState(null);
                   setSelection([]);
                   setCurrentView('form');
@@ -893,7 +855,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           title="Seu pedido foi enviado"
           body={
             canModifyExistingOrder
-              ? 'Se quiser, você ainda pode editar ou remover este pedido.'
+              ? 'Se precisar alterar algo, cancele este pedido e faça um novo.'
               : isMenuExpired
                 ? 'A confirmação foi preservada, mas este cardápio não está mais disponível.'
                 : 'A confirmação foi preservada, mas os pedidos já foram encerrados.'
@@ -923,39 +885,20 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         />
         {canModifyExistingOrder ? (
           <PublicActionBar footerRef={footerRef}>
-              <div className="flex gap-[10px]">
-                {canEditPaidOrder ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      lightTap();
-                      setCustomerName(successState.customerName);
-                      setSelection(successState.selectedItemIds);
-                      setSuccessState(null);
-                      setCurrentView('form');
-                    }}
-                    className="neon-gold-fill min-h-[54px] flex-1 rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
-                  >
-                    Editar pedido
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    mediumTap();
-                    void handleDeleteOrder();
-                  }}
-                  disabled={submitting}
-                  className="min-h-[54px] flex-1 rounded-[20px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)] px-[18px] text-[15px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {successState.paymentSummary.paidTotalCents > 0 ? 'Cancelar e estornar' : 'Remover pedido'}
-                </button>
-              </div>
-              {!canEditPaidOrder ? (
-                <p className="mt-[10px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
-                  Pedidos com itens pagos ficam bloqueados para edição. Se precisar alterar, cancele e refaça o pedido.
-                </p>
-              ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                mediumTap();
+                void handleDeleteOrder();
+              }}
+              disabled={submitting}
+              className="min-h-[54px] w-full rounded-[20px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)] px-[18px] text-[15px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {successState.paymentSummary.paidTotalCents > 0 ? 'Cancelar e estornar' : 'Cancelar pedido'}
+            </button>
+            <p className="mt-[10px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
+              Para mudar os itens, cancele este pedido e faça um novo.
+            </p>
           </PublicActionBar>
         ) : null}
       </main>
@@ -1089,6 +1032,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             inputMode="email"
             autoCapitalize="none"
             autoCorrect="off"
+            autoComplete="email"
             value={customerEmail}
             onChange={(event) => setCustomerEmail(event.target.value)}
             placeholder="voce@empresa.com"
@@ -1214,6 +1158,26 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           </button>
         </div>
       </PublicActionBar>
+      <BottomSheet
+        open={Boolean(checkoutSession?.clientSecret)}
+        title="Finalize seu pedido"
+        onClose={() => {
+          lightTap();
+          setSubmitting(false);
+          setCheckoutSession(null);
+          setPendingPayment(null);
+        }}
+      >
+        {checkoutSession?.clientSecret ? (
+          <div className="overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-[12px] shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
+            <EmbeddedStripeCheckout
+              clientSecret={checkoutSession.clientSecret}
+              email={customerEmail}
+              onComplete={() => openSubmittedPaymentState(checkoutSession.draftId)}
+            />
+          </div>
+        ) : null}
+      </BottomSheet>
     </main>
   );
 }

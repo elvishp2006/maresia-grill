@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildReturnUrl,
+  canReplaceExistingOrderWithPaidDraft,
   createBasePaymentSummary,
   isDuplicatePaidDraft,
   isWinningOrderDraft,
@@ -112,5 +113,21 @@ describe('functions payment core', () => {
       sourceDraftId: 'draft-1',
       paymentSummary: { providerPaymentId: 'pi_1' },
     }, 'draft-2', 'pi_1')).toBe(false);
+  });
+
+  it('allows replacing an existing unpaid order with a paid draft', () => {
+    expect(canReplaceExistingOrderWithPaidDraft({
+      paymentSummary: {
+        paidTotalCents: 0,
+      },
+    })).toBe(true);
+
+    expect(canReplaceExistingOrderWithPaidDraft({
+      paymentSummary: {
+        paidTotalCents: 1200,
+      },
+    })).toBe(false);
+
+    expect(canReplaceExistingOrderWithPaidDraft(null)).toBe(false);
   });
 });

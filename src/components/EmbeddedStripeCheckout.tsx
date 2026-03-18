@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { CheckoutProvider, PaymentElement, useCheckout } from '@stripe/react-stripe-js/checkout';
 import { loadStripe } from '@stripe/stripe-js';
+import { useToast } from '../contexts/ToastContext';
 
 const getPublishableKey = () => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
@@ -16,74 +17,60 @@ const stripePromise = (() => {
 interface EmbeddedStripeCheckoutProps {
   clientSecret: string;
   email: string;
-  onEmailChange: (value: string) => void;
   onComplete: () => void;
-  onError: (message: string) => void;
 }
 
 function CheckoutForm({
   email,
-  onEmailChange,
   onComplete,
-  onError,
 }: Omit<EmbeddedStripeCheckoutProps, 'clientSecret'>) {
   const checkoutState = useCheckout();
+  const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [elementReady, setElementReady] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isLoading = checkoutState.type === 'loading';
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (checkoutState.type !== 'success') return;
 
+    const pendingLabelTimer = window.setTimeout(() => {
+      setSubmitting(true);
+    }, 180);
+
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      const message = 'Informe seu e-mail para concluir o pagamento.';
-      setErrorMessage(message);
-      onError(message);
+      window.clearTimeout(pendingLabelTimer);
+      showToast('Preencha os dados necessários para continuar.', 'info');
       return;
     }
 
-    setSubmitting(true);
-    setErrorMessage(null);
     try {
+      const emailResult = await checkoutState.checkout.updateEmail(trimmedEmail);
+      if (emailResult.type === 'error') {
+        showToast('Confira os dados do pagamento e tente novamente.', 'error');
+        return;
+      }
+
       const result = await checkoutState.checkout.confirm({
         redirect: 'if_required',
         email: trimmedEmail,
       });
 
       if (result.type === 'error') {
-        const message = result.error.message || 'Não foi possível concluir o pagamento.';
-        setErrorMessage(message);
-        onError(message);
+        showToast('Confira os dados do pagamento e tente novamente.', 'error');
         return;
       }
 
       onComplete();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível concluir o pagamento.';
-      setErrorMessage(message);
-      onError(message);
+    } catch {
+      showToast('Não foi possível iniciar o pagamento. Tente novamente.', 'error');
     } finally {
+      window.clearTimeout(pendingLabelTimer);
       setSubmitting(false);
     }
   };
-
-  if (checkoutState.type === 'loading') {
-    return (
-      <div className="stripe-payment-shell stripe-payment-frame flex items-center justify-center">
-        <div className="stripe-payment-skeleton" aria-hidden="true">
-          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
-          <div className="stripe-payment-skeleton__block" />
-          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
-          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-          <div className="stripe-payment-skeleton__button" />
-        </div>
-      </div>
-    );
-  }
 
   if (checkoutState.type === 'error') {
     return (
@@ -95,22 +82,8 @@ function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-[14px]">
-      <label className="block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-        E-mail para o pagamento
-        <input
-          type="email"
-          inputMode="email"
-          autoCapitalize="none"
-          autoCorrect="off"
-          value={email}
-          onChange={(event) => onEmailChange(event.target.value)}
-          placeholder="voce@empresa.com"
-          className="neon-gold-focus mt-[8px] w-full rounded-[18px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[14px] text-[16px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
-        />
-      </label>
-
       <div className="stripe-payment-shell stripe-payment-frame">
-        {!elementReady ? (
+        {!elementReady || isLoading ? (
           <div className="stripe-payment-loading" aria-hidden="true">
             <div className="stripe-payment-skeleton">
               <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
@@ -122,39 +95,30 @@ function CheckoutForm({
             </div>
           </div>
         ) : null}
-        <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
-          <PaymentElement
-            options={{ layout: 'accordion' }}
-            onReady={() => setElementReady(true)}
-            onLoadError={(event) => {
-              const message = event.error.message || 'Não foi possível carregar os métodos de pagamento.';
-              setErrorMessage(message);
-              onError(message);
-            }}
-          />
-        </div>
+        {isLoading ? (
+          <div className="stripe-payment-element" aria-hidden="true" />
+        ) : (
+          <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
+            <PaymentElement
+              options={{ layout: 'accordion' }}
+              onReady={() => {
+                setElementReady(true);
+              }}
+              onLoadError={() => {
+                // O estado de erro do checkout cobre falhas fatais de carregamento.
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="public-inline-panel flex items-center justify-between gap-[12px] px-[14px] py-[12px]">
-        <div>
-          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
-            Pagamento seguro
-          </p>
-          <p className="mt-[4px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
-            O pedido segue automaticamente assim que o Stripe confirmar o pagamento.
-          </p>
-          {errorMessage ? (
-            <p className="mt-[8px] text-[13px] leading-[1.5] text-[var(--danger)]">
-              {errorMessage}
-            </p>
-          ) : null}
-        </div>
+      <div className="public-inline-panel px-[12px] py-[12px]">
         <button
           type="submit"
-          disabled={submitting}
-          className="neon-gold-fill min-h-[48px] rounded-[18px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={submitting || isLoading || !elementReady}
+          className="neon-gold-fill min-h-[52px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? 'Confirmando...' : 'Pagar agora'}
+          {submitting ? 'Processando pagamento...' : 'Pagar'}
         </button>
       </div>
     </form>
@@ -164,9 +128,7 @@ function CheckoutForm({
 export default function EmbeddedStripeCheckout({
   clientSecret,
   email,
-  onEmailChange,
   onComplete,
-  onError,
 }: EmbeddedStripeCheckoutProps) {
   const options = useMemo(() => ({
     clientSecret,
@@ -225,9 +187,7 @@ export default function EmbeddedStripeCheckout({
     <CheckoutProvider stripe={stripePromise} options={options} key={clientSecret}>
       <CheckoutForm
         email={email}
-        onEmailChange={onEmailChange}
         onComplete={onComplete}
-        onError={onError}
       />
     </CheckoutProvider>
   );

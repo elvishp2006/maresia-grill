@@ -3,10 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 
 const mockConfirm = vi.fn();
+const mockUpdateEmail = vi.fn();
 const mockUseCheckout = vi.fn();
+const mockShowToast = vi.fn();
 
 vi.mock('@stripe/stripe-js', () => ({
   loadStripe: vi.fn(async () => ({})),
+}));
+
+vi.mock('../contexts/ToastContext', () => ({
+  useToast: () => ({
+    showToast: mockShowToast,
+  }),
 }));
 
 vi.mock('@stripe/react-stripe-js/checkout', async () => {
@@ -46,7 +54,12 @@ describe('EmbeddedStripeCheckout', () => {
       type: 'success',
       checkout: {
         confirm: mockConfirm,
+        updateEmail: mockUpdateEmail,
       },
+    });
+    mockUpdateEmail.mockResolvedValue({
+      type: 'success',
+      session: {},
     });
     mockConfirm.mockResolvedValue({
       type: 'success',
@@ -58,33 +71,29 @@ describe('EmbeddedStripeCheckout', () => {
     vi.unstubAllEnvs();
   });
 
-  it('renders the inline payment form and confirms with email', async () => {
+  it('renders the inline payment form and confirms payment', async () => {
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
     const onComplete = vi.fn();
-    const onError = vi.fn();
-    const onEmailChange = vi.fn();
 
     render(
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
         email="teste@empresa.com"
-        onEmailChange={onEmailChange}
         onComplete={onComplete}
-        onError={onError}
       />,
     );
 
     expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar agora' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
 
     await waitFor(() => {
+      expect(mockUpdateEmail).toHaveBeenCalledWith('teste@empresa.com');
       expect(mockConfirm).toHaveBeenCalledWith({
         redirect: 'if_required',
         email: 'teste@empresa.com',
       });
     });
     expect(onComplete).toHaveBeenCalled();
-    expect(onError).not.toHaveBeenCalled();
   });
 
   it('shows a stable skeleton area before the payment element becomes ready', async () => {
@@ -118,9 +127,7 @@ describe('EmbeddedStripeCheckout', () => {
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
         email="teste@empresa.com"
-        onEmailChange={vi.fn()}
         onComplete={vi.fn()}
-        onError={vi.fn()}
       />,
     );
 
@@ -131,29 +138,6 @@ describe('EmbeddedStripeCheckout', () => {
     });
   });
 
-  it('requires email before confirming', async () => {
-    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-    const onComplete = vi.fn();
-    const onError = vi.fn();
-
-    render(
-      <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
-        email=""
-        onEmailChange={vi.fn()}
-        onComplete={onComplete}
-        onError={onError}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar agora' }));
-
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(onComplete).not.toHaveBeenCalled();
-    expect(onError).toHaveBeenCalledWith('Informe seu e-mail para concluir o pagamento.');
-    expect(screen.getByText('Informe seu e-mail para concluir o pagamento.')).toBeInTheDocument();
-  });
-
   it('keeps the checkout mounted when confirm returns an error', async () => {
     mockConfirm.mockResolvedValue({
       type: 'error',
@@ -161,25 +145,51 @@ describe('EmbeddedStripeCheckout', () => {
     });
 
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-    const onError = vi.fn();
 
     render(
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
         email="teste@empresa.com"
-        onEmailChange={vi.fn()}
         onComplete={vi.fn()}
-        onError={onError}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar agora' }));
+    const submitButton = screen.getByRole('button', { name: 'Pagar' });
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled();
+    });
+    fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('Pagamento recusado.');
+      expect(mockUpdateEmail).toHaveBeenCalledWith('teste@empresa.com');
+      expect(mockConfirm).toHaveBeenCalledWith({
+        redirect: 'if_required',
+        email: 'teste@empresa.com',
+      });
     });
     expect(screen.getByTestId('payment-element')).toBeInTheDocument();
-    expect(screen.getByText('Pagamento recusado.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pagar agora' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pagar' })).toBeInTheDocument();
+  });
+
+  it('shows a generic toast when the e-mail is missing', async () => {
+    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
+
+    render(
+      <EmbeddedStripeCheckout
+        clientSecret="cs_test_123"
+        email=""
+        onComplete={vi.fn()}
+      />,
+    );
+
+    const submitButton = screen.getByRole('button', { name: 'Pagar' });
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled();
+    });
+    fireEvent.click(submitButton);
+
+    expect(mockUpdateEmail).not.toHaveBeenCalled();
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockShowToast).toHaveBeenCalledWith('Preencha os dados necessários para continuar.', 'info');
   });
 });

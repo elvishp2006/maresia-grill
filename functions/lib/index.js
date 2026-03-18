@@ -3,7 +3,7 @@ import admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { onRequest } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
-import { buildReturnUrl, createBasePaymentSummary, isDuplicatePaidDraft, isWinningOrderDraft, mapPaymentMethods, normalizeCustomerName, normalizePriceCents, validateSelection, } from './core.js';
+import { buildReturnUrl, canReplaceExistingOrderWithPaidDraft, createBasePaymentSummary, isDuplicatePaidDraft, isWinningOrderDraft, mapPaymentMethods, normalizeCustomerName, normalizePriceCents, validateSelection, } from './core.js';
 admin.initializeApp();
 const db = admin.firestore();
 const publicBrowserEndpointOptions = {
@@ -41,20 +41,26 @@ const loadPublicMenuVersion = async (versionId) => {
         throw new Error('Snapshot do cardápio indisponível.');
     return snap.data();
 };
-const buildOrderPayload = (menu, input, paymentSummary) => ({
-    orderId: input.orderId,
-    dateKey: menu.dateKey,
-    shareToken: menu.token,
-    menuVersionId: menu.currentVersionId,
-    customerName: input.customerName.trim(),
-    selectedItemIds: input.selectedItemIds,
-    sourceDraftId: input.sourceDraftId ?? null,
-    selectedPaidItemIds: menu.items
-        .filter(item => input.selectedItemIds.includes(item.id) && normalizePriceCents(item.priceCents) > 0)
-        .map(item => item.id),
-    paymentSummary,
-    submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-});
+const buildOrderPayload = (menu, input, paymentSummary) => {
+    const submittedItems = menu.items
+        .filter(item => input.selectedItemIds.includes(item.id))
+        .map(item => ({ ...item }));
+    return {
+        orderId: input.orderId,
+        dateKey: menu.dateKey,
+        shareToken: menu.token,
+        menuVersionId: menu.currentVersionId,
+        customerName: input.customerName.trim(),
+        selectedItemIds: input.selectedItemIds,
+        submittedItems,
+        sourceDraftId: input.sourceDraftId ?? null,
+        selectedPaidItemIds: submittedItems
+            .filter(item => normalizePriceCents(item.priceCents) > 0)
+            .map(item => item.id),
+        paymentSummary,
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+};
 let stripeClient = null;
 const getStripeClient = () => {
     const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -133,25 +139,32 @@ const getStripePaymentMethod = async (paymentIntentId) => {
 const finalizeOrderFromDraft = async (draft, paymentSummary) => {
     const version = await loadPublicMenuVersion(draft.menuVersionId);
     const orderRef = db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`);
-    let created = false;
+    let result = 'duplicate';
+    const orderPayload = buildOrderPayload({
+        dateKey: draft.dateKey,
+        token: draft.shareToken,
+        currentVersionId: draft.menuVersionId,
+        items: version.items,
+    }, {
+        orderId: draft.orderId,
+        customerName: draft.customerName,
+        selectedItemIds: draft.selectedItemIds,
+        sourceDraftId: draft.id,
+    }, paymentSummary);
     await db.runTransaction(async (transaction) => {
         const existingOrder = await transaction.get(orderRef);
-        if (existingOrder.exists)
+        if (!existingOrder.exists) {
+            result = 'created';
+            transaction.set(orderRef, orderPayload);
             return;
-        created = true;
-        transaction.set(orderRef, buildOrderPayload({
-            dateKey: draft.dateKey,
-            token: draft.shareToken,
-            currentVersionId: draft.menuVersionId,
-            items: version.items,
-        }, {
-            orderId: draft.orderId,
-            customerName: draft.customerName,
-            selectedItemIds: draft.selectedItemIds,
-            sourceDraftId: draft.id,
-        }, paymentSummary));
+        }
+        const existing = existingOrder.data();
+        if (!canReplaceExistingOrderWithPaidDraft(existing))
+            return;
+        result = 'replaced';
+        transaction.set(orderRef, orderPayload);
     });
-    return created;
+    return result;
 };
 const updateDraftPaymentSummary = async (draftId, paymentSummary) => {
     await db.doc(`publicOrderDrafts/${draftId}`).set({
@@ -407,8 +420,8 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
                 paymentMethod,
             };
             if (paymentStatus === 'paid') {
-                const created = await finalizeOrderFromDraft(draft, nextSummary);
-                if (created) {
+                const finalizeResult = await finalizeOrderFromDraft(draft, nextSummary);
+                if (finalizeResult === 'created' || finalizeResult === 'replaced') {
                     await updateDraftPaymentSummary(draftId, nextSummary);
                     res.status(200).send('ok');
                     return;

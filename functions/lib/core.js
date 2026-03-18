@@ -96,6 +96,11 @@ export const isWinningOrderDraft = (order, draftId, providerPaymentId) => {
         return true;
     return false;
 };
+export const canReplaceExistingOrderWithPaidDraft = (order) => {
+    if (!order)
+        return false;
+    return (order.paymentSummary?.paidTotalCents ?? 0) === 0;
+};
 export const isDuplicatePaidDraft = (order, draftId, providerPaymentId) => {
     if (!order)
         return false;

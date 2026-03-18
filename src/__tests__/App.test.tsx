@@ -710,6 +710,9 @@ describe('App', () => {
     fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
       target: { value: 'Ana' },
     });
+    fireEvent.change(screen.getByPlaceholderText('voce@empresa.com'), {
+      target: { value: 'ana@empresa.com' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
@@ -725,15 +728,9 @@ describe('App', () => {
     expect(window.location.hash).toBe('#/enviado');
     expect(screen.getByText('Seu nome')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Editar pedido' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Identificação')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('Ana')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
-    });
-    expect(window.location.hash).toBe('#/pedido');
+    expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeInTheDocument();
+    expect(screen.getByText('Para mudar os itens, cancele este pedido e faça um novo.')).toBeInTheDocument();
   });
 
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {
@@ -838,7 +835,7 @@ describe('App', () => {
     expect(screen.getAllByText('Limite atingido').length).toBeGreaterThan(0);
   });
 
-  it('allows removing the public order while intake is open and shows a removal confirmation state', async () => {
+  it('allows cancelling the public order while intake is open and shows a cancellation confirmation state', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
     window.history.pushState({}, '', '/s/token-1');
 
@@ -853,12 +850,15 @@ describe('App', () => {
     fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
       target: { value: 'Ana' },
     });
+    fireEvent.change(screen.getByPlaceholderText('voce@empresa.com'), {
+      target: { value: 'ana@empresa.com' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover pedido' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar pedido' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
 
     await waitFor(() => {
@@ -869,9 +869,9 @@ describe('App', () => {
       });
     });
 
-    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(await screen.findByText('Seu pedido foi cancelado')).toBeInTheDocument();
     expect(localStorage.getItem('public-menu-last-order:token-1')).toBeNull();
-    expect(window.location.hash).toBe('#/removido');
+    expect(window.location.hash).toBe('#/cancelado');
 
     fireEvent.click(screen.getByRole('button', { name: 'Fazer novo pedido' }));
 
@@ -902,6 +902,9 @@ describe('App', () => {
     );
 
     expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('voce@empresa.com'), {
+      target: { value: 'ana@empresa.com' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
@@ -989,13 +992,13 @@ describe('App', () => {
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Remover pedido' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
   });
 
-  it('keeps the removed state after reload when the hash and customer name are present', async () => {
-    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
-    localStorage.setItem('public-menu-view:token-1', 'removed');
-    window.history.pushState({}, '', '/s/token-1/#/removido');
+  it('keeps the cancelled state after reload when the hash and customer name are present', async () => {
+    localStorage.setItem('public-menu-cancelled-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'cancelled');
+    window.history.pushState({}, '', '/s/token-1/#/cancelado');
 
     render(
       <ToastProvider>
@@ -1005,14 +1008,14 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
-    expect(window.location.hash).toBe('#/removido');
+    expect(await screen.findByText('Seu pedido foi cancelado')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/cancelado');
   });
 
-  it('keeps the removed confirmation after reload even when intake is closed', async () => {
-    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
-    localStorage.setItem('public-menu-view:token-1', 'removed');
-    window.history.pushState({}, '', '/s/token-1/#/removido');
+  it('keeps the cancelled confirmation after reload even when intake is closed', async () => {
+    localStorage.setItem('public-menu-cancelled-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'cancelled');
+    window.history.pushState({}, '', '/s/token-1/#/cancelado');
     subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
       onValue({
         token: 'token-1',
@@ -1035,15 +1038,15 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(await screen.findByText('Seu pedido foi removido')).toBeInTheDocument();
+    expect(await screen.findByText('Seu pedido foi cancelado')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Fazer novo pedido' })).not.toBeInTheDocument();
   });
 
-  it('restores the removed state using token-scoped data instead of the global customer name', async () => {
+  it('restores the cancelled state using token-scoped data instead of the global customer name', async () => {
     localStorage.setItem('public-menu-customer-name', 'Beatriz');
-    localStorage.setItem('public-menu-removed-state:token-1', JSON.stringify({ customerName: 'Ana' }));
-    localStorage.setItem('public-menu-view:token-1', 'removed');
-    window.history.pushState({}, '', '/s/token-1/#/removido');
+    localStorage.setItem('public-menu-cancelled-state:token-1', JSON.stringify({ customerName: 'Ana' }));
+    localStorage.setItem('public-menu-view:token-1', 'cancelled');
+    window.history.pushState({}, '', '/s/token-1/#/cancelado');
 
     render(
       <ToastProvider>
@@ -1057,10 +1060,10 @@ describe('App', () => {
     expect(screen.queryByText(/Beatriz, você ainda pode montar um novo pedido neste cardápio/i)).not.toBeInTheDocument();
   });
 
-  it('falls back to the form when the removed hash has no token-scoped removed state', async () => {
+  it('falls back to the form when the cancelled hash has no token-scoped cancelled state', async () => {
     localStorage.setItem('public-menu-customer-name', 'Ana');
-    localStorage.setItem('public-menu-view:token-1', 'removed');
-    window.history.pushState({}, '', '/s/token-1/#/removido');
+    localStorage.setItem('public-menu-view:token-1', 'cancelled');
+    window.history.pushState({}, '', '/s/token-1/#/cancelado');
 
     render(
       <ToastProvider>

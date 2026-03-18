@@ -120,9 +120,11 @@ export default function OrdersPanel({
       {!loading && !error ? orders.map((order) => {
         const paymentSummary = getPaymentSummary(order);
         const resolvedVersion = order.menuVersionId ? menuVersions[order.menuVersionId] : undefined;
-        const resolvedItems = resolvedVersion
-          ? resolvedVersion.items.filter(item => order.selectedItemIds.includes(item.id))
-          : (order.submittedItems ?? []);
+        const resolvedItems = order.submittedItems?.length
+          ? order.submittedItems
+          : resolvedVersion
+            ? resolvedVersion.items.filter(item => order.selectedItemIds.includes(item.id))
+            : [];
         const orderedCategories = resolvedVersion?.categories ?? categories;
         const groupedItems = groupOrderItemsByCategory(resolvedItems, orderedCategories);
 
