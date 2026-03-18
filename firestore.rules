@@ -109,6 +109,8 @@ service cloud.firestore {
           'menuVersionId',
           'customerName',
           'selectedItemIds',
+          'selectedPaidItemIds',
+          'paymentSummary',
           'submittedAt'
         ])
         && request.resource.data.orderId == orderId
@@ -118,6 +120,12 @@ service cloud.firestore {
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() > 0
         && request.resource.data.selectedItemIds is list
+        && (!('selectedPaidItemIds' in request.resource.data) || request.resource.data.selectedPaidItemIds is list)
+        && request.resource.data.paymentSummary is map
+        && request.resource.data.paymentSummary.freeTotalCents is int
+        && request.resource.data.paymentSummary.paidTotalCents is int
+        && request.resource.data.paymentSummary.currency == 'BRL'
+        && request.resource.data.paymentSummary.paymentStatus is string
         && request.resource.data.selectedItemIds.size() > 0
         && request.resource.data.submittedAt is timestamp
         && isPublicMenuActive(request.resource.data.shareToken)

@@ -10,7 +10,22 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { CategorySelectionRule, EditorLock, Item, OrderEntry, PublicMenu, PublicMenuVersion } from '../types';
+import type {
+  CategorySelectionRule,
+  EditorLock,
+  FinalizedPublicOrder,
+  Item,
+  OrderEntry,
+  OrderPaymentSummary,
+  PublicOrderCheckoutSession,
+  PublicMenu,
+  PublicMenuVersion,
+} from '../types';
+import {
+  calculateOrderPaymentSummary,
+  isPaidItem,
+  normalizePriceCents,
+} from './billing';
 import { normalizeCategorySelectionRules, validateSelectionRules } from './categorySelectionRules';
 
 export const LOCK_TIMEOUT_MS = 60_000;
@@ -84,12 +99,48 @@ export interface SubmitPublicOrderInput {
 
 export interface SubmitPublicOrderResult {
   selectedItemIds: string[];
+  paymentSummary?: OrderPaymentSummary;
+}
+
+export interface PreparePublicOrderCheckoutInput {
+  orderId: string;
+  dateKey: string;
+  shareToken: string;
+  customerName: string;
+  selectedItemIds: string[];
+  successUrl?: string;
+  pendingUrl?: string;
+  failureUrl?: string;
+}
+
+export interface PreparePublicOrderCheckoutResult {
+  kind: 'free_order_confirmed' | 'payment_required';
+  order?: FinalizedPublicOrder;
+  checkoutSession?: PublicOrderCheckoutSession | null;
+  checkoutUrl?: string;
+  draftId?: string;
+}
+
+export interface FetchPublicOrderStatusInput {
+  shareToken: string;
+  draftId: string;
+}
+
+export interface FetchPublicOrderStatusResult {
+  draftId: string;
+  paymentStatus: OrderPaymentSummary['paymentStatus'];
+  order?: FinalizedPublicOrder;
 }
 
 export interface DeletePublicOrderInput {
   orderId: string;
   dateKey: string;
   shareToken: string;
+}
+
+export interface CancelPublicOrderResult {
+  refunded: boolean;
+  paymentSummary: OrderPaymentSummary | null;
 }
 
 export interface SetOrderIntakeStatusInput extends CreateDailyShareLinkInput {
@@ -105,7 +156,12 @@ const isValidItem = (value: unknown): value is Item => {
   const candidate = value as Record<string, unknown>;
   return typeof candidate.id === 'string'
     && typeof candidate.nome === 'string'
-    && typeof candidate.categoria === 'string';
+    && typeof candidate.categoria === 'string'
+    && (
+      candidate.priceCents === undefined
+      || candidate.priceCents === null
+      || typeof candidate.priceCents === 'number'
+    );
 };
 
 const isValidEditorLock = (value: unknown): value is EditorLock => {
@@ -125,10 +181,51 @@ const normalizeStringArray = (value: unknown): string[] =>
   isStringArray(value) ? value : [];
 
 const normalizeItems = (value: unknown): Item[] =>
-  Array.isArray(value) ? value.filter(isValidItem) : [];
+  Array.isArray(value)
+    ? value.filter(isValidItem).map((item) => {
+      const priceCents = normalizePriceCents(item.priceCents);
+      return priceCents === null ? { id: item.id, nome: item.nome, categoria: item.categoria } : {
+        id: item.id,
+        nome: item.nome,
+        categoria: item.categoria,
+        priceCents,
+      };
+    })
+    : [];
 
 const normalizeEditorLock = (value: unknown): EditorLock | null =>
   isValidEditorLock(value) ? value : null;
+
+const normalizeOrderPaymentSummary = (value: unknown): OrderPaymentSummary | null => {
+  if (!value) {
+    return {
+      freeTotalCents: 0,
+      paidTotalCents: 0,
+      currency: 'BRL',
+      paymentStatus: 'not_required',
+      provider: null,
+      paymentMethod: null,
+      providerPaymentId: null,
+      refundedAt: null,
+    };
+  }
+  if (!isValidOrderPaymentSummary(value)) return null;
+  const candidate = value as unknown as Record<string, unknown>;
+  return {
+    freeTotalCents: normalizePriceCents(candidate.freeTotalCents) ?? 0,
+    paidTotalCents: normalizePriceCents(candidate.paidTotalCents) ?? 0,
+    currency: 'BRL',
+    paymentStatus: String(candidate.paymentStatus) as OrderPaymentSummary['paymentStatus'],
+    provider: candidate.provider === 'mercado_pago' || candidate.provider === 'stripe'
+      ? candidate.provider
+      : null,
+    paymentMethod: candidate.paymentMethod === 'pix' || candidate.paymentMethod === 'card'
+      ? candidate.paymentMethod
+      : null,
+    providerPaymentId: typeof candidate.providerPaymentId === 'string' ? candidate.providerPaymentId : null,
+    refundedAt: normalizeTimestamp(candidate.refundedAt),
+  };
+};
 
 const normalizeTimestamp = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -155,6 +252,15 @@ const isValidCategorySelectionRule = (value: unknown): value is CategorySelectio
   return typeof candidate.category === 'string'
     && (candidate.maxSelections === undefined || typeof candidate.maxSelections === 'number')
     && (candidate.sharedLimitGroupId === undefined || candidate.sharedLimitGroupId === null || typeof candidate.sharedLimitGroupId === 'string');
+};
+
+const isValidOrderPaymentSummary = (value: unknown): value is OrderPaymentSummary => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.freeTotalCents === 'number'
+    && typeof candidate.paidTotalCents === 'number'
+    && candidate.currency === 'BRL'
+    && typeof candidate.paymentStatus === 'string';
 };
 
 const isValidPublicMenu = (value: unknown): value is PublicMenu & { createdAt: number } => {
@@ -200,10 +306,12 @@ const isValidOrderEntry = (value: unknown, id: string): value is OrderEntry => {
     && typeof candidate.customerName === 'string'
     && (candidate.menuVersionId === undefined || typeof candidate.menuVersionId === 'string')
     && isStringArray(candidate.selectedItemIds)
+    && (candidate.paymentSummary === undefined || isValidOrderPaymentSummary(candidate.paymentSummary))
     && (candidate.submittedItems === undefined || (
       Array.isArray(candidate.submittedItems)
       && candidate.submittedItems.every(isValidItem)
     ))
+    && (candidate.selectedPaidItemIds === undefined || isStringArray(candidate.selectedPaidItemIds))
     && normalizeTimestamp(candidate.submittedAt) !== null;
 };
 
@@ -248,6 +356,8 @@ const normalizePublicMenuVersion = (id: string, value: unknown): PublicMenuVersi
 
 const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
   if (!isValidOrderEntry(value, id)) return null;
+  const paymentSummary = normalizeOrderPaymentSummary(value.paymentSummary);
+  if (!paymentSummary) return null;
   return {
     id,
     dateKey: value.dateKey,
@@ -256,6 +366,8 @@ const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
     customerName: value.customerName,
     menuVersionId: typeof value.menuVersionId === 'string' ? value.menuVersionId : undefined,
     selectedItemIds: value.selectedItemIds,
+    selectedPaidItemIds: Array.isArray(value.selectedPaidItemIds) ? value.selectedPaidItemIds : undefined,
+    paymentSummary,
     submittedItems: Array.isArray(value.submittedItems) ? value.submittedItems : undefined,
     submittedAt: normalizeTimestamp(value.submittedAt)!,
   };
@@ -762,6 +874,51 @@ export const setOrderIntakeStatus = async ({
   });
 };
 
+const publicOrdersApiBase = () => {
+  const base = import.meta.env.VITE_PUBLIC_ORDER_API_URL;
+  return typeof base === 'string' && base.trim()
+    ? base.replace(/\/$/, '')
+    : '';
+};
+
+const postPublicOrdersApi = async <TResponse>(path: string, payload: unknown): Promise<TResponse> => {
+  const base = publicOrdersApiBase();
+  if (!base) {
+    throw new Error('Configuração do checkout indisponível.');
+  }
+
+  const response = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let message = 'Não foi possível concluir a operação.';
+    try {
+      const data = await response.json() as { message?: string };
+      if (typeof data.message === 'string' && data.message.trim()) message = data.message;
+    } catch {
+      // Ignore malformed API response.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<TResponse>;
+};
+
+export const preparePublicOrderCheckout = async (
+  input: PreparePublicOrderCheckoutInput,
+): Promise<PreparePublicOrderCheckoutResult> => (
+  postPublicOrdersApi<PreparePublicOrderCheckoutResult>('/preparePublicOrderCheckout', input)
+);
+
+export const fetchPublicOrderStatus = async (
+  input: FetchPublicOrderStatusInput,
+): Promise<FetchPublicOrderStatusResult> => (
+  postPublicOrdersApi<FetchPublicOrderStatusResult>('/publicOrderStatus', input)
+);
+
 export const submitPublicOrder = async ({
   orderId,
   dateKey,
@@ -794,6 +951,11 @@ export const submitPublicOrder = async ({
     throw new Error(selectionViolations[0]?.message ?? 'Selecao invalida para este pedido.');
   }
 
+  const paymentSummary = calculateOrderPaymentSummary(
+    publicMenu.items,
+    submittedItemIds,
+  );
+
   await setDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId), {
     orderId,
     dateKey,
@@ -801,6 +963,10 @@ export const submitPublicOrder = async ({
     customerName: customerName.trim(),
     menuVersionId: publicMenu.currentVersionId,
     selectedItemIds: submittedItemIds,
+    selectedPaidItemIds: publicMenu.items
+      .filter(item => submittedItemIds.includes(item.id) && isPaidItem(item))
+      .map(item => item.id),
+    paymentSummary,
     submittedAt: new Date(),
   });
 
@@ -822,6 +988,18 @@ export const deletePublicOrder = async ({
 
   await deleteDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId));
 };
+
+export const cancelPublicOrder = async ({
+  orderId,
+  dateKey,
+  shareToken,
+}: DeletePublicOrderInput): Promise<CancelPublicOrderResult> => (
+  postPublicOrdersApi<CancelPublicOrderResult>('/cancelPublicOrder', {
+    orderId,
+    dateKey,
+    shareToken,
+  })
+);
 
 export const loadPublicMenuVersions = async (versionIds: string[]): Promise<Record<string, PublicMenuVersion>> => {
   const uniqueIds = Array.from(new Set(versionIds.filter(Boolean)));

@@ -1,6 +1,7 @@
 import type { OrderEntry, PublicMenuVersion } from '../types';
 import { groupOrderItemsByCategory } from '../lib/utils';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
+import { formatCurrency } from '../lib/billing';
 
 interface OrdersPanelProps {
   orders: OrderEntry[];
@@ -26,6 +27,16 @@ export default function OrdersPanel({
   error,
 }: OrdersPanelProps) {
   const { mediumTap } = useHapticFeedback();
+  const getPaymentSummary = (order: OrderEntry) => order.paymentSummary ?? {
+    freeTotalCents: 0,
+    paidTotalCents: 0,
+    currency: 'BRL' as const,
+    paymentStatus: 'not_required' as const,
+    provider: null,
+    paymentMethod: null,
+    providerPaymentId: null,
+    refundedAt: null,
+  };
 
   return (
     <section className="space-y-[12px]">
@@ -107,6 +118,7 @@ export default function OrdersPanel({
       ) : null}
 
       {!loading && !error ? orders.map((order) => {
+        const paymentSummary = getPaymentSummary(order);
         const resolvedVersion = order.menuVersionId ? menuVersions[order.menuVersionId] : undefined;
         const resolvedItems = resolvedVersion
           ? resolvedVersion.items.filter(item => order.selectedItemIds.includes(item.id))
@@ -135,6 +147,21 @@ export default function OrdersPanel({
                 })}
               </span>
             </div>
+
+            <div className="mt-[12px] grid grid-cols-2 gap-[10px]">
+              <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
+                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                  Total pago
+                </p>
+                <p className="mt-[6px] text-[15px] font-semibold text-[var(--accent)]">
+                  {formatCurrency(paymentSummary.paidTotalCents)}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-[10px] text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
+              Status: {paymentSummary.paymentStatus}
+            </p>
 
             {groupedItems.length > 0 ? (
               <div className="mt-[14px] space-y-[10px]">

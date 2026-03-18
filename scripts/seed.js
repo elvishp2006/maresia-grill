@@ -2,7 +2,7 @@ process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
 
 import admin from 'firebase-admin';
 
-admin.initializeApp({ projectId: 'menu-7f7cd' });
+admin.initializeApp({ projectId: 'maresia-grill-local' });
 const db = admin.firestore();
 
 const CATEGORIES = ['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco'];

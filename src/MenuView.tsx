@@ -24,9 +24,9 @@ interface MenuViewProps {
   canEdit: boolean;
   insights: ReturnType<typeof useMenuInsights>;
   onToggle: (id: string) => void;
-  onAddItem: (nome: string, categoria: Categoria) => void;
+  onAddItem: (nome: string, categoria: Categoria, priceCents?: number | null) => void;
   onRemoveItem: (id: string) => void;
-  onRenameItem: (id: string, newNome: string) => void;
+  onUpdateItem: (id: string, input: { nome: string; priceCents: number | null }) => void;
   onMoveCategory: (categoria: Categoria, dir: 'up' | 'down') => void;
   onRemoveCategory: (categoria: Categoria) => void;
   onAddCategory: (nome: string) => void;
@@ -53,7 +53,7 @@ export default function MenuView({
   onToggle,
   onAddItem,
   onRemoveItem,
-  onRenameItem,
+  onUpdateItem,
   onMoveCategory,
   onRemoveCategory,
   onAddCategory,
@@ -131,7 +131,7 @@ export default function MenuView({
                 onToggle={onToggle}
                 onAdd={onAddItem}
                 onRemove={onRemoveItem}
-                onRename={onRenameItem}
+                onUpdateItem={onUpdateItem}
                 search={search}
                 sortMode={sortMode}
                 usageCounts={usageCounts}

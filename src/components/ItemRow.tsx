@@ -1,21 +1,32 @@
 import { useState } from 'react';
 import type { Item } from '../types';
 import BottomSheet from './BottomSheet';
-import AddForm from './AddForm';
+import ItemEditorForm from './ItemEditorForm';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { useModal } from '../contexts/ModalContext';
+import { formatCurrency } from '../lib/billing';
 
 interface ItemRowProps {
   item: Item;
   active: boolean;
   onToggle: () => void;
   onRemove: () => void;
-  onRename: (newNome: string) => void;
+  onUpdate?: (input: { nome: string; priceCents: number }) => void;
+  onRename?: (newNome: string) => void;
   mode: 'select' | 'manage';
   isOnline?: boolean;
 }
 
-export default function ItemRow({ item, active, onToggle, onRemove, onRename, mode, isOnline = true }: ItemRowProps) {
+export default function ItemRow({
+  item,
+  active,
+  onToggle,
+  onRemove,
+  onUpdate,
+  onRename,
+  mode,
+  isOnline = true,
+}: ItemRowProps) {
   const [showRenameSheet, setShowRenameSheet] = useState(false);
   const { lightTap, mediumTap } = useHapticFeedback();
   const { confirm } = useModal();
@@ -54,6 +65,11 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
           </span>
           <span className={`flex-1 text-[15px] leading-[1.5] ${active ? 'font-semibold text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
             {item.nome}
+            {typeof item.priceCents === 'number' ? (
+              <span className="mt-[4px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                {formatCurrency(item.priceCents)}
+              </span>
+            ) : null}
           </span>
         </button>
       </li>
@@ -64,9 +80,14 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
     <>
       <li className="item rounded-[22px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
         <div className="flex items-center gap-[14px]">
-          <p className="min-w-0 flex-1 truncate text-[15px] font-medium leading-[1.4] text-[var(--text)]">
-            {item.nome}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-medium leading-[1.4] text-[var(--text)]">
+              {item.nome}
+            </p>
+            <p className="mt-[4px] text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+              {formatCurrency(item.priceCents ?? 0)}
+            </p>
+          </div>
           <div className="flex shrink-0 gap-[8px]">
             <button
               type="button"
@@ -108,14 +129,17 @@ export default function ItemRow({ item, active, onToggle, onRemove, onRename, mo
         title={`Renomear ${item.nome}`}
         description="Atualize o nome do item no catálogo."
       >
-        <AddForm
-          onAdd={(nome) => {
-            onRename(nome);
-            setShowRenameSheet(false);
+        <ItemEditorForm
+          onSubmit={(input) => {
+            if (onUpdate) {
+              onUpdate(input);
+              return;
+            }
+            onRename?.(input.nome);
           }}
           onClose={() => setShowRenameSheet(false)}
-          initialValue={item.nome}
-          placeholder={item.nome}
+          initialName={item.nome}
+          initialPriceCents={item.priceCents}
           submitLabel="Salvar"
           disabled={!isOnline}
         />

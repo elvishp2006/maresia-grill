@@ -13,7 +13,8 @@ interface ItemListProps {
   viewMode: 'select' | 'manage';
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
-  onRename: (id: string, newNome: string) => void;
+  onUpdate?: (id: string, input: { nome: string; priceCents: number }) => void;
+  onRename?: (id: string, newNome: string) => void;
   isOnline?: boolean;
 }
 
@@ -28,6 +29,7 @@ export default function ItemList({
   viewMode,
   onToggle,
   onRemove,
+  onUpdate,
   onRename,
   isOnline = true,
 }: ItemListProps) {
@@ -91,7 +93,8 @@ export default function ItemList({
             active={daySelection.includes(item.id)}
             onToggle={() => onToggle(item.id)}
             onRemove={() => onRemove(item.id)}
-            onRename={(newNome) => onRename(item.id, newNome)}
+            onUpdate={onUpdate ? (input) => onUpdate(item.id, input) : undefined}
+            onRename={onRename ? (newNome) => onRename(item.id, newNome) : undefined}
             mode={viewMode}
             isOnline={isOnline}
           />

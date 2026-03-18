@@ -78,7 +78,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     toggleItem,
     addItem,
     removeItem,
-    renameItem,
+    updateItem,
     addCategory,
     removeCategory,
     moveCategory,
@@ -374,7 +374,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
           onToggle={toggleItem}
           onAddItem={addItem}
           onRemoveItem={removeItem}
-          onRenameItem={renameItem}
+          onUpdateItem={updateItem}
           onMoveCategory={moveCategory}
           onRemoveCategory={removeCategory}
           onAddCategory={addCategory}
