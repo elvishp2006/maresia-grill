@@ -84,6 +84,12 @@ const getOrCreateDailyShareLinkMock = vi.fn().mockResolvedValue({
 const subscribePublicMenuMock = vi.fn();
 const submitPublicOrderMock = vi.fn().mockResolvedValue({ selectedItemIds: ['1'] });
 const deletePublicOrderMock = vi.fn().mockResolvedValue(undefined);
+const preparePublicOrderCheckoutMock = vi.fn();
+const fetchPublicOrderStatusMock = vi.fn();
+const cancelPublicOrderMock = vi.fn().mockResolvedValue({
+  refunded: true,
+  paymentSummary: null,
+});
 const syncPublicMenuSnapshotForDateMock = vi.fn().mockResolvedValue(undefined);
 const subscribeOrderIntakeStatusMock = vi.fn();
 const setOrderIntakeStatusMock = vi.fn().mockResolvedValue(undefined);
@@ -98,6 +104,9 @@ vi.mock('../lib/storage', () => ({
   subscribePublicMenu: (...args: unknown[]) => subscribePublicMenuMock(...args),
   submitPublicOrder: (...args: unknown[]) => submitPublicOrderMock(...args),
   deletePublicOrder: (...args: unknown[]) => deletePublicOrderMock(...args),
+  preparePublicOrderCheckout: (...args: unknown[]) => preparePublicOrderCheckoutMock(...args),
+  fetchPublicOrderStatus: (...args: unknown[]) => fetchPublicOrderStatusMock(...args),
+  cancelPublicOrder: (...args: unknown[]) => cancelPublicOrderMock(...args),
   syncPublicMenuSnapshotForDate: (...args: unknown[]) => syncPublicMenuSnapshotForDateMock(...args),
 }));
 
@@ -140,6 +149,7 @@ describe('App', () => {
     vi.clearAllMocks();
     window.history.pushState({}, '', '/');
     localStorage.clear();
+    window.scrollTo = vi.fn();
     toggleItem.mockReset();
     useMenuStateMock.mockReturnValue(defaultMenuState);
     useAuthSessionMock.mockReturnValue({
@@ -186,6 +196,12 @@ describe('App', () => {
     syncPublicMenuSnapshotForDateMock.mockResolvedValue(undefined);
     submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1'] });
     deletePublicOrderMock.mockResolvedValue(undefined);
+    preparePublicOrderCheckoutMock.mockReset();
+    fetchPublicOrderStatusMock.mockReset();
+    cancelPublicOrderMock.mockResolvedValue({
+      refunded: true,
+      paymentSummary: null,
+    });
     subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
       onValue({
         token: 'token-1',
@@ -731,6 +747,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeInTheDocument();
     expect(screen.getByText('Para mudar os itens, cancele este pedido e faça um novo.')).toBeInTheDocument();
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
 
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {
@@ -872,6 +889,7 @@ describe('App', () => {
     expect(await screen.findByText('Seu pedido foi cancelado')).toBeInTheDocument();
     expect(localStorage.getItem('public-menu-last-order:token-1')).toBeNull();
     expect(window.location.hash).toBe('#/cancelado');
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Fazer novo pedido' }));
 
@@ -993,6 +1011,43 @@ describe('App', () => {
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
+  });
+
+  it('shows the pending paid order summary without a reveal button', async () => {
+    localStorage.setItem('public-menu-pending-order:token-1', JSON.stringify({
+      customerName: 'Ana',
+      selectedItemIds: ['1'],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 1500,
+        currency: 'BRL',
+        paymentStatus: 'awaiting_payment',
+        provider: 'stripe',
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
+    }));
+    window.history.pushState({}, '', '/s/token-1?draftId=draft-1#/enviado');
+    fetchPublicOrderStatusMock.mockResolvedValue({
+      draftId: 'draft-1',
+      paymentStatus: 'awaiting_payment',
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument();
+    expect(screen.getByText('Ana')).toBeInTheDocument();
+    expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
+    expect(screen.getByText('Alface')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ver itens selecionados' })).not.toBeInTheDocument();
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
 
   it('keeps the cancelled state after reload when the hash and customer name are present', async () => {

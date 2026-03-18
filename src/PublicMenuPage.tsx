@@ -41,7 +41,14 @@ interface PendingPublicPaymentState {
   paymentStatus: OrderPaymentSummary['paymentStatus'];
 }
 
+interface PendingPublicOrderSummary {
+  customerName: string;
+  selectedItemIds: string[];
+  paymentSummary: OrderPaymentSummary;
+}
+
 type PublicMenuView = 'form' | 'submitted' | 'cancelled';
+type PublicVisualState = 'form' | 'submitted-pending' | 'submitted-success' | 'cancelled';
 
 interface PublicMenuPageProps {
   token: string;
@@ -99,6 +106,7 @@ const getOrderSessionStorageKey = (token: string) => `public-menu-order-session:
 const getCachedOrderStorageKey = (token: string) => `public-menu-last-order:${token}`;
 const getViewStorageKey = (token: string) => `public-menu-view:${token}`;
 const getCancelledStateStorageKey = (token: string) => `public-menu-cancelled-state:${token}`;
+const getPendingOrderStorageKey = (token: string) => `public-menu-pending-order:${token}`;
 
 const VIEW_HASHES: Record<PublicMenuView, string> = {
   form: '#/pedido',
@@ -251,6 +259,50 @@ const clearStoredCancelledState = (token: string) => {
   }
 };
 
+const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null => {
+  try {
+    const raw = localStorage.getItem(getPendingOrderStorageKey(token));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingPublicOrderSummary>;
+    if (
+      typeof parsed.customerName === 'string'
+      && Array.isArray(parsed.selectedItemIds)
+      && parsed.selectedItemIds.every(item => typeof item === 'string')
+      && parsed.paymentSummary
+      && typeof parsed.paymentSummary === 'object'
+      && typeof parsed.paymentSummary.freeTotalCents === 'number'
+      && typeof parsed.paymentSummary.paidTotalCents === 'number'
+      && parsed.paymentSummary.currency === 'BRL'
+      && typeof parsed.paymentSummary.paymentStatus === 'string'
+    ) {
+      return {
+        customerName: parsed.customerName,
+        selectedItemIds: parsed.selectedItemIds,
+        paymentSummary: parsed.paymentSummary,
+      };
+    }
+  } catch {
+    // Ignore malformed local data.
+  }
+  return null;
+};
+
+const setStoredPendingOrder = (token: string, pendingOrder: PendingPublicOrderSummary) => {
+  try {
+    localStorage.setItem(getPendingOrderStorageKey(token), JSON.stringify(pendingOrder));
+  } catch {
+    // Ignore local storage failures on unsupported browsers.
+  }
+};
+
+const clearStoredPendingOrder = (token: string) => {
+  try {
+    localStorage.removeItem(getPendingOrderStorageKey(token));
+  } catch {
+    // Ignore local storage failures on unsupported browsers.
+  }
+};
+
 const getDraftIdFromUrl = () => new URLSearchParams(window.location.search).get('draftId');
 
 const setDraftIdInUrl = (draftId: string) => {
@@ -329,6 +381,52 @@ function PublicStateCard({ icon, title, body, summary }: PublicStateCardProps) {
   );
 }
 
+function PublicOrderSummary({
+  customerName,
+  paidTotalCents,
+  selectedItems,
+}: {
+  customerName?: string;
+  paidTotalCents: number;
+  selectedItems: Array<{ id: string; nome: string }>;
+}) {
+  return (
+    <>
+      {customerName ? (
+        <>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
+            Seu nome
+          </p>
+          <p className="mt-[6px] text-[18px] font-semibold text-[var(--text)]">
+            {customerName}
+          </p>
+        </>
+      ) : null}
+      <div className={`${customerName ? 'mt-[12px]' : ''} rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]`}>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
+          Total pago
+        </p>
+        <p className="mt-[4px] text-[15px] font-semibold text-[var(--accent)]">
+          {formatCurrency(paidTotalCents)}
+        </p>
+      </div>
+      <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[13px] text-[var(--text-dim)]">
+        <span>Itens escolhidos</span>
+        <span>{selectedItems.length} selecionados</span>
+      </div>
+      {selectedItems.length > 0 ? (
+        <ul className="mt-[10px] space-y-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
+          {selectedItems.map(item => (
+            <li key={item.id} className="rounded-[14px] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-[12px] py-[10px]">
+              {item.nome}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  );
+}
+
 function PublicActionBar({
   footerRef,
   children,
@@ -361,6 +459,9 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const [successState, setSuccessState] = useState<CachedPublicOrder | null>(null);
   const [cancelledState, setCancelledState] = useState<CancelledPublicOrderState | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<PublicOrderCheckoutSession | null>(null);
+  const [pendingOrderSummary, setPendingOrderSummary] = useState<PendingPublicOrderSummary | null>(() => (
+    typeof window !== 'undefined' ? getStoredPendingOrder(token) : null
+  ));
   const [pendingPayment, setPendingPayment] = useState<PendingPublicPaymentState | null>(() => {
     const draftId = typeof window !== 'undefined' ? getDraftIdFromUrl() : null;
     return draftId ? { draftId, paymentStatus: 'awaiting_payment' } : null;
@@ -368,6 +469,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const [currentView, setCurrentView] = useState<PublicMenuView>(() => readViewFromHash() ?? getStoredView(token) ?? 'form');
   const [footerHeight, setFooterHeight] = useState(112);
   const footerRef = useRef<HTMLDivElement | null>(null);
+  const lastVisualStateRef = useRef<PublicVisualState | null>(null);
 
   useEffect(() => {
     setMenu(undefined);
@@ -397,7 +499,9 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const cachedOrder = getCachedOrder(token);
     const storedView = readViewFromHash() ?? getStoredView(token) ?? 'form';
     const storedCancelledState = getStoredCancelledState(token);
+    const storedPendingOrder = getStoredPendingOrder(token);
     const urlDraftId = getDraftIdFromUrl();
+    setPendingOrderSummary(storedPendingOrder);
     setPendingPayment(urlDraftId ? { draftId: urlDraftId, paymentStatus: 'awaiting_payment' } : null);
 
     if (cachedOrder) {
@@ -416,6 +520,15 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setSuccessState(null);
       setSelection([]);
       setCurrentView('cancelled');
+      return;
+    }
+
+    if (urlDraftId && storedPendingOrder) {
+      setCustomerName(storedPendingOrder.customerName);
+      setSuccessState(null);
+      setCancelledState(null);
+      setSelection(storedPendingOrder.selectedItemIds);
+      setCurrentView('submitted');
       return;
     }
 
@@ -534,11 +647,13 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           const nextOrder = toCachedOrder(result.order);
           setCachedOrder(menu.token, nextOrder);
           clearStoredCancelledState(menu.token);
+          clearStoredPendingOrder(menu.token);
           setSuccessState(nextOrder);
           setCancelledState(null);
           setSelection(nextOrder.selectedItemIds);
           setCustomerName(nextOrder.customerName);
           setPendingPayment(null);
+          setPendingOrderSummary(null);
           setCheckoutSession(null);
           setCurrentView('submitted');
           clearDraftIdFromUrl();
@@ -596,6 +711,20 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     return () => window.removeEventListener('resize', measure);
   }, [successState, submitting, selection.length]);
 
+  const visualState: PublicVisualState = successState
+    ? 'submitted-success'
+    : cancelledState
+      ? 'cancelled'
+      : currentView === 'submitted' && pendingPayment
+        ? 'submitted-pending'
+        : 'form';
+
+  useLayoutEffect(() => {
+    if (lastVisualStateRef.current === visualState) return;
+    lastVisualStateRef.current = visualState;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [visualState]);
+
   const itemsByCategory = useMemo(() => {
     if (!menu) return [];
     return menu.categories.map(category => ({
@@ -612,6 +741,15 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       ? calculateOrderPaymentSummary(menu.items, selection)
       : null
   ), [menu, selection]);
+  const pendingSelectedItemIds = pendingOrderSummary?.selectedItemIds ?? selection;
+  const pendingSelectedItems = useMemo(() => {
+    if (!menu) return [];
+    const itemMap = new Map(menu.items.map(item => [item.id, item] as const));
+    return pendingSelectedItemIds
+      .map(itemId => itemMap.get(itemId))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [menu, pendingSelectedItemIds]);
+  const pendingPaymentSummary = pendingOrderSummary?.paymentSummary ?? currentPaymentSummary;
   const selectionViolations = useMemo(() => (
     menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
   ), [menu, selection]);
@@ -691,8 +829,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           const nextOrder = toCachedOrder(checkout.order);
           setCachedOrder(menu.token, nextOrder);
           clearStoredCancelledState(menu.token);
+          clearStoredPendingOrder(menu.token);
           clearDraftIdFromUrl();
           setPendingPayment(null);
+          setPendingOrderSummary(null);
           setCheckoutSession(null);
           setSuccessState(nextOrder);
           setCancelledState(null);
@@ -706,6 +846,22 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           && checkout.checkoutSession?.clientSecret
           && checkout.checkoutSession.draftId
         ) {
+          const nextPendingOrderSummary = {
+            customerName: trimmedName,
+            selectedItemIds: selection,
+            paymentSummary: currentPaymentSummary ?? {
+              freeTotalCents: 0,
+              paidTotalCents: 0,
+              currency: 'BRL',
+              paymentStatus: 'awaiting_payment',
+              provider: null,
+              paymentMethod: null,
+              providerPaymentId: null,
+              refundedAt: null,
+            },
+          };
+          setStoredPendingOrder(menu.token, nextPendingOrderSummary);
+          setPendingOrderSummary(nextPendingOrderSummary);
           setCheckoutSession(checkout.checkoutSession);
           return;
         }
@@ -738,8 +894,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       };
       setCachedOrder(menu.token, nextOrder);
       clearStoredCancelledState(menu.token);
+      clearStoredPendingOrder(menu.token);
       clearDraftIdFromUrl();
       setPendingPayment(null);
+      setPendingOrderSummary(null);
       setCheckoutSession(null);
       setSuccessState(nextOrder);
       setCancelledState(null);
@@ -781,8 +939,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         });
       }
       clearCachedOrder(menu.token);
+      clearStoredPendingOrder(menu.token);
       clearDraftIdFromUrl();
       setPendingPayment(null);
+      setPendingOrderSummary(null);
       setCheckoutSession(null);
       const nextOrderId = createOrderId();
       setStoredOrderId(menu.token, nextOrderId);
@@ -861,26 +1021,14 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 : 'A confirmação foi preservada, mas os pedidos já foram encerrados.'
           }
           summary={(
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
-                Seu nome
-              </p>
-              <p className="mt-[6px] text-[18px] font-semibold text-[var(--text)]">
-                {successState.customerName}
-              </p>
-              <div className="mt-[12px] rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
-                  Total pago
-                </p>
-                <p className="mt-[4px] text-[15px] font-semibold text-[var(--accent)]">
-                  {formatCurrency(successState.paymentSummary.paidTotalCents)}
-                </p>
-              </div>
-              <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[13px] text-[var(--text-dim)]">
-                <span>Itens escolhidos</span>
-                <span>{successState.selectedItemIds.length} selecionados</span>
-              </div>
-            </>
+            <PublicOrderSummary
+              customerName={successState.customerName}
+              paidTotalCents={successState.paymentSummary.paidTotalCents}
+              selectedItems={successState.selectedItemIds.map(itemId => {
+                const item = menu?.items.find(candidate => candidate.id === itemId);
+                return { id: itemId, nome: item?.nome ?? itemId };
+              })}
+            />
           )}
         />
         {canModifyExistingOrder ? (
@@ -922,23 +1070,32 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               ? 'O Stripe informou que o pagamento não foi concluído. Você pode voltar ao pedido e tentar novamente.'
               : 'Estamos aguardando a confirmação do Stripe para finalizar o pedido. Esta tela atualiza automaticamente.'
           }
+          summary={(
+            <PublicOrderSummary
+              customerName={pendingOrderSummary?.customerName ?? (customerName.trim() || undefined)}
+              paidTotalCents={pendingPaymentSummary?.paidTotalCents ?? 0}
+              selectedItems={pendingSelectedItems.map(item => ({ id: item.id, nome: item.nome }))}
+            />
+          )}
         />
-        <PublicActionBar footerRef={footerRef}>
-          <button
-            type="button"
-            onClick={() => {
-              lightTap();
-              if (pendingPayment.paymentStatus === 'failed') {
+        {pendingPayment.paymentStatus === 'failed' ? (
+          <PublicActionBar footerRef={footerRef}>
+            <button
+              type="button"
+              onClick={() => {
+                lightTap();
                 clearDraftIdFromUrl();
+                clearStoredPendingOrder(token);
                 setPendingPayment(null);
-              }
-              setCurrentView('form');
-            }}
-            className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
-          >
-            {pendingPayment.paymentStatus === 'failed' ? 'Voltar ao pedido' : 'Ver itens selecionados'}
-          </button>
-        </PublicActionBar>
+                setPendingOrderSummary(null);
+                setCurrentView('form');
+              }}
+              className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
+            >
+              Voltar ao pedido
+            </button>
+          </PublicActionBar>
+        ) : null}
       </main>
     );
   }
