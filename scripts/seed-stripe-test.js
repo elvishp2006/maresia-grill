@@ -2,7 +2,7 @@ process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
 
 import admin from 'firebase-admin';
 
-const PROJECT_ID = 'menu-7f7cd';
+const PROJECT_ID = 'maresia-grill-local';
 const TEST_TOKEN = 'teste-pagamento';
 
 admin.initializeApp({ projectId: PROJECT_ID });

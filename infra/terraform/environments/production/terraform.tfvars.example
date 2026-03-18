@@ -1,0 +1,4 @@
+project_id          = "maresia-grill---production"
+project_number      = "967884693073"
+region              = "us-central1"
+app_deployer_member = "serviceAccount:firebase-adminsdk-fbsvc@maresia-grill---production.iam.gserviceaccount.com"

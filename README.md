@@ -26,8 +26,6 @@ npm run dev:local   # sobe emuladores Firebase + servidor Vite
 | `stripe:test:emulators` | Sobe `auth`, `firestore` e `functions` para Stripe local |
 | `stripe:test:dev` | Sobe app + emuladores do cenário Stripe |
 | `stripe:test:webhook` | Encaminha eventos Stripe para `paymentWebhook` |
-| `gcp:bootstrap` | Habilita APIs e grants mínimos para deploy de Functions v2 |
-| `gcp:check` | Valida APIs e IAM antes do deploy |
 | `build` | `tsc` + Vite build |
 | `lint` | ESLint (deve passar antes do commit) |
 | `lint:fix` | ESLint com correção automática |
@@ -49,6 +47,8 @@ npm run dev:local   # sobe emuladores Firebase + servidor Vite
 | UI dos emuladores | http://localhost:4000 |
 
 `src/firebase.ts` detecta `import.meta.env.DEV` e conecta automaticamente aos emuladores — nenhuma configuração manual é necessária. O Google Sign-In no dev funciona via popup contra o emulador de Auth.
+
+Os fluxos locais usam sempre o projeto de emulador `maresia-grill-local`. Desenvolvimento e testes locais não devem apontar para `staging` nem para `production`.
 
 Para testar pagamentos locais com Stripe:
 
@@ -78,7 +78,7 @@ Fluxos esperados:
 Comando bruto da Stripe CLI:
 
 ```bash
-stripe listen --forward-to http://127.0.0.1:5001/menu-7f7cd/us-central1/paymentWebhook
+stripe listen --forward-to http://127.0.0.1:5001/maresia-grill-local/us-central1/paymentWebhook
 ```
 
 ## Staging com Render Preview + Firebase
@@ -93,8 +93,10 @@ Arquitetura recomendada:
 
 ### GitHub Actions
 
-O repositório possui dois fluxos separados:
+O repositório possui quatro fluxos principais:
 
+- `Infra Plan`: valida mudanças em `infra/terraform/**` em PRs
+- `Infra Apply`: aplica a infra declarativa em `staging` e `production`
 - `Deploy Functions`: publica producao na `main`
 - `Deploy Firebase Staging`: em cada PR, descobre a URL do preview do Render e publica `functions` + `firestore.rules` no Firebase staging
 
@@ -111,6 +113,23 @@ Secrets esperados para producao no GitHub:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `PUBLIC_MENU_BASE_URL`
+
+Projeto de produção atual:
+
+- `maresia-grill---production`
+- project number `967884693073`
+
+Variáveis e secrets esperados para IaC:
+
+- `vars.TF_STATE_BUCKET`
+- `vars.GCP_PROJECT_ID_STAGING`
+- `vars.GCP_PROJECT_NUMBER_STAGING`
+- `vars.APP_DEPLOYER_MEMBER_STAGING`
+- `vars.GCP_PROJECT_ID_PRODUCTION`
+- `vars.GCP_PROJECT_NUMBER_PRODUCTION`
+- `vars.APP_DEPLOYER_MEMBER_PRODUCTION`
+- `secrets.GCP_TERRAFORM_CREDENTIALS_STAGING`
+- `secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION`
 
 ### Render Preview
 
@@ -181,9 +200,11 @@ Hospedado no Render como static site:
 ### GitHub Actions
 
 - `CI`: instala dependencias do app e de `functions/`, roda `lint`, `test`, `build` do app e `build` das Functions
+- `Infra Plan`: valida a infraestrutura GCP/Firebase declarada em Terraform/OpenTofu
+- `Infra Apply`: aplica APIs, IAM e grants estruturais por ambiente
 - `Deploy Functions`: publica automaticamente as Functions na `main`
 - `Deploy Firestore Rules`: publica `firestore.rules` quando o arquivo muda
-- `Deploy Functions` e `Deploy Firebase Staging` agora executam um pre-check de GCP antes do deploy
+- `Deploy Functions` e `Deploy Firebase Staging` assumem que a infraestrutura IAM já foi aplicada pelo pipeline de infra
 
 Secrets obrigatorios para o deploy automatico das Functions:
 
@@ -192,28 +213,15 @@ Secrets obrigatorios para o deploy automatico das Functions:
 - `STRIPE_WEBHOOK_SECRET`
 - `PUBLIC_MENU_BASE_URL`
 
-## Bootstrap de GCP
+A produção canônica do projeto é `maresia-grill---production`. Deploys e IaC de produção devem apontar apenas para esse projeto.
 
-Para reduzir o trabalho manual de APIs e IAM no Firebase/Cloud Functions v2, o repositório inclui dois scripts operacionais:
+## Infra GCP/Firebase
 
-```bash
-npm run gcp:bootstrap -- --project <project-id> --member "<user:email@dominio.com|serviceAccount:sa@project.iam.gserviceaccount.com>"
-npm run gcp:check -- --project <project-id> --member "<user:email@dominio.com|serviceAccount:sa@project.iam.gserviceaccount.com>"
-```
+A fonte de verdade da infraestrutura GCP/Firebase agora fica em [`infra/terraform/`](/Users/elvishenriquepereira/projects/menu/infra/terraform/). O state remoto deve ficar em um bucket GCS dedicado, com versionamento, usando prefixos separados para `staging` e `production`.
 
-O `gcp:bootstrap` faz:
+O bucket de state é criado pelo bootstrap em `infra/terraform/bootstrap`. Depois disso, use os ambientes em `infra/terraform/environments/staging` e `infra/terraform/environments/production`.
 
-- habilita as APIs necessárias de Functions v2
-- concede `roles/iam.serviceAccountUser` no runtime service account padrão do projeto
-- concede `roles/datastore.user` para o runtime service account padrão acessar Firestore via Admin SDK
-- concede `roles/cloudbuild.builds.builder` para a compute service account do projeto
-- verifica o service agent do Cloud Build
-
-O `gcp:check` não altera nada; ele só valida o ambiente e falha com o comando de bootstrap recomendado.
-
-Se `--member` não for informado, os scripts usam automaticamente a identidade autenticada no `gcloud`.
-
-Os workflows de staging e produção executam `gcp:bootstrap` antes do deploy para corrigir automaticamente drift de IAM. Depois do deploy, eles validam tanto o preflight de CORS quanto uma chamada real ao endpoint `preparePublicOrderCheckout`, falhando se a Function responder `PERMISSION_DENIED` ao acessar Firestore.
+Os deploys do app não alteram mais IAM estrutural. APIs, grants de runtime e permissões do deployer do app devem ser aplicados pelo workflow `Infra Apply`.
 
 ## Segurança do Firestore
 

@@ -1,0 +1,4 @@
+project_id          = "your-staging-project-id"
+project_number      = "123456789012"
+region              = "us-central1"
+app_deployer_member = "serviceAccount:firebase-adminsdk-fbsvc@your-staging-project-id.iam.gserviceaccount.com"

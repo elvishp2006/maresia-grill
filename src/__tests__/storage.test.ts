@@ -31,7 +31,7 @@ vi.mock('firebase/firestore', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('VITE_PUBLIC_ORDER_API_URL', 'http://127.0.0.1:5001/menu-7f7cd/us-central1');
+  vi.stubEnv('VITE_PUBLIC_ORDER_API_URL', 'http://127.0.0.1:5001/maresia-grill-local/us-central1');
   vi.stubGlobal('fetch', mockFetch);
   mockRunTransaction.mockImplementation(async (_db: unknown, callback: (transaction: {
     get: typeof mockGetDoc;
@@ -93,7 +93,7 @@ describe('storage', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:5001/menu-7f7cd/us-central1/preparePublicOrderCheckout',
+        'http://127.0.0.1:5001/maresia-grill-local/us-central1/preparePublicOrderCheckout',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -121,7 +121,7 @@ describe('storage', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:5001/menu-7f7cd/us-central1/publicOrderStatus',
+        'http://127.0.0.1:5001/maresia-grill-local/us-central1/publicOrderStatus',
         expect.any(Object),
       );
       expect(result).toEqual({
@@ -156,7 +156,7 @@ describe('storage', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:5001/menu-7f7cd/us-central1/cancelPublicOrder',
+        'http://127.0.0.1:5001/maresia-grill-local/us-central1/cancelPublicOrder',
         expect.any(Object),
       );
       expect(result).toEqual(expect.objectContaining({

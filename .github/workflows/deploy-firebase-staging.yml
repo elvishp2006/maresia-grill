@@ -93,14 +93,6 @@ jobs:
 
       - run: npm install -g firebase-tools
 
-      - run: npm run gcp:bootstrap -- --project "${FIREBASE_PROJECT_ID_STAGING}"
-        env:
-          FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
-
-      - run: npm run gcp:check -- --project "${FIREBASE_PROJECT_ID_STAGING}"
-        env:
-          FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
-
       - name: Write Functions Env
         run: |
           cat <<EOF > functions/.env

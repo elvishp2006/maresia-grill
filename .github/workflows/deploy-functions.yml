@@ -32,10 +32,6 @@ jobs:
 
       - run: npm install -g firebase-tools
 
-      - run: npm run gcp:bootstrap -- --project menu-7f7cd
-
-      - run: npm run gcp:check -- --project menu-7f7cd
-
       - run: npm --prefix functions ci
 
       - run: npm --prefix functions run build
@@ -52,15 +48,16 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           PUBLIC_MENU_BASE_URL: ${{ secrets.PUBLIC_MENU_BASE_URL }}
 
-      - run: firebase deploy --only functions --project menu-7f7cd --force
+      - run: firebase deploy --only functions --project "${{ vars.GCP_PROJECT_ID_PRODUCTION }}" --force
 
       - name: Verify Public Checkout Access in Production
         env:
+          FIREBASE_PROJECT_ID_PRODUCTION: ${{ vars.GCP_PROJECT_ID_PRODUCTION }}
           TEST_ORIGIN: ${{ secrets.PUBLIC_MENU_BASE_URL }}
         run: |
           set -euo pipefail
 
-          endpoint="https://us-central1-menu-7f7cd.cloudfunctions.net/preparePublicOrderCheckout"
+          endpoint="https://us-central1-${FIREBASE_PROJECT_ID_PRODUCTION}.cloudfunctions.net/preparePublicOrderCheckout"
           headers_file="$(mktemp)"
           body_file="$(mktemp)"
 
