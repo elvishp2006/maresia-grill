@@ -110,7 +110,7 @@ jobs:
           PUBLIC_MENU_BASE_URL: ${{ steps.preview.outputs.url }}
 
       - name: Deploy Functions and Rules to Staging
-        run: firebase deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID_STAGING}"
+        run: firebase deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID_STAGING}" --force
         env:
           FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
 

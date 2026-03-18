@@ -50,6 +50,6 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           PUBLIC_MENU_BASE_URL: ${{ secrets.PUBLIC_MENU_BASE_URL }}
 
-      - run: firebase deploy --only functions --project menu-7f7cd
+      - run: firebase deploy --only functions --project menu-7f7cd --force
 
       - run: firebase functions:artifacts:setpolicy --project menu-7f7cd --location us-central1 --force
