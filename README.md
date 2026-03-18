@@ -81,38 +81,31 @@ Comando bruto da Stripe CLI:
 stripe listen --forward-to http://127.0.0.1:5001/maresia-grill-local/us-central1/paymentWebhook
 ```
 
-## Staging com Render Preview + Firebase
+## Staging com Render + Firebase
 
-O preview de PR do Render e o staging do Firebase devem usar um projeto Firebase separado da producao.
+O staging do Render e o staging do Firebase devem usar um projeto Firebase separado da producao.
 
 Arquitetura recomendada:
 
-- frontend preview do Render
+- frontend de staging no Render
 - Auth/Firestore/Functions em um projeto Firebase de staging
 - Stripe de staging apontando para as Functions de staging
 
 ### GitHub Actions
 
-O repositório possui quatro fluxos principais:
+O repositório possui sete fluxos principais:
 
 - `Infra Plan`: valida mudanças em `infra/terraform/**` em PRs
-- `Infra Apply`: aplica a infra declarativa em `staging` e `production`
-- `Deploy Functions`: publica producao na `main`
-- `Deploy Firebase Staging`: em cada PR, descobre a URL do preview do Render e publica `functions` + `firestore.rules` no Firebase staging
-
-Secrets esperados para staging no GitHub:
-
-- `FIREBASE_SERVICE_ACCOUNT_STAGING`
-- `FIREBASE_PROJECT_ID_STAGING`
-- `STRIPE_SECRET_KEY_STAGING`
-- `STRIPE_WEBHOOK_SECRET_STAGING`
+- `Infra Apply`: aplica a infra declarativa manualmente em `staging` e `production`
+- `Deploy Functions`: publica `functions` em `production` ou `staging` conforme a branch
+- `Deploy Firestore Rules`: publica `firestore.rules` em `production` ou `staging` conforme a branch
+- `CI`: valida lint, testes e builds em PRs e na `main`
 
 Secrets esperados para producao no GitHub:
 
 - `FIREBASE_SERVICE_ACCOUNT`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `PUBLIC_MENU_BASE_URL`
 
 Projeto de produção atual:
 
@@ -131,7 +124,11 @@ Variáveis e secrets esperados para IaC:
 - `secrets.GCP_TERRAFORM_CREDENTIALS_STAGING`
 - `secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION`
 
-### Render Preview
+Variáveis adicionais esperadas para deploy do app:
+
+- `vars.RENDER_STAGING_ORIGIN`
+
+### Render Staging
 
 O `render.yaml` voltou ao blueprint completo com `projects/environments`, mantendo fora apenas o domínio customizado para evitar misturar causas de falha.
 
@@ -141,7 +138,6 @@ Neste passo, o arquivo usa:
 - `projects`
 - environments `production` e `staging`
 - env groups `production` e `staging`
-- previews automáticos no `staging`
 - nomes de serviço sem colisão no workspace:
   - `maresia-grill-production-web`
   - `maresia-grill-staging-web`
@@ -150,11 +146,31 @@ Ainda não recolocamos:
 
 - o dominio `maresiagrill.com`
 
-O workflow de staging busca a URL real do preview do Render via GitHub Deployments e a injeta como `PUBLIC_MENU_BASE_URL` no deploy das Functions de staging. Isso garante que o retorno do checkout Stripe volte para o preview correto do PR.
+O checkout Stripe usa a URL de retorno enviada pelo próprio frontend no momento da criação da sessão. O backend valida que essa URL pertence à mesma origem da requisição HTTP, então o frontend publicado em staging funciona sem depender de redeploy dinâmico por PR.
 
 As Functions HTTP públicas do checkout são deployadas como Functions v2 com `invoker: 'public'`. Isso é obrigatório para browser e Stripe conseguirem chamar os endpoints; cabeçalhos CORS sozinhos não tornam a Function publicamente invocável. Os workflows de staging e produção validam o preflight do endpoint `preparePublicOrderCheckout` logo após o deploy para detectar regressões de exposição pública/CORS.
 
-### Variaveis do preview no Render
+O `render.yaml` já declara as branches esperadas para cada serviço:
+
+- `web-production` rastreia a branch `main`
+- `web-staging` rastreia a branch `staging`
+
+Depois de alterar o Blueprint, confirme no painel do Render se os serviços sincronizaram esse branch mapping corretamente.
+
+Com isso, o modelo operacional fica:
+
+- push/merge em `staging` publica frontend no Render staging e backend no Firebase staging
+- merge em `main` publica frontend no Render production e backend no Firebase production
+
+Para subir rapidamente o estado atual para a branch remota `staging` sem trocar de branch local:
+
+```bash
+npm run push:staging
+```
+
+Esse comando faz `git push origin HEAD:staging` e falha se houver mudanças locais não commitadas.
+
+### Variaveis do staging no Render
 
 Quando os groups forem recolocados no Blueprint, o group `staging` do Render deve conter os valores de staging para:
 
@@ -199,19 +215,25 @@ Hospedado no Render como static site:
 
 ### GitHub Actions
 
-- `CI`: instala dependencias do app e de `functions/`, roda `lint`, `test`, `build` do app e `build` das Functions
+- `CI`: instala dependencias do app e de `functions/`, roda `lint`, `test`, `build` do app e `build` das Functions em `main`, `staging` e PRs
 - `Infra Plan`: valida a infraestrutura GCP/Firebase declarada em Terraform/OpenTofu
-- `Infra Apply`: aplica APIs, IAM e grants estruturais por ambiente
-- `Deploy Functions`: publica automaticamente as Functions na `main`
-- `Deploy Firestore Rules`: publica `firestore.rules` quando o arquivo muda
-- `Deploy Functions` e `Deploy Firebase Staging` assumem que a infraestrutura IAM já foi aplicada pelo pipeline de infra
+- `Infra Apply`: aplica APIs, IAM e grants estruturais manualmente por ambiente
+- `Deploy Functions`: publica automaticamente as Functions na `main` e na `staging`
+- `Deploy Firestore Rules`: publica `firestore.rules` na `main` e na `staging`
+- os dois workflows escolhem `production` ou `staging` pela branch
+- os dois workflows usam `vars.GCP_PROJECT_ID_PRODUCTION` na `main`
+- os dois workflows usam `vars.GCP_PROJECT_ID_STAGING` na `staging`
+- `Deploy Functions` usa `vars.RENDER_STAGING_ORIGIN` na branch `staging` para validar CORS/acesso do endpoint público a partir da origem real do staging no Render
+- Os deploys do app assumem que a infraestrutura IAM já foi aplicada pelo pipeline de infra
 
 Secrets obrigatorios para o deploy automatico das Functions:
 
 - `FIREBASE_SERVICE_ACCOUNT`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `PUBLIC_MENU_BASE_URL`
+- `FIREBASE_SERVICE_ACCOUNT_STAGING`
+- `STRIPE_SECRET_KEY_STAGING`
+- `STRIPE_WEBHOOK_SECRET_STAGING`
 
 A produção canônica do projeto é `maresia-grill---production`. Deploys e IaC de produção devem apontar apenas para esse projeto.
 

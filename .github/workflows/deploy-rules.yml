@@ -2,21 +2,23 @@ name: Deploy Firestore Rules
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
     paths:
       - firestore.rules
+      - .github/workflows/deploy-rules.yml
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          credentials_json: ${{ github.ref_name == 'main' && secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
 
       - run: npm install -g firebase-tools
 
-      - run: firebase deploy --only firestore:rules --project "${{ vars.GCP_PROJECT_ID_PRODUCTION }}"
+      - run: firebase deploy --only firestore:rules --project "${{ github.ref_name == 'main' && vars.GCP_PROJECT_ID_PRODUCTION || vars.GCP_PROJECT_ID_STAGING }}"

@@ -1,12 +1,6 @@
 name: Infra Apply
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - infra/terraform/**
-      - .github/workflows/infra-plan.yml
-      - .github/workflows/infra-apply.yml
   workflow_dispatch:
     inputs:
       target:
@@ -21,8 +15,9 @@ on:
 
 jobs:
   apply-staging:
-    if: github.event_name == 'push' || github.event.inputs.target == 'all' || github.event.inputs.target == 'staging'
+    if: github.event.inputs.target == 'all' || github.event.inputs.target == 'staging'
     runs-on: ubuntu-latest
+    environment: staging
     permissions:
       contents: read
       id-token: write
@@ -58,8 +53,9 @@ jobs:
           TF_VAR_app_deployer_member: ${{ vars.APP_DEPLOYER_MEMBER_STAGING }}
 
   apply-production:
-    if: github.event_name == 'push' || github.event.inputs.target == 'all' || github.event.inputs.target == 'production'
+    if: github.event.inputs.target == 'all' || github.event.inputs.target == 'production'
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
       id-token: write

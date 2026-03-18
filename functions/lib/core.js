@@ -59,12 +59,17 @@ export const validateSelection = (items, selectedItemIds, rules) => {
         }
     }
 };
-export const buildReturnUrl = (draftId, shareToken, preferredUrl, fallbackBase) => {
-    const fallbackUrl = fallbackBase ? `${fallbackBase.replace(/\/$/, '')}/s/${shareToken}#/enviado` : '';
-    const rawUrl = preferredUrl?.trim() || fallbackUrl;
-    if (!rawUrl)
-        throw new Error('PUBLIC_MENU_BASE_URL não configurado.');
-    const url = new URL(rawUrl);
+export const buildReturnUrl = (draftId, rawUrl, allowedOrigin) => {
+    const normalizedUrl = rawUrl?.trim();
+    if (!normalizedUrl)
+        throw new Error('URL de retorno inválida.');
+    const url = new URL(normalizedUrl);
+    if (allowedOrigin) {
+        const normalizedOrigin = allowedOrigin.trim().replace(/\/$/, '');
+        if (normalizedOrigin && url.origin !== normalizedOrigin) {
+            throw new Error('URL de retorno fora da origem permitida.');
+        }
+    }
     url.searchParams.set('draftId', draftId);
     if (!url.hash)
         url.hash = '#/enviado';

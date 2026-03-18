@@ -191,6 +191,7 @@ const getWebhookSecret = () => {
 const createStripeCheckout = async (
   draft: PublicOrderDraft,
   payload: PreparePublicOrderCheckoutBody,
+  requestOrigin?: string,
 ) => {
   const stripe = getStripeClient();
   const session = await stripe.checkout.sessions.create({
@@ -198,9 +199,8 @@ const createStripeCheckout = async (
     mode: 'payment',
     return_url: buildReturnUrl(
       draft.id,
-      draft.shareToken,
       payload.pendingUrl ?? payload.successUrl,
-      process.env.PUBLIC_MENU_BASE_URL,
+      requestOrigin,
     ),
     client_reference_id: draft.id,
     metadata: {
@@ -424,7 +424,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
       updatedAt: now,
     };
 
-    const checkoutSession = await createStripeCheckout(draft, body);
+    const checkoutSession = await createStripeCheckout(draft, body, req.get('origin') ?? undefined);
     await db.doc(`publicOrderDrafts/${draftId}`).set({
       ...draft,
       checkoutSession,

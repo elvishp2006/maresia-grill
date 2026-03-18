@@ -8,6 +8,7 @@ projects:
         services:
           - type: web
             name: web-production
+            branch: main
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
@@ -26,11 +27,10 @@ projects:
         services:
           - type: web
             name: web-staging
+            branch: staging
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
-            previews:
-              generation: automatic
             routes:
               - type: rewrite
                 source: /s/*

@@ -57,12 +57,24 @@ describe('functions payment core', () => {
 
   it('builds a return url with draftId and default hash', () => {
     expect(
-      buildReturnUrl('draft-1', 'token-1', '', 'https://app.maresia.com'),
+      buildReturnUrl('draft-1', 'https://app.maresia.com/s/token-1#/enviado'),
     ).toBe('https://app.maresia.com/s/token-1?draftId=draft-1#/enviado');
 
     expect(
-      buildReturnUrl('draft-1', 'token-1', 'https://app.maresia.com/s/token-1#/pedido', undefined),
+      buildReturnUrl(
+        'draft-1',
+        'https://app.maresia.com/s/token-1#/pedido',
+        'https://app.maresia.com',
+      ),
     ).toBe('https://app.maresia.com/s/token-1?draftId=draft-1#/pedido');
+  });
+
+  it('rejects return urls outside the request origin', () => {
+    expect(() => buildReturnUrl(
+      'draft-1',
+      'https://evil.example/s/token-1#/pedido',
+      'https://app.maresia.com',
+    )).toThrow('URL de retorno fora da origem permitida.');
   });
 
   it('maps Stripe payment method types with card fallback', () => {

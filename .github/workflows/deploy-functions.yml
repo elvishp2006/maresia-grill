@@ -2,15 +2,15 @@ name: Deploy Functions
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
     paths:
       - functions/**
-      - firebase.json
       - .github/workflows/deploy-functions.yml
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:
       contents: read
       id-token: write
@@ -26,7 +26,7 @@ jobs:
 
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          credentials_json: ${{ github.ref_name == 'main' && secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
 
       - uses: google-github-actions/setup-gcloud@v2
 
@@ -41,23 +41,21 @@ jobs:
           cat <<EOF > functions/.env
           STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
           STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-          PUBLIC_MENU_BASE_URL=${PUBLIC_MENU_BASE_URL}
           EOF
         env:
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          PUBLIC_MENU_BASE_URL: ${{ secrets.PUBLIC_MENU_BASE_URL }}
+          STRIPE_SECRET_KEY: ${{ github.ref_name == 'main' && secrets.STRIPE_SECRET_KEY || secrets.STRIPE_SECRET_KEY_STAGING }}
+          STRIPE_WEBHOOK_SECRET: ${{ github.ref_name == 'main' && secrets.STRIPE_WEBHOOK_SECRET || secrets.STRIPE_WEBHOOK_SECRET_STAGING }}
 
-      - run: firebase deploy --only functions --project "${{ vars.GCP_PROJECT_ID_PRODUCTION }}" --force
+      - run: firebase deploy --only functions --project "${{ github.ref_name == 'main' && vars.GCP_PROJECT_ID_PRODUCTION || vars.GCP_PROJECT_ID_STAGING }}" --force
 
-      - name: Verify Public Checkout Access in Production
+      - name: Verify Public Checkout Access
         env:
-          FIREBASE_PROJECT_ID_PRODUCTION: ${{ vars.GCP_PROJECT_ID_PRODUCTION }}
-          TEST_ORIGIN: ${{ secrets.PUBLIC_MENU_BASE_URL }}
+          FIREBASE_PROJECT_ID: ${{ github.ref_name == 'main' && vars.GCP_PROJECT_ID_PRODUCTION || vars.GCP_PROJECT_ID_STAGING }}
+          TEST_ORIGIN: ${{ github.ref_name == 'main' && 'https://maresiagrill.com' || vars.RENDER_STAGING_ORIGIN }}
         run: |
           set -euo pipefail
 
-          endpoint="https://us-central1-${FIREBASE_PROJECT_ID_PRODUCTION}.cloudfunctions.net/preparePublicOrderCheckout"
+          endpoint="https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/preparePublicOrderCheckout"
           headers_file="$(mktemp)"
           body_file="$(mktemp)"
 
