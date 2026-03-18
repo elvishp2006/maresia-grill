@@ -1,13 +1,13 @@
 version: "1"
 projects:
-  - name: maresia-grill-production
+  - name: maresia-grill
     environments:
       - name: production
         envVarGroups:
           - name: production
         services:
           - type: web
-            name: maresia-grill-production-web
+            name: pwa
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
@@ -25,7 +25,7 @@ projects:
           - name: staging
         services:
           - type: web
-            name: maresia-grill-staging-web
+            name: pwa
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
