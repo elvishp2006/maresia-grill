@@ -14,5 +14,5 @@ if [ "$current_branch" = "HEAD" ]; then
   exit 1
 fi
 
-echo "Publicando ${current_branch} em origin/staging"
-git push origin HEAD:staging
+echo "Sobrescrevendo origin/staging com ${current_branch}"
+git push --force-with-lease origin HEAD:staging
