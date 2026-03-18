@@ -1,8 +1,9 @@
 module "project_baseline" {
   source = "../../modules/project_baseline"
 
-  project_id     = var.project_id
-  project_number = var.project_number
+  project_id          = var.project_id
+  project_number      = var.project_number
+  app_deployer_member = var.app_deployer_member
 }
 
 module "functions_runtime" {
