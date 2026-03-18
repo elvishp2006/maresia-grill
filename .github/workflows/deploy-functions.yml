@@ -44,7 +44,7 @@ jobs:
           EOF
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ github.ref_name == 'main' && secrets.STRIPE_WEBHOOK_SECRET || secrets.STRIPE_WEBHOOK_SECRET_STAGING }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
 
       - run: firebase deploy --only functions --project "${{ vars.GCP_PROJECT_ID }}" --force
 

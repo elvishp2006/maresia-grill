@@ -236,7 +236,6 @@ Secrets obrigatorios para o deploy automatico das Functions:
 - `FIREBASE_SERVICE_ACCOUNT`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_WEBHOOK_SECRET_STAGING`
 
 A produção canônica do projeto é `maresia-grill---production`. Deploys e IaC de produção devem apontar apenas para esse projeto.
 
