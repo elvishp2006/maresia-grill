@@ -48,19 +48,21 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {children}
       {modalState?.isOpen === true && (
         <div
-          className="fixed inset-0 z-50 flex items-end bg-black/60 p-[16px] md:items-center md:justify-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-[16px] md:items-center"
           onClick={handleCancel}
         >
           <div
             className="w-full max-w-sm rounded-[24px] border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-[20px] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="mb-[8px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
-              {modalState.title}
-            </h3>
-            <p className="mb-[18px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
-              {modalState.message}
-            </p>
+            <div className="mx-auto max-w-[280px] text-center">
+              <h3 className="mb-[8px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                {modalState.title}
+              </h3>
+              <p className="mb-[18px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+                {modalState.message}
+              </p>
+            </div>
             <div className="flex gap-[10px]">
               <button
                 type="button"

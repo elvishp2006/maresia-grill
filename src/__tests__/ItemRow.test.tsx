@@ -68,6 +68,7 @@ describe('ItemRow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remover Arroz' }));
     expect(await screen.findByText('Remover item')).toBeInTheDocument();
     expect(screen.getByText('Remover "Arroz"?')).toBeInTheDocument();
+    expect(screen.getByText('Remover item').parentElement).toHaveClass('text-center');
   });
 
   it('calls onRemove when modal is confirmed', async () => {
