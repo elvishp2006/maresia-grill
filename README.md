@@ -114,15 +114,18 @@ Secrets esperados para producao no GitHub:
 
 ### Render Preview
 
-O Blueprint do Render usa `projects/environments` com dois ambientes:
+O `render.yaml` está temporariamente reduzido ao menor blueprint possível para isolar a falha de criação no Render.
 
-- `production`: serviço `maresia-grill`
-- `staging`: serviço `maresia-grill-staging`, com previews automaticos
+- serviço único: `maresia-grill-production`
+- runtime: `static`
+- build: `npm install && npm run build`
 
-No momento, o `render.yaml` está em modo de bootstrap para isolar falhas de criação do Blueprint no Render. Por isso, o arquivo não declara `envVarGroups`, `fromGroup` nem `domains` enquanto a criação inicial do projeto novo não estabiliza.
+Esse arquivo não declara `projects`, `environments`, `envVarGroups`, `fromGroup` nem `domains` enquanto a criação inicial do recurso no Render não estabiliza.
 
 Depois que o projeto for criado com sucesso, o próximo passo é recolocar:
 
+- a estrutura com `projects/environments`
+- o serviço de `staging` com previews automaticos
 - o dominio `maresiagrill.com` no serviço de produção
 - o group `production` no ambiente de produção
 - o group `staging` no ambiente de staging
