@@ -3,7 +3,7 @@ projects:
     environments:
       - name: production
         envVarGroups:
-          - production
+          - name: production
         services:
           - type: web
             name: maresia-grill
@@ -23,7 +23,7 @@ projects:
               - fromGroup: production
       - name: staging
         envVarGroups:
-          - staging
+          - name: staging
         services:
           - type: web
             name: maresia-grill-staging
