@@ -7,7 +7,7 @@ projects:
           - name: production
         services:
           - type: web
-            name: pwa
+            name: web-production
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
@@ -25,7 +25,7 @@ projects:
           - name: staging
         services:
           - type: web
-            name: pwa
+            name: web-staging
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
