@@ -113,8 +113,3 @@ jobs:
         run: firebase deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID_STAGING}" --force
         env:
           FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
-
-      - name: Configure Functions Artifact Cleanup Policy
-        run: firebase functions:artifacts:setpolicy --project "${FIREBASE_PROJECT_ID_STAGING}" --location us-central1 --force
-        env:
-          FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
