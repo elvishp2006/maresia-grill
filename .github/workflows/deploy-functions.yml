@@ -51,3 +51,33 @@ jobs:
           PUBLIC_MENU_BASE_URL: ${{ secrets.PUBLIC_MENU_BASE_URL }}
 
       - run: firebase deploy --only functions --project menu-7f7cd --force
+
+      - name: Verify Public Checkout CORS in Production
+        env:
+          TEST_ORIGIN: ${{ secrets.PUBLIC_MENU_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          endpoint="https://us-central1-menu-7f7cd.cloudfunctions.net/preparePublicOrderCheckout"
+          headers_file="$(mktemp)"
+
+          status="$(
+            curl -sS -o /dev/null -D "$headers_file" \
+              -X OPTIONS \
+              -H "Origin: ${TEST_ORIGIN}" \
+              -H "Access-Control-Request-Method: POST" \
+              "$endpoint" \
+              -w '%{http_code}'
+          )"
+
+          if [ "$status" = "403" ]; then
+            echo "Preflight recebeu 403 em $endpoint"
+            cat "$headers_file"
+            exit 1
+          fi
+
+          if ! grep -Eiq '^access-control-allow-origin:' "$headers_file"; then
+            echo "Header Access-Control-Allow-Origin ausente em $endpoint"
+            cat "$headers_file"
+            exit 1
+          fi

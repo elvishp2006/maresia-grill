@@ -109,14 +109,16 @@ interface PreparePublicOrderCheckoutBody {
 
 const db = admin.firestore();
 
-const setCorsHeaders = (res: Parameters<Parameters<typeof onRequest>[0]>[1]) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Stripe-Signature');
+const publicBrowserEndpointOptions = {
+  cors: true,
+  invoker: 'public' as const,
+};
+
+const publicWebhookOptions = {
+  invoker: 'public' as const,
 };
 
 const json = (res: Parameters<Parameters<typeof onRequest>[0]>[1], status: number, body: unknown) => {
-  setCorsHeaders(res);
   if (status === 204) {
     res.status(status).send();
     return;
@@ -362,7 +364,7 @@ const getDraftFromCheckoutSession = async (session: Stripe.Checkout.Session) => 
   };
 };
 
-export const preparePublicOrderCheckout = onRequest(async (req, res) => {
+export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions, async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 204, {});
   if (req.method !== 'POST') return json(res, 405, { message: 'Método não permitido.' });
 
@@ -444,7 +446,7 @@ export const preparePublicOrderCheckout = onRequest(async (req, res) => {
   }
 });
 
-export const publicOrderStatus = onRequest(async (req, res) => {
+export const publicOrderStatus = onRequest(publicBrowserEndpointOptions, async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 204, {});
   if (req.method !== 'POST') return json(res, 405, { message: 'Método não permitido.' });
 
@@ -487,7 +489,7 @@ export const publicOrderStatus = onRequest(async (req, res) => {
   }
 });
 
-export const cancelPublicOrder = onRequest(async (req, res) => {
+export const cancelPublicOrder = onRequest(publicBrowserEndpointOptions, async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 204, {});
   if (req.method !== 'POST') return json(res, 405, { message: 'Método não permitido.' });
 
@@ -518,8 +520,7 @@ export const cancelPublicOrder = onRequest(async (req, res) => {
   }
 });
 
-export const paymentWebhook = onRequest(async (req, res) => {
-  setCorsHeaders(res);
+export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');
     return;

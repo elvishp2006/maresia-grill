@@ -6,13 +6,14 @@ import { logger } from 'firebase-functions';
 import { buildReturnUrl, createBasePaymentSummary, isDuplicatePaidDraft, isWinningOrderDraft, mapPaymentMethods, normalizeCustomerName, normalizePriceCents, validateSelection, } from './core.js';
 admin.initializeApp();
 const db = admin.firestore();
-const setCorsHeaders = (res) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Stripe-Signature');
+const publicBrowserEndpointOptions = {
+    cors: true,
+    invoker: 'public',
+};
+const publicWebhookOptions = {
+    invoker: 'public',
 };
 const json = (res, status, body) => {
-    setCorsHeaders(res);
     if (status === 204) {
         res.status(status).send();
         return;
@@ -213,7 +214,7 @@ const getDraftFromCheckoutSession = async (session) => {
         draft: draftSnap.data(),
     };
 };
-export const preparePublicOrderCheckout = onRequest(async (req, res) => {
+export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions, async (req, res) => {
     if (req.method === 'OPTIONS')
         return json(res, 204, {});
     if (req.method !== 'POST')
@@ -289,7 +290,7 @@ export const preparePublicOrderCheckout = onRequest(async (req, res) => {
         return json(res, 400, { message });
     }
 });
-export const publicOrderStatus = onRequest(async (req, res) => {
+export const publicOrderStatus = onRequest(publicBrowserEndpointOptions, async (req, res) => {
     if (req.method === 'OPTIONS')
         return json(res, 204, {});
     if (req.method !== 'POST')
@@ -331,7 +332,7 @@ export const publicOrderStatus = onRequest(async (req, res) => {
         return json(res, 400, { message });
     }
 });
-export const cancelPublicOrder = onRequest(async (req, res) => {
+export const cancelPublicOrder = onRequest(publicBrowserEndpointOptions, async (req, res) => {
     if (req.method === 'OPTIONS')
         return json(res, 204, {});
     if (req.method !== 'POST')
@@ -362,8 +363,7 @@ export const cancelPublicOrder = onRequest(async (req, res) => {
         return json(res, 400, { message });
     }
 });
-export const paymentWebhook = onRequest(async (req, res) => {
-    setCorsHeaders(res);
+export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) => {
     if (req.method !== 'POST') {
         res.status(405).send('Method not allowed');
         return;

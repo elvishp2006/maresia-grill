@@ -113,3 +113,34 @@ jobs:
         run: firebase deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID_STAGING}" --force
         env:
           FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
+
+      - name: Verify Public Checkout CORS in Staging
+        env:
+          FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
+          TEST_ORIGIN: ${{ steps.preview.outputs.url }}
+        run: |
+          set -euo pipefail
+
+          endpoint="https://us-central1-${FIREBASE_PROJECT_ID_STAGING}.cloudfunctions.net/preparePublicOrderCheckout"
+          headers_file="$(mktemp)"
+
+          status="$(
+            curl -sS -o /dev/null -D "$headers_file" \
+              -X OPTIONS \
+              -H "Origin: ${TEST_ORIGIN}" \
+              -H "Access-Control-Request-Method: POST" \
+              "$endpoint" \
+              -w '%{http_code}'
+          )"
+
+          if [ "$status" = "403" ]; then
+            echo "Preflight recebeu 403 em $endpoint"
+            cat "$headers_file"
+            exit 1
+          fi
+
+          if ! grep -Eiq '^access-control-allow-origin:' "$headers_file"; then
+            echo "Header Access-Control-Allow-Origin ausente em $endpoint"
+            cat "$headers_file"
+            exit 1
+          fi

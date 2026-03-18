@@ -133,6 +133,8 @@ Ainda não recolocamos:
 
 O workflow de staging busca a URL real do preview do Render via GitHub Deployments e a injeta como `PUBLIC_MENU_BASE_URL` no deploy das Functions de staging. Isso garante que o retorno do checkout Stripe volte para o preview correto do PR.
 
+As Functions HTTP públicas do checkout são deployadas como Functions v2 com `invoker: 'public'`. Isso é obrigatório para browser e Stripe conseguirem chamar os endpoints; cabeçalhos CORS sozinhos não tornam a Function publicamente invocável. Os workflows de staging e produção validam o preflight do endpoint `preparePublicOrderCheckout` logo após o deploy para detectar regressões de exposição pública/CORS.
+
 ### Variaveis do preview no Render
 
 Quando os groups forem recolocados no Blueprint, o group `staging` do Render deve conter os valores de staging para:
