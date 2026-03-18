@@ -1,5 +1,5 @@
 projects:
-  - name: maresia-grill
+  - name: maresia-grill-production
     environments:
       - name: production
         envVarGroups:
