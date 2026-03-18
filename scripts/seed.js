@@ -1,4 +1,4 @@
-process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
+process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8180';
 
 import admin from 'firebase-admin';
 
@@ -121,12 +121,12 @@ async function seed() {
   console.log('Writing config/complements...');
   await db.doc('config/complements').set({ items: ITEMS });
 
-  console.log('Writing 89 days of selections...');
+  console.log('Writing 90 days of selections including today...');
   const BATCH_SIZE = 500;
   let batch = db.batch();
   let count = 0;
 
-  for (let idx = 1; idx <= 89; idx++) {
+  for (let idx = 0; idx <= 89; idx++) {
     const key = dateKey(idx);
     const ids = getIdsForDay(idx);
     batch.set(db.doc(`selections/${key}`), { ids });

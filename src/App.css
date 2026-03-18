@@ -177,17 +177,96 @@ input[type='search']::-webkit-search-results-decoration {
   padding: 14px;
 }
 
+.stripe-payment-frame {
+  min-height: 360px;
+}
+
 .stripe-payment-loading {
   position: absolute;
   inset: 14px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   border-radius: 16px;
   background: rgba(18, 19, 14, 0.78);
-  color: var(--text-dim);
-  font-size: 14px;
   backdrop-filter: blur(10px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.stripe-payment-element {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.stripe-payment-element--ready {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.stripe-payment-skeleton {
+  display: grid;
+  width: 100%;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+}
+
+.stripe-payment-skeleton__line,
+.stripe-payment-skeleton__block,
+.stripe-payment-skeleton__button {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 248, 232, 0.07);
+}
+
+.stripe-payment-skeleton__line::after,
+.stripe-payment-skeleton__block::after,
+.stripe-payment-skeleton__button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 248, 232, 0.16), transparent);
+  animation: stripe-payment-shimmer 1.35s ease-in-out infinite;
+}
+
+.stripe-payment-skeleton__line {
+  height: 12px;
+}
+
+.stripe-payment-skeleton__line--short {
+  width: 34%;
+}
+
+.stripe-payment-skeleton__line--medium {
+  width: 56%;
+}
+
+.stripe-payment-skeleton__line--full {
+  width: 100%;
+}
+
+.stripe-payment-skeleton__block {
+  height: 162px;
+  border-radius: 18px;
+}
+
+.stripe-payment-skeleton__button {
+  justify-self: end;
+  width: 132px;
+  height: 48px;
+  border-radius: 18px;
+}
+
+@keyframes stripe-payment-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .public-action-bar {

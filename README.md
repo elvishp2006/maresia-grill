@@ -5,27 +5,30 @@ PWA de cardápio do restaurante Maresia Grill — gerencia categorias, complemen
 ## Pré-requisitos
 
 - Node 20+
-- Firebase CLI: `npm i -g firebase-tools`
 
 ## Início rápido
 
 ```bash
 npm install
-npm run dev:local   # sobe emuladores Firebase + servidor Vite
+npm run dev
 ```
 
 ## Comandos
 
 | Script | O que faz |
 |---|---|
-| `dev` | Servidor Vite (produção Firebase) |
-| `dev:local` | Emuladores Firebase + Vite em paralelo |
-| `emulators` | Apenas emuladores Firebase |
+| `dev` | Bootstrap local + emuladores Firebase + seed + Vite |
+| `dev:web` | Apenas Vite em `http://127.0.0.1:5173` |
+| `dev:emulators` | Apenas emuladores Firebase |
+| `dev:seed` | Seed local padrão no Firestore emulator |
+| `dev:seed:stripe` | Seed local do cenário de checkout público |
+| `dev:local` | Alias para `dev` |
+| `emulators` | Alias para `dev:emulators` |
 | `stripe:test:seed` | Cria o cenário local fixo para pagamento |
-| `stripe:test:app` | Sobe o app em `http://127.0.0.1:5173` |
-| `stripe:test:emulators` | Sobe `auth`, `firestore` e `functions` para Stripe local |
-| `stripe:test:dev` | Sobe app + emuladores do cenário Stripe |
-| `stripe:test:webhook` | Encaminha eventos Stripe para `paymentWebhook` |
+| `stripe:test:app` | Alias para `dev:web` |
+| `stripe:test:emulators` | Alias para `dev:emulators` |
+| `stripe:test:dev` | Alias para `dev` |
+| `stripe:test:webhook` | Legado: sobe `stripe listen` manualmente |
 | `build` | `tsc` + Vite build |
 | `lint` | ESLint (deve passar antes do commit) |
 | `lint:fix` | ESLint com correção automática |
@@ -37,12 +40,22 @@ npm run dev:local   # sobe emuladores Firebase + servidor Vite
 
 ## Ambiente de desenvolvimento
 
-`npm run dev:local` sobe dois processos com labels coloridos (`[emulators]` / `[vite]`):
+`npm run dev` virou o fluxo canônico. Ele:
+
+- cria `.env.local` e `functions/.env.local` quando estiverem ausentes
+- injeta defaults locais para o projeto `maresia-grill-local`
+- compila as Functions
+- sobe os emuladores Firebase
+- aplica o seed base do app e o seed do checkout público automaticamente
+- sobe o app em `http://127.0.0.1:5173`
+- tenta ativar o Stripe local automaticamente quando houver chaves e Stripe CLI
+
+Processos e endpoints locais:
 
 | Emulador | Porta |
 |---|---|
 | Auth | 9099 |
-| Firestore | 8080 |
+| Firestore | 8180 |
 | Functions | 5001 |
 | UI dos emuladores | http://localhost:4000 |
 
@@ -50,17 +63,17 @@ npm run dev:local   # sobe emuladores Firebase + servidor Vite
 
 Os fluxos locais usam sempre o projeto de emulador `maresia-grill-local`. Desenvolvimento e testes locais não devem apontar para `staging` nem para `production`.
 
-Para testar pagamentos locais com Stripe:
+Para ativar o checkout Stripe local dentro do `npm run dev`, preencha:
 
-1. Preencha as chaves em `.env.local` e `functions/.env.local`
-2. Rode `npm run stripe:test:dev`
-3. Em outro terminal, rode `npm run stripe:test:webhook`
-4. Copie o `whsec_...` retornado pela Stripe CLI para `functions/.env.local` em `STRIPE_WEBHOOK_SECRET`
-5. Rode `npm run stripe:test:seed`
-6. Abra a URL fixa de teste:
+- `.env.local` com `VITE_STRIPE_PUBLISHABLE_KEY`
+- `functions/.env.local` com `STRIPE_SECRET_KEY`
+
+Se a Stripe CLI estiver instalada e autenticada, o próprio `npm run dev` sobe o listener e grava `STRIPE_WEBHOOK_SECRET` automaticamente no arquivo local das Functions.
+
+URL fixa de teste do fluxo público:
 
 ```text
-http://localhost:5173/s/teste-pagamento#/pedido
+http://localhost:5173/s/teste-pagamento/#/pedido
 ```
 
 O seed cria um cenario minimo com:
@@ -75,7 +88,7 @@ Fluxos esperados:
 - `Prato executivo` sozinho envia sem checkout
 - `Prato executivo` + `Refrigerante lata` abre o checkout Stripe embutido
 
-Comando bruto da Stripe CLI:
+Comando bruto da Stripe CLI, se você quiser rodar manualmente:
 
 ```bash
 stripe listen --forward-to http://127.0.0.1:5001/maresia-grill-local/us-central1/paymentWebhook

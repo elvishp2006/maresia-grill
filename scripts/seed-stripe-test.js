@@ -1,4 +1,4 @@
-process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8080';
+process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8180';
 
 import admin from 'firebase-admin';
 
@@ -41,17 +41,11 @@ async function seedStripeTest() {
   await deleteCollection('publicOrderDrafts');
   await deleteCollection(`orders/${today}/entries`);
 
-  console.log('Gravando configuracoes base...');
-  await db.doc('config/categories').set({ items: categories });
-  await db.doc('config/complements').set({ items });
-  await db.doc('config/categorySelectionRules').set({ rules: categorySelectionRules });
-  await db.doc(`selections/${today}`).set({ ids: items.map((item) => item.id) });
-
   const createdAt = new Date();
   const expiresAt = new Date(createdAt);
   expiresAt.setHours(24, 0, 0, 0);
 
-  console.log('Gravando share link e snapshot publico...');
+  console.log('Gravando share link e snapshot publico de teste...');
   await db.doc(`shareLinks/${today}`).set({
     token: TEST_TOKEN,
     dateKey: today,
@@ -84,7 +78,7 @@ async function seedStripeTest() {
   });
 
   console.log('');
-  console.log('Cenario local pronto para teste Stripe.');
+  console.log('Cenario publico de checkout pronto.');
   console.log(`URL publica: ${publicUrl}`);
   console.log('Exemplo de selecao paga: "Prato executivo" + "Refrigerante lata" = R$ 7,00');
   console.log('Exemplo de selecao gratis: apenas "Prato executivo" = envio sem checkout.');

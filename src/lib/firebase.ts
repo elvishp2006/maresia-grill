@@ -33,7 +33,7 @@ googleProvider?.setCustomParameters({ prompt: 'select_account' });
 
 if (import.meta.env.DEV && auth && db) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectFirestoreEmulator(db, '127.0.0.1', 8180);
 }
 
 if (auth) {

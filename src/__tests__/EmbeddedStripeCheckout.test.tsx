@@ -87,6 +87,50 @@ describe('EmbeddedStripeCheckout', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it('shows a stable skeleton area before the payment element becomes ready', async () => {
+    vi.resetModules();
+    vi.doMock('@stripe/react-stripe-js/checkout', async () => {
+      const React = await import('react');
+
+      return {
+        CheckoutProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+        PaymentElement: ({
+          onReady,
+        }: {
+          onReady?: () => void;
+        }) => {
+          React.useEffect(() => {
+            const timer = window.setTimeout(() => {
+              onReady?.();
+            }, 0);
+            return () => window.clearTimeout(timer);
+          }, [onReady]);
+
+          return <div data-testid="payment-element">payment-element</div>;
+        },
+        useCheckout: () => mockUseCheckout(),
+      };
+    });
+
+    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
+
+    render(
+      <EmbeddedStripeCheckout
+        clientSecret="cs_test_123"
+        email="teste@empresa.com"
+        onEmailChange={vi.fn()}
+        onComplete={vi.fn()}
+        onError={vi.fn()}
+      />,
+    );
+
+    expect(document.querySelector('.stripe-payment-loading')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(document.querySelector('.stripe-payment-loading')).not.toBeInTheDocument();
+    });
+  });
+
   it('requires email before confirming', async () => {
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
     const onComplete = vi.fn();

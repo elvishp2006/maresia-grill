@@ -72,8 +72,15 @@ function CheckoutForm({
 
   if (checkoutState.type === 'loading') {
     return (
-      <div className="stripe-payment-shell flex min-h-[360px] items-center justify-center text-[14px] text-[var(--text-dim)]">
-        Preparando pagamento...
+      <div className="stripe-payment-shell stripe-payment-frame flex items-center justify-center">
+        <div className="stripe-payment-skeleton" aria-hidden="true">
+          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
+          <div className="stripe-payment-skeleton__block" />
+          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
+          <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+          <div className="stripe-payment-skeleton__button" />
+        </div>
       </div>
     );
   }
@@ -102,19 +109,30 @@ function CheckoutForm({
         />
       </label>
 
-      <div className="stripe-payment-shell">
+      <div className="stripe-payment-shell stripe-payment-frame">
         {!elementReady ? (
-          <div className="stripe-payment-loading">Carregando métodos de pagamento...</div>
+          <div className="stripe-payment-loading" aria-hidden="true">
+            <div className="stripe-payment-skeleton">
+              <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+              <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
+              <div className="stripe-payment-skeleton__block" />
+              <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
+              <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+              <div className="stripe-payment-skeleton__button" />
+            </div>
+          </div>
         ) : null}
-        <PaymentElement
-          options={{ layout: 'accordion' }}
-          onReady={() => setElementReady(true)}
-          onLoadError={(event) => {
-            const message = event.error.message || 'Não foi possível carregar os métodos de pagamento.';
-            setErrorMessage(message);
-            onError(message);
-          }}
-        />
+        <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
+          <PaymentElement
+            options={{ layout: 'accordion' }}
+            onReady={() => setElementReady(true)}
+            onLoadError={(event) => {
+              const message = event.error.message || 'Não foi possível carregar os métodos de pagamento.';
+              setErrorMessage(message);
+              onError(message);
+            }}
+          />
+        </div>
       </div>
 
       <div className="public-inline-panel flex items-center justify-between gap-[12px] px-[14px] py-[12px]">
