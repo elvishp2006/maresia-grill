@@ -12,6 +12,8 @@
     "stripe:test:emulators": "npm --prefix functions run build && firebase emulators:start --config firebase.stripe.json --only auth,firestore,functions --project menu-7f7cd",
     "stripe:test:dev": "concurrently -n emulators,vite -c cyan,green \"npm run stripe:test:emulators\" \"npm run stripe:test:app\"",
     "stripe:test:webhook": "stripe listen --forward-to http://127.0.0.1:5001/menu-7f7cd/us-central1/paymentWebhook",
+    "gcp:bootstrap": "bash scripts/bootstrap-gcp.sh",
+    "gcp:check": "bash scripts/check-gcp-deploy.sh",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

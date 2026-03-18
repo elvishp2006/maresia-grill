@@ -26,6 +26,8 @@ npm run dev:local   # sobe emuladores Firebase + servidor Vite
 | `stripe:test:emulators` | Sobe `auth`, `firestore` e `functions` para Stripe local |
 | `stripe:test:dev` | Sobe app + emuladores do cenário Stripe |
 | `stripe:test:webhook` | Encaminha eventos Stripe para `paymentWebhook` |
+| `gcp:bootstrap` | Habilita APIs e grants mínimos para deploy de Functions v2 |
+| `gcp:check` | Valida APIs e IAM antes do deploy |
 | `build` | `tsc` + Vite build |
 | `lint` | ESLint (deve passar antes do commit) |
 | `lint:fix` | ESLint com correção automática |
@@ -169,6 +171,7 @@ Hospedado no Render como static site:
 - `CI`: instala dependencias do app e de `functions/`, roda `lint`, `test`, `build` do app e `build` das Functions
 - `Deploy Functions`: publica automaticamente as Functions na `main`
 - `Deploy Firestore Rules`: publica `firestore.rules` quando o arquivo muda
+- `Deploy Functions` e `Deploy Firebase Staging` agora executam um pre-check de GCP antes do deploy
 
 Secrets obrigatorios para o deploy automatico das Functions:
 
@@ -176,6 +179,26 @@ Secrets obrigatorios para o deploy automatico das Functions:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `PUBLIC_MENU_BASE_URL`
+
+## Bootstrap de GCP
+
+Para reduzir o trabalho manual de APIs e IAM no Firebase/Cloud Functions v2, o repositório inclui dois scripts operacionais:
+
+```bash
+npm run gcp:bootstrap -- --project <project-id> --member "<user:email@dominio.com|serviceAccount:sa@project.iam.gserviceaccount.com>"
+npm run gcp:check -- --project <project-id> --member "<user:email@dominio.com|serviceAccount:sa@project.iam.gserviceaccount.com>"
+```
+
+O `gcp:bootstrap` faz:
+
+- habilita as APIs necessárias de Functions v2
+- concede `roles/iam.serviceAccountUser` no runtime service account padrão do projeto
+- concede `roles/cloudbuild.builds.builder` para a compute service account do projeto
+- verifica o service agent do Cloud Build
+
+O `gcp:check` não altera nada; ele só valida o ambiente e falha com o comando de bootstrap recomendado.
+
+Se `--member` não for informado, os scripts usam automaticamente a identidade autenticada no `gcloud`.
 
 ## Segurança do Firestore
 

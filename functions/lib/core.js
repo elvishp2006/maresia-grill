@@ -1,4 +1,12 @@
 export const normalizePriceCents = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : 0);
+export const normalizeCustomerName = (value) => {
+    if (typeof value !== 'string')
+        throw new Error('Nome do cliente inválido.');
+    const normalized = value.trim();
+    if (!normalized)
+        throw new Error('Informe o nome para finalizar o pedido.');
+    return normalized;
+};
 export const createBasePaymentSummary = (items, selectedItemIds, paymentStatus) => {
     let freeTotalCents = 0;
     let paidTotalCents = 0;
@@ -73,4 +81,22 @@ export const mapPaymentMethods = (types) => {
     if (methods.size === 0)
         methods.add('card');
     return Array.from(methods);
+};
+export const isWinningOrderDraft = (order, draftId, providerPaymentId) => {
+    if (!order)
+        return false;
+    if (order.sourceDraftId === draftId)
+        return true;
+    if (providerPaymentId && order.paymentSummary?.providerPaymentId === providerPaymentId)
+        return true;
+    return false;
+};
+export const isDuplicatePaidDraft = (order, draftId, providerPaymentId) => {
+    if (!order)
+        return false;
+    if (order.sourceDraftId === draftId)
+        return false;
+    if (providerPaymentId && order.paymentSummary?.providerPaymentId === providerPaymentId)
+        return false;
+    return true;
 };

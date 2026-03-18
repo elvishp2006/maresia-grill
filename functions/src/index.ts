@@ -6,7 +6,10 @@ import { logger } from 'firebase-functions';
 import {
   buildReturnUrl,
   createBasePaymentSummary,
+  isDuplicatePaidDraft,
+  isWinningOrderDraft,
   mapPaymentMethods,
+  normalizeCustomerName,
   normalizePriceCents,
   validateSelection,
 } from './core.js';
@@ -78,8 +81,19 @@ interface PublicOrderDraft {
   selectedItemIds: string[];
   paymentSummary: OrderPaymentSummary;
   checkoutSession: CheckoutSessionState | null;
+  failureReason?: 'superseded';
+  supersededByDraftId?: string | null;
+  supersededAt?: number | null;
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
+}
+
+interface StoredOrderEntry {
+  orderId: string;
+  customerName: string;
+  selectedItemIds: string[];
+  paymentSummary: OrderPaymentSummary;
+  sourceDraftId?: string | null;
 }
 
 interface PreparePublicOrderCheckoutBody {
@@ -137,6 +151,7 @@ const buildOrderPayload = (
     orderId: string;
     customerName: string;
     selectedItemIds: string[];
+    sourceDraftId?: string | null;
   },
   paymentSummary: OrderPaymentSummary,
 ) => ({
@@ -146,6 +161,7 @@ const buildOrderPayload = (
   menuVersionId: menu.currentVersionId,
   customerName: input.customerName.trim(),
   selectedItemIds: input.selectedItemIds,
+  sourceDraftId: input.sourceDraftId ?? null,
   selectedPaidItemIds: menu.items
     .filter(item => input.selectedItemIds.includes(item.id) && normalizePriceCents(item.priceCents) > 0)
     .map(item => item.id),
@@ -228,6 +244,10 @@ const refundStripePayment = async (providerPaymentId: string) => {
   });
 };
 
+const expireStripeCheckoutSession = async (sessionId: string) => {
+  await getStripeClient().checkout.sessions.expire(sessionId);
+};
+
 const getStripePaymentMethod = async (paymentIntentId: string): Promise<PaymentMethod> => {
   const paymentIntent = await getStripeClient().paymentIntents.retrieve(paymentIntentId, {
     expand: ['latest_charge'],
@@ -244,10 +264,12 @@ const finalizeOrderFromDraft = async (
 ) => {
   const version = await loadPublicMenuVersion(draft.menuVersionId);
   const orderRef = db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`);
+  let created = false;
 
   await db.runTransaction(async (transaction) => {
     const existingOrder = await transaction.get(orderRef);
     if (existingOrder.exists) return;
+    created = true;
 
     transaction.set(orderRef, buildOrderPayload({
       dateKey: draft.dateKey,
@@ -258,8 +280,11 @@ const finalizeOrderFromDraft = async (
       orderId: draft.orderId,
       customerName: draft.customerName,
       selectedItemIds: draft.selectedItemIds,
+      sourceDraftId: draft.id,
     }, paymentSummary));
   });
+
+  return created;
 };
 
 const updateDraftPaymentSummary = async (
@@ -270,6 +295,58 @@ const updateDraftPaymentSummary = async (
     paymentSummary,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
+};
+
+const updateDraftMetadata = async (
+  draftId: string,
+  patch: Record<string, unknown>,
+) => {
+  await db.doc(`publicOrderDrafts/${draftId}`).set({
+    ...patch,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+};
+
+const supersedeExistingDrafts = async (
+  shareToken: string,
+  dateKey: string,
+  orderId: string,
+  nextDraftId: string,
+) => {
+  const existingDrafts = await db.collection('publicOrderDrafts')
+    .where('shareToken', '==', shareToken)
+    .where('dateKey', '==', dateKey)
+    .where('orderId', '==', orderId)
+    .get();
+
+  for (const existingDraftDoc of existingDrafts.docs) {
+    const existingDraft = existingDraftDoc.data() as PublicOrderDraft;
+    if (existingDraft.paymentSummary.paymentStatus !== 'awaiting_payment') continue;
+
+    const sessionId = existingDraft.checkoutSession?.sessionId;
+    if (sessionId) {
+      try {
+        await expireStripeCheckoutSession(sessionId);
+      } catch (error) {
+        logger.warn('Falha ao expirar sessão Stripe anterior.', {
+          draftId: existingDraft.id,
+          orderId,
+          sessionId,
+          error,
+        });
+      }
+    }
+
+    await updateDraftMetadata(existingDraftDoc.id, {
+      paymentSummary: {
+        ...existingDraft.paymentSummary,
+        paymentStatus: 'failed' as const,
+      },
+      failureReason: 'superseded',
+      supersededByDraftId: nextDraftId,
+      supersededAt: Date.now(),
+    });
+  }
 };
 
 const getDraftFromCheckoutSession = async (session: Stripe.Checkout.Session) => {
@@ -293,6 +370,7 @@ export const preparePublicOrderCheckout = onRequest(async (req, res) => {
     const body = parseBody<PreparePublicOrderCheckoutBody>(req.body);
     const menu = await loadPublicMenu(body.shareToken, true);
     if (menu.dateKey !== body.dateKey) throw new Error('Cardápio público indisponível para este pedido.');
+    const customerName = normalizeCustomerName(body.customerName);
 
     const selectedItemIds = menu.items
       .filter(item => body.selectedItemIds.includes(item.id))
@@ -311,7 +389,7 @@ export const preparePublicOrderCheckout = onRequest(async (req, res) => {
       await db.doc(`orders/${menu.dateKey}/entries/${body.orderId}`).set(
         buildOrderPayload(menu, {
           orderId: body.orderId,
-          customerName: body.customerName,
+          customerName,
           selectedItemIds,
         }, finalizedSummary),
       );
@@ -320,7 +398,7 @@ export const preparePublicOrderCheckout = onRequest(async (req, res) => {
         kind: 'free_order_confirmed',
         order: {
           orderId: body.orderId,
-          customerName: body.customerName.trim(),
+          customerName,
           selectedItemIds,
           paymentSummary: finalizedSummary,
         },
@@ -328,13 +406,14 @@ export const preparePublicOrderCheckout = onRequest(async (req, res) => {
     }
 
     const draftId = randomUUID();
+    await supersedeExistingDrafts(menu.token, menu.dateKey, body.orderId, draftId);
     const now = admin.firestore.Timestamp.now();
     const draft: PublicOrderDraft = {
       id: draftId,
       dateKey: menu.dateKey,
       shareToken: menu.token,
       orderId: body.orderId,
-      customerName: body.customerName.trim(),
+      customerName,
       menuVersionId: menu.currentVersionId,
       selectedItemIds,
       paymentSummary,
@@ -378,18 +457,24 @@ export const publicOrderStatus = onRequest(async (req, res) => {
     if (draft.shareToken !== body.shareToken) throw new Error('Checkout não corresponde ao cardápio.');
 
     const orderSnap = await db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`).get();
-    if (orderSnap.exists) {
-      const order = orderSnap.data() as {
-        orderId: string;
-        customerName: string;
-        selectedItemIds: string[];
-        paymentSummary: OrderPaymentSummary;
-      };
+    if (draft.paymentSummary.paymentStatus === 'failed'
+      || draft.paymentSummary.paymentStatus === 'refund_pending'
+      || draft.paymentSummary.paymentStatus === 'refunded') {
       return json(res, 200, {
         draftId: draft.id,
-        paymentStatus: order.paymentSummary.paymentStatus,
-        order,
+        paymentStatus: draft.paymentSummary.paymentStatus,
       });
+    }
+
+    if (orderSnap.exists) {
+      const order = orderSnap.data() as StoredOrderEntry;
+      if (isWinningOrderDraft(order, draft.id, draft.paymentSummary.providerPaymentId)) {
+        return json(res, 200, {
+          draftId: draft.id,
+          paymentStatus: order.paymentSummary.paymentStatus,
+          order,
+        });
+      }
     }
 
     return json(res, 200, {
@@ -491,11 +576,41 @@ export const paymentWebhook = onRequest(async (req, res) => {
         paymentMethod,
       };
 
-      await updateDraftPaymentSummary(draftId, nextSummary);
-
       if (paymentStatus === 'paid') {
-        await finalizeOrderFromDraft(draft, nextSummary);
+        const created = await finalizeOrderFromDraft(draft, nextSummary);
+        if (created) {
+          await updateDraftPaymentSummary(draftId, nextSummary);
+          res.status(200).send('ok');
+          return;
+        }
+
+        const orderSnap = await db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`).get();
+        const order = orderSnap.exists ? orderSnap.data() as StoredOrderEntry : null;
+
+        if (isDuplicatePaidDraft(order, draft.id, providerPaymentId)) {
+          if (!providerPaymentId) {
+            logger.error('Pagamento duplicado sem providerPaymentId.', { draftId, orderId: draft.orderId });
+            await updateDraftPaymentSummary(draftId, nextSummary);
+            res.status(200).send('ok');
+            return;
+          }
+
+          await refundStripePayment(providerPaymentId);
+          await updateDraftMetadata(draftId, {
+            paymentSummary: {
+              ...nextSummary,
+              paymentStatus: 'refund_pending' as const,
+            },
+            failureReason: 'superseded',
+            supersededByDraftId: order?.sourceDraftId ?? null,
+            supersededAt: Date.now(),
+          });
+          res.status(200).send('ok');
+          return;
+        }
       }
+
+      await updateDraftPaymentSummary(draftId, nextSummary);
 
       res.status(200).send('ok');
       return;

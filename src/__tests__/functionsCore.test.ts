@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildReturnUrl,
   createBasePaymentSummary,
+  isDuplicatePaidDraft,
+  isWinningOrderDraft,
   mapPaymentMethods,
+  normalizeCustomerName,
   validateSelection,
 } from '../../functions/src/core';
 
@@ -65,5 +68,37 @@ describe('functions payment core', () => {
   it('maps Stripe payment method types with card fallback', () => {
     expect(mapPaymentMethods(['pix', 'card'])).toEqual(['pix', 'card']);
     expect(mapPaymentMethods(undefined)).toEqual(['card']);
+  });
+
+  it('normalizes and validates customer names', () => {
+    expect(normalizeCustomerName('  Maria  ')).toBe('Maria');
+    expect(() => normalizeCustomerName('   ')).toThrow('Informe o nome para finalizar o pedido.');
+    expect(() => normalizeCustomerName(null)).toThrow('Nome do cliente inválido.');
+  });
+
+  it('detects the winning draft for an order', () => {
+    expect(isWinningOrderDraft({ sourceDraftId: 'draft-1' }, 'draft-1')).toBe(true);
+    expect(isWinningOrderDraft({
+      paymentSummary: { providerPaymentId: 'pi_1' },
+    }, 'draft-1', 'pi_1')).toBe(true);
+    expect(isWinningOrderDraft({ sourceDraftId: 'draft-2' }, 'draft-1')).toBe(false);
+    expect(isWinningOrderDraft(null, 'draft-1')).toBe(false);
+  });
+
+  it('treats paid drafts from another attempt as duplicates', () => {
+    expect(isDuplicatePaidDraft({
+      sourceDraftId: 'draft-1',
+      paymentSummary: { providerPaymentId: 'pi_1' },
+    }, 'draft-2', 'pi_2')).toBe(true);
+
+    expect(isDuplicatePaidDraft({
+      sourceDraftId: 'draft-1',
+      paymentSummary: { providerPaymentId: 'pi_1' },
+    }, 'draft-1', 'pi_1')).toBe(false);
+
+    expect(isDuplicatePaidDraft({
+      sourceDraftId: 'draft-1',
+      paymentSummary: { providerPaymentId: 'pi_1' },
+    }, 'draft-2', 'pi_1')).toBe(false);
   });
 });

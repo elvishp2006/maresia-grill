@@ -33,9 +33,21 @@ export interface OrderPaymentSummary {
   refundedAt: number | null;
 }
 
+export interface FinalizedOrderReference {
+  sourceDraftId?: string | null;
+  paymentSummary?: Pick<OrderPaymentSummary, 'providerPaymentId'> | null;
+}
+
 export const normalizePriceCents = (value: unknown) => (
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : 0
 );
+
+export const normalizeCustomerName = (value: unknown) => {
+  if (typeof value !== 'string') throw new Error('Nome do cliente inválido.');
+  const normalized = value.trim();
+  if (!normalized) throw new Error('Informe o nome para finalizar o pedido.');
+  return normalized;
+};
 
 export const createBasePaymentSummary = (
   items: Item[],
@@ -127,4 +139,26 @@ export const mapPaymentMethods = (types: string[] | undefined): Array<'pix' | 'c
   }
   if (methods.size === 0) methods.add('card');
   return Array.from(methods);
+};
+
+export const isWinningOrderDraft = (
+  order: FinalizedOrderReference | null | undefined,
+  draftId: string,
+  providerPaymentId?: string | null,
+) => {
+  if (!order) return false;
+  if (order.sourceDraftId === draftId) return true;
+  if (providerPaymentId && order.paymentSummary?.providerPaymentId === providerPaymentId) return true;
+  return false;
+};
+
+export const isDuplicatePaidDraft = (
+  order: FinalizedOrderReference | null | undefined,
+  draftId: string,
+  providerPaymentId: string | null,
+) => {
+  if (!order) return false;
+  if (order.sourceDraftId === draftId) return false;
+  if (providerPaymentId && order.paymentSummary?.providerPaymentId === providerPaymentId) return false;
+  return true;
 };

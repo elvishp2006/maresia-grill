@@ -89,7 +89,13 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
 
+      - uses: google-github-actions/setup-gcloud@v2
+
       - run: npm install -g firebase-tools
+
+      - run: npm run gcp:check -- --project "${FIREBASE_PROJECT_ID_STAGING}"
+        env:
+          FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
 
       - name: Write Functions Env
         run: |
@@ -105,5 +111,10 @@ jobs:
 
       - name: Deploy Functions and Rules to Staging
         run: firebase deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID_STAGING}"
+        env:
+          FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
+
+      - name: Configure Functions Artifact Cleanup Policy
+        run: firebase functions:artifacts:setpolicy --project "${FIREBASE_PROJECT_ID_STAGING}" --location us-central1 --force
         env:
           FIREBASE_PROJECT_ID_STAGING: ${{ secrets.FIREBASE_PROJECT_ID_STAGING }}
