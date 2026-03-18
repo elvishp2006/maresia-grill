@@ -22,6 +22,7 @@ import {
   validateSelectionRules,
 } from './lib/categorySelectionRules';
 import { calculateOrderPaymentSummary, formatCurrency } from './lib/billing';
+import { groupOrderItemsByCategory } from './lib/utils';
 
 const CUSTOMER_NAME_STORAGE_KEY = 'public-menu-customer-name';
 const CUSTOMER_EMAIL_STORAGE_KEY = 'public-menu-customer-email';
@@ -384,12 +385,23 @@ function PublicStateCard({ icon, title, body, summary }: PublicStateCardProps) {
 function PublicOrderSummary({
   customerName,
   paidTotalCents,
+  categories,
   selectedItems,
 }: {
   customerName?: string;
   paidTotalCents: number;
-  selectedItems: Array<{ id: string; nome: string }>;
+  categories: string[];
+  selectedItems: Array<{ id: string; nome: string; categoria: string }>;
 }) {
+  const groupedItems = groupOrderItemsByCategory(
+    selectedItems.map(item => ({
+      id: item.id,
+      nome: item.nome,
+      categoria: item.categoria,
+    })),
+    categories,
+  );
+
   return (
     <>
       {customerName ? (
@@ -414,14 +426,24 @@ function PublicOrderSummary({
         <span>Itens escolhidos</span>
         <span>{selectedItems.length} selecionados</span>
       </div>
-      {selectedItems.length > 0 ? (
-        <ul className="mt-[10px] space-y-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
-          {selectedItems.map(item => (
-            <li key={item.id} className="rounded-[14px] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-[12px] py-[10px]">
-              {item.nome}
-            </li>
+      {groupedItems.length > 0 ? (
+        <div className="mt-[10px] space-y-[10px]">
+          {groupedItems.map(group => (
+            <div
+              key={group.category}
+              className="rounded-[16px] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-[12px] py-[10px]"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                {group.category}
+              </p>
+              <ul className="mt-[8px] space-y-[6px] text-[14px] leading-[1.6] text-[var(--text)]">
+                {group.names.map(name => (
+                  <li key={`${group.category}-${name}`}>{name}</li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : null}
     </>
   );
@@ -1024,9 +1046,14 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             <PublicOrderSummary
               customerName={successState.customerName}
               paidTotalCents={successState.paymentSummary.paidTotalCents}
+              categories={menu?.categories ?? []}
               selectedItems={successState.selectedItemIds.map(itemId => {
                 const item = menu?.items.find(candidate => candidate.id === itemId);
-                return { id: itemId, nome: item?.nome ?? itemId };
+                return {
+                  id: itemId,
+                  nome: item?.nome ?? itemId,
+                  categoria: item?.categoria ?? 'Outros',
+                };
               })}
             />
           )}
@@ -1074,7 +1101,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             <PublicOrderSummary
               customerName={pendingOrderSummary?.customerName ?? (customerName.trim() || undefined)}
               paidTotalCents={pendingPaymentSummary?.paidTotalCents ?? 0}
-              selectedItems={pendingSelectedItems.map(item => ({ id: item.id, nome: item.nome }))}
+              categories={menu?.categories ?? []}
+              selectedItems={pendingSelectedItems.map(item => ({
+                id: item.id,
+                nome: item.nome,
+                categoria: item.categoria,
+              }))}
             />
           )}
         />

@@ -714,6 +714,24 @@ describe('App', () => {
   it('shows success state after sending a public order and allows editing again', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
     window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Carnes', 'Saladas', 'Molhos'],
+        items: [
+          { id: '1', nome: 'Alface', categoria: 'Saladas' },
+          { id: '2', nome: 'Frango', categoria: 'Carnes' },
+          { id: '3', nome: 'Molho da casa', categoria: 'Molhos' },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+    submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1', '3', '2'] });
 
     render(
       <ToastProvider>
@@ -730,13 +748,15 @@ describe('App', () => {
       target: { value: 'ana@empresa.com' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Frango do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Molho da casa do menu do dia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
     await waitFor(() => {
       expect(submitPublicOrderMock).toHaveBeenCalledWith(expect.objectContaining({
         orderId: 'public-order-1',
         customerName: 'Ana',
-        selectedItemIds: ['1'],
+        selectedItemIds: ['1', '2', '3'],
       }));
     });
 
@@ -744,6 +764,11 @@ describe('App', () => {
     expect(window.location.hash).toBe('#/enviado');
     expect(screen.getByText('Seu nome')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
+    const groupedCategoryLabels = screen.getAllByText(/^(Carnes|Saladas|Molhos)$/).map(node => node.textContent);
+    expect(groupedCategoryLabels.slice(0, 3)).toEqual(['Carnes', 'Saladas', 'Molhos']);
+    expect(screen.getByText('Frango')).toBeInTheDocument();
+    expect(screen.getByText('Alface')).toBeInTheDocument();
+    expect(screen.getByText('Molho da casa')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeInTheDocument();
     expect(screen.getByText('Para mudar os itens, cancele este pedido e faça um novo.')).toBeInTheDocument();
@@ -1014,9 +1039,26 @@ describe('App', () => {
   });
 
   it('shows the pending paid order summary without a reveal button', async () => {
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Saladas', 'Carnes', 'Molhos'],
+        items: [
+          { id: '1', nome: 'Alface', categoria: 'Saladas' },
+          { id: '2', nome: 'Frango', categoria: 'Carnes' },
+          { id: '3', nome: 'Molho da casa', categoria: 'Molhos' },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
     localStorage.setItem('public-menu-pending-order:token-1', JSON.stringify({
       customerName: 'Ana',
-      selectedItemIds: ['1'],
+      selectedItemIds: ['3', '1', '2'],
       paymentSummary: {
         freeTotalCents: 0,
         paidTotalCents: 1500,
@@ -1045,7 +1087,11 @@ describe('App', () => {
     expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument();
     expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
+    const groupedCategoryLabels = screen.getAllByText(/^(Carnes|Saladas|Molhos)$/).map(node => node.textContent);
+    expect(groupedCategoryLabels.slice(0, 3)).toEqual(['Saladas', 'Carnes', 'Molhos']);
     expect(screen.getByText('Alface')).toBeInTheDocument();
+    expect(screen.getByText('Frango')).toBeInTheDocument();
+    expect(screen.getByText('Molho da casa')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ver itens selecionados' })).not.toBeInTheDocument();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
