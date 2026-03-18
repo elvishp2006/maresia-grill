@@ -114,21 +114,22 @@ Secrets esperados para producao no GitHub:
 
 ### Render Preview
 
-O `render.yaml` está temporariamente reduzido ao menor blueprint possível para isolar a falha de criação no Render.
+O `render.yaml` voltou ao blueprint completo com `projects/environments`, mantendo fora apenas o domínio customizado para evitar misturar causas de falha.
 
-- serviço único: `maresia-grill-production`
-- runtime: `static`
-- build: `npm install && npm run build`
+Neste passo, o arquivo usa:
 
-Esse arquivo não declara `projects`, `environments`, `envVarGroups`, `fromGroup` nem `domains` enquanto a criação inicial do recurso no Render não estabiliza.
+- `version: "1"`
+- `projects`
+- environments `production` e `staging`
+- env groups `production` e `staging`
+- previews automáticos no `staging`
+- nomes de serviço sem colisão no workspace:
+  - `maresia-grill-production-web`
+  - `maresia-grill-staging-web`
 
-Depois que o projeto for criado com sucesso, o próximo passo é recolocar:
+Ainda não recolocamos:
 
-- a estrutura com `projects/environments`
-- o serviço de `staging` com previews automaticos
-- o dominio `maresiagrill.com` no serviço de produção
-- o group `production` no ambiente de produção
-- o group `staging` no ambiente de staging
+- o dominio `maresiagrill.com`
 
 O workflow de staging busca a URL real do preview do Render via GitHub Deployments e a injeta como `PUBLIC_MENU_BASE_URL` no deploy das Functions de staging. Isso garante que o retorno do checkout Stripe volte para o preview correto do PR.
 
