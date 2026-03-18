@@ -1,8 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import type { PublicMenu } from './types';
+import type { FinalizedPublicOrder, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession } from './types';
+import EmbeddedStripeCheckout from './components/EmbeddedStripeCheckout';
 import LoadingSpinner from './components/LoadingSpinner';
-import { deletePublicOrder, submitPublicOrder, subscribePublicMenu } from './lib/storage';
+import {
+  cancelPublicOrder,
+  deletePublicOrder,
+  fetchPublicOrderStatus,
+  preparePublicOrderCheckout,
+  submitPublicOrder,
+  subscribePublicMenu,
+} from './lib/storage';
 import { useToast } from './contexts/ToastContext';
 import { useHapticFeedback } from './hooks/useHapticFeedback';
 import { useModal } from './contexts/ModalContext';
@@ -12,17 +20,25 @@ import {
   getItemSelectionAvailability,
   validateSelectionRules,
 } from './lib/categorySelectionRules';
+import { calculateOrderPaymentSummary, formatCurrency } from './lib/billing';
 
 const CUSTOMER_NAME_STORAGE_KEY = 'public-menu-customer-name';
+const CUSTOMER_EMAIL_STORAGE_KEY = 'public-menu-customer-email';
 
 interface CachedPublicOrder {
   orderId: string;
   customerName: string;
   selectedItemIds: string[];
+  paymentSummary: OrderPaymentSummary;
 }
 
 interface RemovedPublicOrderState {
   customerName: string;
+}
+
+interface PendingPublicPaymentState {
+  draftId: string;
+  paymentStatus: OrderPaymentSummary['paymentStatus'];
 }
 
 type PublicMenuView = 'form' | 'submitted' | 'removed';
@@ -56,6 +72,22 @@ const getStoredCustomerName = () => {
 const setStoredCustomerName = (name: string) => {
   try {
     localStorage.setItem(CUSTOMER_NAME_STORAGE_KEY, name);
+  } catch {
+    // Ignore local storage failures on unsupported browsers.
+  }
+};
+
+const getStoredCustomerEmail = () => {
+  try {
+    return localStorage.getItem(CUSTOMER_EMAIL_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+const setStoredCustomerEmail = (email: string) => {
+  try {
+    localStorage.setItem(CUSTOMER_EMAIL_STORAGE_KEY, email);
   } catch {
     // Ignore local storage failures on unsupported browsers.
   }
@@ -134,10 +166,28 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
       && Array.isArray(parsed.selectedItemIds)
       && parsed.selectedItemIds.every(item => typeof item === 'string')
     ) {
+      const paymentSummary = parsed.paymentSummary
+        && typeof parsed.paymentSummary === 'object'
+        && typeof parsed.paymentSummary.freeTotalCents === 'number'
+        && typeof parsed.paymentSummary.paidTotalCents === 'number'
+        && parsed.paymentSummary.currency === 'BRL'
+        && typeof parsed.paymentSummary.paymentStatus === 'string'
+        ? parsed.paymentSummary
+        : {
+          freeTotalCents: 0,
+          paidTotalCents: 0,
+          currency: 'BRL' as const,
+          paymentStatus: 'not_required' as const,
+          provider: null,
+          paymentMethod: null,
+          providerPaymentId: null,
+          refundedAt: null,
+        };
       return {
         orderId: parsed.orderId,
         customerName: parsed.customerName,
         selectedItemIds: parsed.selectedItemIds,
+        paymentSummary,
       };
     }
   } catch {
@@ -148,7 +198,14 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
 
 const setCachedOrder = (token: string, order: CachedPublicOrder) => {
   try {
-    localStorage.setItem(getCachedOrderStorageKey(token), JSON.stringify(order));
+    const payload = order.paymentSummary.paidTotalCents > 0
+      ? order
+      : {
+        orderId: order.orderId,
+        customerName: order.customerName,
+        selectedItemIds: order.selectedItemIds,
+      };
+    localStorage.setItem(getCachedOrderStorageKey(token), JSON.stringify(payload));
   } catch {
     // Ignore local storage failures on unsupported browsers.
   }
@@ -192,6 +249,21 @@ const clearStoredRemovedState = (token: string) => {
   }
 };
 
+const getDraftIdFromUrl = () => new URLSearchParams(window.location.search).get('draftId');
+
+const setDraftIdInUrl = (draftId: string) => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('draftId', draftId);
+  url.hash = '#/enviado';
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const clearDraftIdFromUrl = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('draftId');
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${window.location.hash}`);
+};
+
 const setStoredOrderId = (token: string, nextOrderId: string) => {
   try {
     localStorage.setItem(getOrderSessionStorageKey(token), nextOrderId);
@@ -199,6 +271,13 @@ const setStoredOrderId = (token: string, nextOrderId: string) => {
     // Ignore local storage failures on unsupported browsers.
   }
 };
+
+const toCachedOrder = (order: FinalizedPublicOrder): CachedPublicOrder => ({
+  orderId: order.orderId,
+  customerName: order.customerName,
+  selectedItemIds: order.selectedItemIds,
+  paymentSummary: order.paymentSummary,
+});
 
 function PublicHeader({ eyebrow, title, accent = 'gold', trailing }: PublicHeaderProps) {
   return (
@@ -273,11 +352,17 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const { confirm } = useModal();
   const [menu, setMenu] = useState<PublicMenu | null | undefined>(undefined);
   const [customerName, setCustomerName] = useState(() => getStoredCustomerName());
+  const [customerEmail, setCustomerEmail] = useState(() => getStoredCustomerEmail());
   const [selection, setSelection] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState(() => getStoredOrderId(token));
   const [successState, setSuccessState] = useState<CachedPublicOrder | null>(null);
   const [removedState, setRemovedState] = useState<RemovedPublicOrderState | null>(null);
+  const [checkoutSession, setCheckoutSession] = useState<PublicOrderCheckoutSession | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<PendingPublicPaymentState | null>(() => {
+    const draftId = typeof window !== 'undefined' ? getDraftIdFromUrl() : null;
+    return draftId ? { draftId, paymentStatus: 'awaiting_payment' } : null;
+  });
   const [currentView, setCurrentView] = useState<PublicMenuView>(() => readViewFromHash() ?? getStoredView(token) ?? 'form');
   const [footerHeight, setFooterHeight] = useState(112);
   const footerRef = useRef<HTMLDivElement | null>(null);
@@ -299,12 +384,19 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   }, [customerName]);
 
   useEffect(() => {
+    setStoredCustomerEmail(customerEmail);
+  }, [customerEmail]);
+
+  useEffect(() => {
     const nextOrderId = getStoredOrderId(token);
     setOrderId(nextOrderId);
+    setCheckoutSession(null);
 
     const cachedOrder = getCachedOrder(token);
     const storedView = readViewFromHash() ?? getStoredView(token) ?? 'form';
     const storedRemovedState = getStoredRemovedState(token);
+    const urlDraftId = getDraftIdFromUrl();
+    setPendingPayment(urlDraftId ? { draftId: urlDraftId, paymentStatus: 'awaiting_payment' } : null);
 
     if (cachedOrder) {
       setCustomerName(cachedOrder.customerName);
@@ -335,6 +427,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       const nextView = readViewFromHash();
       if (!nextView) return;
       setCurrentView(nextView);
+      const draftId = getDraftIdFromUrl();
+      setPendingPayment(prev => (
+        draftId
+          ? { draftId, paymentStatus: prev?.draftId === draftId ? prev.paymentStatus : 'awaiting_payment' }
+          : prev
+      ));
     };
 
     window.addEventListener('hashchange', handleHashChange);
@@ -367,6 +465,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         setCustomerName(cachedOrder.customerName);
         return;
       }
+      if (pendingPayment?.draftId || getDraftIdFromUrl()) {
+        setRemovedState(null);
+        return;
+      }
       setCurrentView('form');
       return;
     }
@@ -386,7 +488,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     setSuccessState(null);
     setRemovedState(null);
-  }, [currentView, removedState, token]);
+  }, [currentView, pendingPayment?.draftId, removedState, token]);
 
   useEffect(() => {
     if (!menu) return;
@@ -412,6 +514,64 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     setCachedOrder(token, { ...cachedOrder, selectedItemIds: nextSelectedItemIds });
   }, [menu, token]);
+
+  useEffect(() => {
+    const draftId = pendingPayment?.draftId ?? getDraftIdFromUrl();
+    if (!draftId || !menu) return;
+
+    let active = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const pollStatus = async () => {
+      setSubmitting(true);
+      try {
+        const result = await fetchPublicOrderStatus({ shareToken: menu.token, draftId });
+        if (!active) return;
+
+        if (result.order) {
+          const nextOrder = toCachedOrder(result.order);
+          setCachedOrder(menu.token, nextOrder);
+          clearStoredRemovedState(menu.token);
+          setSuccessState(nextOrder);
+          setRemovedState(null);
+          setSelection(nextOrder.selectedItemIds);
+          setCustomerName(nextOrder.customerName);
+          setPendingPayment(null);
+          setCheckoutSession(null);
+          setCurrentView('submitted');
+          clearDraftIdFromUrl();
+          return;
+        }
+
+        setPendingPayment({ draftId, paymentStatus: result.paymentStatus });
+        setCurrentView('submitted');
+
+        if (result.paymentStatus === 'awaiting_payment' || result.paymentStatus === 'paid') {
+          timeoutId = window.setTimeout(() => {
+            timeoutId = null;
+            void pollStatus();
+          }, 2500);
+          return;
+        }
+
+        if (result.paymentStatus === 'failed') {
+          showToast('O pagamento não foi concluído. Revise o checkout e tente novamente.', 'error');
+        }
+      } catch (error) {
+        if (!active) return;
+        showToast(error instanceof Error ? error.message : 'Não foi possível confirmar o pagamento.', 'error');
+      } finally {
+        if (active && !timeoutId) setSubmitting(false);
+      }
+    };
+
+    void pollStatus();
+
+    return () => {
+      active = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [menu, pendingPayment?.draftId, showToast]);
 
   useLayoutEffect(() => {
     const footer = footerRef.current;
@@ -445,9 +605,22 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const canStartNewOrder = Boolean(menu?.acceptingOrders);
   const isMenuExpired = menu === null;
   const selectedCount = selection.length;
+  const currentPaymentSummary = useMemo(() => (
+    menu
+      ? calculateOrderPaymentSummary(menu.items, selection)
+      : null
+  ), [menu, selection]);
   const selectionViolations = useMemo(() => (
     menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
   ), [menu, selection]);
+  const canEditPaidOrder = ((successState?.paymentSummary?.paidTotalCents) ?? 0) === 0;
+
+  const openSubmittedPaymentState = (draftId: string) => {
+    setDraftIdInUrl(draftId);
+    setPendingPayment({ draftId, paymentStatus: 'awaiting_payment' });
+    setCheckoutSession(null);
+    setCurrentView('submitted');
+  };
 
   const toggleItem = (id: string) => {
     if (!menu) return;
@@ -489,6 +662,51 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     setSubmitting(true);
     try {
+      if ((currentPaymentSummary?.paidTotalCents ?? 0) > 0) {
+        const url = new URL(window.location.href);
+        url.hash = '#/enviado';
+        url.searchParams.set('draftId', orderId);
+        const checkout = await preparePublicOrderCheckout({
+          orderId,
+          dateKey: menu.dateKey,
+          shareToken: menu.token,
+          customerName: trimmedName,
+          selectedItemIds: selection,
+          successUrl: url.toString(),
+          pendingUrl: url.toString(),
+          failureUrl: `${window.location.origin}${window.location.pathname}#/pedido`,
+        });
+
+        if (checkout.kind === 'free_order_confirmed' && checkout.order) {
+          const nextOrder = toCachedOrder(checkout.order);
+          setCachedOrder(menu.token, nextOrder);
+          clearStoredRemovedState(menu.token);
+          clearDraftIdFromUrl();
+          setPendingPayment(null);
+          setCheckoutSession(null);
+          setSuccessState(nextOrder);
+          setRemovedState(null);
+          setSelection(nextOrder.selectedItemIds);
+          setCurrentView('submitted');
+          return;
+        }
+
+        if (
+          checkout.kind === 'payment_required'
+          && checkout.checkoutSession?.clientSecret
+          && checkout.checkoutSession.draftId
+        ) {
+          setCheckoutSession(checkout.checkoutSession);
+          setPendingPayment({
+            draftId: checkout.checkoutSession.draftId,
+            paymentStatus: 'awaiting_payment',
+          });
+          return;
+        }
+
+        throw new Error('Não foi possível iniciar o pagamento.');
+      }
+
       const submission = await submitPublicOrder({
         orderId,
         dateKey: menu.dateKey,
@@ -501,9 +719,22 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         orderId,
         customerName: trimmedName,
         selectedItemIds: persistedSelection,
+        paymentSummary: submission.paymentSummary ?? currentPaymentSummary ?? {
+          freeTotalCents: 0,
+          paidTotalCents: 0,
+          currency: 'BRL',
+          paymentStatus: 'not_required',
+          provider: null,
+          paymentMethod: null,
+          providerPaymentId: null,
+          refundedAt: null,
+        },
       };
       setCachedOrder(menu.token, nextOrder);
       clearStoredRemovedState(menu.token);
+      clearDraftIdFromUrl();
+      setPendingPayment(null);
+      setCheckoutSession(null);
       setSuccessState(nextOrder);
       setRemovedState(null);
       setSelection(persistedSelection);
@@ -518,20 +749,35 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const handleDeleteOrder = async () => {
     if (!menu || !successState) return;
 
+    const isPaidOrder = successState.paymentSummary.paidTotalCents > 0;
+
     const ok = await confirm(
-      'Remover pedido',
-      'Deseja remover o seu pedido deste cardápio? Você poderá fazer um novo pedido enquanto o recebimento estiver aberto.',
+      isPaidOrder ? 'Cancelar pedido' : 'Remover pedido',
+      isPaidOrder
+        ? 'Este pedido tem itens pagos. O cancelamento solicitará o estorno antes de liberar um novo pedido.'
+        : 'Deseja remover o seu pedido deste cardápio? Você poderá fazer um novo pedido enquanto o recebimento estiver aberto.',
     );
     if (!ok) return;
 
     setSubmitting(true);
     try {
-      await deletePublicOrder({
-        orderId: successState.orderId,
-        dateKey: menu.dateKey,
-        shareToken: menu.token,
-      });
+      if (isPaidOrder) {
+        await cancelPublicOrder({
+          orderId: successState.orderId,
+          dateKey: menu.dateKey,
+          shareToken: menu.token,
+        });
+      } else {
+        await deletePublicOrder({
+          orderId: successState.orderId,
+          dateKey: menu.dateKey,
+          shareToken: menu.token,
+        });
+      }
       clearCachedOrder(menu.token);
+      clearDraftIdFromUrl();
+      setPendingPayment(null);
+      setCheckoutSession(null);
       const nextOrderId = createOrderId();
       setStoredOrderId(menu.token, nextOrderId);
       setOrderId(nextOrderId);
@@ -549,6 +795,50 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   };
 
   if (menu === undefined) return <LoadingSpinner />;
+
+  if (checkoutSession?.clientSecret) {
+    return (
+      <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
+        <PublicHeader eyebrow="Pagamento" title="Finalize seu pedido" />
+        <section className="public-panel px-[18px] py-[20px]">
+          <div className="public-inline-panel px-[16px] py-[14px]">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
+              Continue de onde parou
+            </p>
+            <p className="mt-[6px] text-[15px] leading-[1.7] text-[var(--text-dim)]">
+              Revise os dados e conclua o pagamento sem sair desta tela.
+            </p>
+          </div>
+          <div className="mt-[16px] overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-[12px] shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
+            <EmbeddedStripeCheckout
+              clientSecret={checkoutSession.clientSecret}
+              email={customerEmail}
+              onEmailChange={setCustomerEmail}
+              onComplete={() => openSubmittedPaymentState(checkoutSession.draftId)}
+              onError={(message) => {
+                showToast(message, 'error');
+                setSubmitting(false);
+              }}
+            />
+          </div>
+        </section>
+        <PublicActionBar footerRef={footerRef}>
+          <button
+            type="button"
+            onClick={() => {
+              lightTap();
+              setSubmitting(false);
+              setCheckoutSession(null);
+              setPendingPayment(null);
+            }}
+            className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
+          >
+            Voltar ao pedido
+          </button>
+        </PublicActionBar>
+      </main>
+    );
+  }
 
   if (removedState) {
     return (
@@ -616,6 +906,14 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               <p className="mt-[6px] text-[18px] font-semibold text-[var(--text)]">
                 {successState.customerName}
               </p>
+              <div className="mt-[12px] rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                  Total pago
+                </p>
+                <p className="mt-[4px] text-[15px] font-semibold text-[var(--accent)]">
+                  {formatCurrency(successState.paymentSummary.paidTotalCents)}
+                </p>
+              </div>
               <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[13px] text-[var(--text-dim)]">
                 <span>Itens escolhidos</span>
                 <span>{successState.selectedItemIds.length} selecionados</span>
@@ -626,19 +924,21 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         {canModifyExistingOrder ? (
           <PublicActionBar footerRef={footerRef}>
               <div className="flex gap-[10px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    lightTap();
-                    setCustomerName(successState.customerName);
-                    setSelection(successState.selectedItemIds);
-                    setSuccessState(null);
-                    setCurrentView('form');
-                  }}
-                  className="neon-gold-fill min-h-[54px] flex-1 rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
-                >
-                  Editar pedido
-                </button>
+                {canEditPaidOrder ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      lightTap();
+                      setCustomerName(successState.customerName);
+                      setSelection(successState.selectedItemIds);
+                      setSuccessState(null);
+                      setCurrentView('form');
+                    }}
+                    className="neon-gold-fill min-h-[54px] flex-1 rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
+                  >
+                    Editar pedido
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
@@ -648,11 +948,54 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                   disabled={submitting}
                   className="min-h-[54px] flex-1 rounded-[20px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)] px-[18px] text-[15px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Remover pedido
+                  {successState.paymentSummary.paidTotalCents > 0 ? 'Cancelar e estornar' : 'Remover pedido'}
                 </button>
               </div>
+              {!canEditPaidOrder ? (
+                <p className="mt-[10px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
+                  Pedidos com itens pagos ficam bloqueados para edição. Se precisar alterar, cancele e refaça o pedido.
+                </p>
+              ) : null}
           </PublicActionBar>
         ) : null}
+      </main>
+    );
+  }
+
+  if (currentView === 'submitted' && pendingPayment && !successState) {
+    return (
+      <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
+        <PublicHeader eyebrow="Pagamento" title="Confirmando seu pedido" />
+        <PublicStateCard
+          icon={(
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          )}
+          title={pendingPayment.paymentStatus === 'failed' ? 'Pagamento não concluído' : 'Aguardando confirmação'}
+          body={
+            pendingPayment.paymentStatus === 'failed'
+              ? 'O Stripe informou que o pagamento não foi concluído. Você pode voltar ao pedido e tentar novamente.'
+              : 'Estamos aguardando a confirmação do Stripe para finalizar o pedido. Esta tela atualiza automaticamente.'
+          }
+        />
+        <PublicActionBar footerRef={footerRef}>
+          <button
+            type="button"
+            onClick={() => {
+              lightTap();
+              if (pendingPayment.paymentStatus === 'failed') {
+                clearDraftIdFromUrl();
+                setPendingPayment(null);
+              }
+              setCurrentView('form');
+            }}
+            className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
+          >
+            {pendingPayment.paymentStatus === 'failed' ? 'Voltar ao pedido' : 'Ver itens selecionados'}
+          </button>
+        </PublicActionBar>
       </main>
     );
   }
@@ -725,7 +1068,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           </div>
         </div>
         <p className="mt-[10px] text-[14px] leading-[1.7] text-[var(--text-dim)]">
-          Digite seu nome e escolha os itens do seu pedido.
+          Digite seu nome, e-mail e escolha os itens do seu pedido.
         </p>
 
         <label className="mt-[18px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
@@ -735,6 +1078,20 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             value={customerName}
             onChange={(event) => setCustomerName(event.target.value)}
             placeholder="Digite seu nome"
+            className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[17px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+          />
+        </label>
+
+        <label className="mt-[14px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+          Seu e-mail
+          <input
+            type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            value={customerEmail}
+            onChange={(event) => setCustomerEmail(event.target.value)}
+            placeholder="voce@empresa.com"
             className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[17px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
           />
         </label>
@@ -807,6 +1164,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                         <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
                           {availability.helperText}
                         </span>
+                        {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
+                          <span className="mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                            {formatCurrency(item.priceCents)}
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                   </li>
@@ -823,6 +1185,16 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             <p className="mt-[4px] text-[14px] text-[var(--text-muted)]">
               {selectedCount === 0 ? 'Selecione os complementos desejados.' : `${selectedCount} item(ns) pronto(s) para envio`}
             </p>
+            {currentPaymentSummary ? (
+              <div className="mt-[12px] rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                  Total a pagar
+                </p>
+                <p className="mt-[4px] text-[15px] font-semibold text-[var(--accent)]">
+                  {formatCurrency(currentPaymentSummary.paidTotalCents)}
+                </p>
+              </div>
+            ) : null}
             {selectionViolations[0] ? (
               <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--accent-red)]">
                 {selectionViolations[0].message}
@@ -838,7 +1210,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             disabled={submitting}
             className="neon-gold-fill min-h-[56px] w-full rounded-[22px] bg-[var(--accent)] px-[18px] text-[16px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {submitting ? 'Enviando...' : 'Enviar pedido'}
+            {submitting ? 'Processando...' : (currentPaymentSummary?.paidTotalCents ?? 0) > 0 ? 'Pagar e finalizar pedido' : 'Enviar pedido'}
           </button>
         </div>
       </PublicActionBar>

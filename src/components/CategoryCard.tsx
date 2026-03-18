@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Categoria, CategorySelectionRule, Item } from '../types';
 import ItemList from './ItemList';
-import AddForm from './AddForm';
+import ItemEditorForm from './ItemEditorForm';
 import BottomSheet from './BottomSheet';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { useModal } from '../contexts/ModalContext';
@@ -19,9 +19,10 @@ interface CategoryCardProps {
   allCategoryRules?: CategorySelectionRule[];
   daySelection: string[];
   onToggle: (id: string) => void;
-  onAdd: (nome: string, categoria: Categoria) => void;
+  onAdd: (nome: string, categoria: Categoria, priceCents?: number | null) => void;
   onRemove: (id: string) => void;
-  onRename: (id: string, newNome: string) => void;
+  onUpdateItem?: (id: string, input: { nome: string; priceCents: number }) => void;
+  onRename?: (id: string, newNome: string) => void;
   search: string;
   sortMode: 'alpha' | 'usage';
   usageCounts: Record<string, number>;
@@ -50,6 +51,7 @@ export default function CategoryCard({
   onToggle,
   onAdd,
   onRemove,
+  onUpdateItem,
   onRename,
   search,
   sortMode,
@@ -329,6 +331,7 @@ export default function CategoryCard({
               viewMode={viewMode}
               onToggle={onToggle}
               onRemove={onRemove}
+              onUpdate={onUpdateItem}
               onRename={onRename}
               isOnline={isOnline}
             />
@@ -342,12 +345,13 @@ export default function CategoryCard({
         title={`Novo item em ${categoria}`}
         description="Adicione um complemento e ele entra selecionado no menu do dia."
       >
-        <AddForm
-          onAdd={(nome) => {
-            onAdd(nome, categoria);
+        <ItemEditorForm
+          onSubmit={({ nome, priceCents }) => {
+            onAdd(nome, categoria, priceCents);
             setShowAddSheet(false);
           }}
           onClose={() => setShowAddSheet(false)}
+          submitLabel="Adicionar"
           disabled={!isOnline}
         />
       </BottomSheet>

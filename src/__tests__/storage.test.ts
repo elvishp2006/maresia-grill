@@ -15,6 +15,7 @@ const mockQuery = vi.fn((ref: unknown, ordering?: unknown) => {
 const mockOrderBy = vi.fn((field: string, direction: string) => ({ field, direction }));
 const mockOnSnapshot = vi.fn();
 const mockRunTransaction = vi.fn();
+const mockFetch = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
   getDoc: (ref: unknown) => mockGetDoc(ref),
@@ -30,6 +31,8 @@ vi.mock('firebase/firestore', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('VITE_PUBLIC_ORDER_API_URL', 'http://127.0.0.1:5001/menu-7f7cd/us-central1');
+  vi.stubGlobal('fetch', mockFetch);
   mockRunTransaction.mockImplementation(async (_db: unknown, callback: (transaction: {
     get: typeof mockGetDoc;
     set: typeof mockSetDoc;
@@ -60,6 +63,122 @@ describe('storage', () => {
       const { loadCategories } = await import('../lib/storage');
       const result = await loadCategories();
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('public orders api', () => {
+    it('prepares public order checkout through the functions endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          kind: 'payment_required',
+          draftId: 'draft-1',
+          checkoutSession: {
+            draftId: 'draft-1',
+            clientSecret: 'cs_test_123',
+            sessionId: 'csess_123',
+            provider: 'stripe',
+            availableMethods: ['card'],
+          },
+        }),
+      });
+
+      const { preparePublicOrderCheckout } = await import('../lib/storage');
+      const result = await preparePublicOrderCheckout({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Teste',
+        selectedItemIds: ['1'],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:5001/menu-7f7cd/us-central1/preparePublicOrderCheckout',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+      expect(result).toEqual(expect.objectContaining({
+        kind: 'payment_required',
+        draftId: 'draft-1',
+      }));
+    });
+
+    it('loads public order status through the functions endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          draftId: 'draft-1',
+          paymentStatus: 'awaiting_payment',
+        }),
+      });
+
+      const { fetchPublicOrderStatus } = await import('../lib/storage');
+      const result = await fetchPublicOrderStatus({
+        shareToken: 'token-1',
+        draftId: 'draft-1',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:5001/menu-7f7cd/us-central1/publicOrderStatus',
+        expect.any(Object),
+      );
+      expect(result).toEqual({
+        draftId: 'draft-1',
+        paymentStatus: 'awaiting_payment',
+      });
+    });
+
+    it('cancels public orders through the functions endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          refunded: true,
+          paymentSummary: {
+            freeTotalCents: 0,
+            paidTotalCents: 700,
+            currency: 'BRL',
+            paymentStatus: 'refund_pending',
+            provider: 'stripe',
+            paymentMethod: 'card',
+            providerPaymentId: 'pi_123',
+            refundedAt: null,
+          },
+        }),
+      });
+
+      const { cancelPublicOrder } = await import('../lib/storage');
+      const result = await cancelPublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:5001/menu-7f7cd/us-central1/cancelPublicOrder',
+        expect.any(Object),
+      );
+      expect(result).toEqual(expect.objectContaining({
+        refunded: true,
+      }));
+    });
+
+    it('surfaces backend messages from the public orders api', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        json: async () => ({ message: 'Falha remota.' }),
+      });
+
+      const { preparePublicOrderCheckout } = await import('../lib/storage');
+
+      await expect(preparePublicOrderCheckout({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Teste',
+        selectedItemIds: ['1'],
+      })).rejects.toThrow('Falha remota.');
     });
   });
 
@@ -477,7 +596,7 @@ describe('storage', () => {
           token: 'token-1',
           dateKey: '2026-03-17',
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
           acceptingOrders: true,
         }),
       } as unknown as DocumentSnapshot);
@@ -548,7 +667,7 @@ describe('storage', () => {
             items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
             categorySelectionRules: [],
             createdAt: new Date('2026-03-17T10:00:00Z'),
-            expiresAt: new Date('2026-03-17T23:59:59Z'),
+            expiresAt: new Date('2099-03-17T23:59:59Z'),
           }),
         });
         return vi.fn();
@@ -574,7 +693,7 @@ describe('storage', () => {
           token: 'token-1',
           dateKey: '2026-03-17',
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
           acceptingOrders: false,
         }),
       } as unknown as DocumentSnapshot);
@@ -636,7 +755,7 @@ describe('storage', () => {
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
           categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
@@ -675,7 +794,7 @@ describe('storage', () => {
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
           categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
@@ -702,7 +821,7 @@ describe('storage', () => {
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
           categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
@@ -740,7 +859,7 @@ describe('storage', () => {
           ],
           categorySelectionRules: [{ category: 'Saladas', maxSelections: 1 }],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
@@ -774,7 +893,7 @@ describe('storage', () => {
             { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
           ],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
@@ -834,7 +953,7 @@ describe('storage', () => {
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
           categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
@@ -863,7 +982,7 @@ describe('storage', () => {
           items: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
           categorySelectionRules: [],
           createdAt: new Date('2026-03-17T10:00:00Z'),
-          expiresAt: new Date('2026-03-17T23:59:59Z'),
+          expiresAt: new Date('2099-03-17T23:59:59Z'),
         }),
       } as unknown as DocumentSnapshot);
 
