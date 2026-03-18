@@ -114,18 +114,24 @@ Secrets esperados para producao no GitHub:
 
 ### Render Preview
 
-O Blueprint do Render agora usa `projects/environments` com dois ambientes:
+O Blueprint do Render usa `projects/environments` com dois ambientes:
 
-- `production`: serviço `maresia-grill`, usando o group `production`
-- `staging`: serviço `maresia-grill-staging`, usando o group `staging` e gerando previews automaticos
+- `production`: serviço `maresia-grill`
+- `staging`: serviço `maresia-grill-staging`, com previews automaticos
 
-Com isso, os previews de PR passam a nascer a partir do ambiente `staging`, herdando o group `staging` sem precisar declarar secrets inline no `render.yaml`.
+No momento, o `render.yaml` está em modo de bootstrap para isolar falhas de criação do Blueprint no Render. Por isso, o arquivo não declara `envVarGroups`, `fromGroup` nem `domains` enquanto a criação inicial do projeto novo não estabiliza.
+
+Depois que o projeto for criado com sucesso, o próximo passo é recolocar:
+
+- o dominio `maresiagrill.com` no serviço de produção
+- o group `production` no ambiente de produção
+- o group `staging` no ambiente de staging
 
 O workflow de staging busca a URL real do preview do Render via GitHub Deployments e a injeta como `PUBLIC_MENU_BASE_URL` no deploy das Functions de staging. Isso garante que o retorno do checkout Stripe volte para o preview correto do PR.
 
 ### Variaveis do preview no Render
 
-O group `staging` do Render deve conter os valores de staging para:
+Quando os groups forem recolocados no Blueprint, o group `staging` do Render deve conter os valores de staging para:
 
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`

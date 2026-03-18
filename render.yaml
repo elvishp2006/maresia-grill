@@ -2,14 +2,10 @@ projects:
   - name: maresia-grill-production
     environments:
       - name: production
-        envVarGroups:
-          - name: production
         services:
           - type: web
             name: maresia-grill
             runtime: static
-            domains:
-              - maresiagrill.com
             buildCommand: npm install && npm run build
             staticPublishPath: dist
             routes:
@@ -19,11 +15,7 @@ projects:
               - type: rewrite
                 source: /*
                 destination: /index.html
-            envVars:
-              - fromGroup: production
       - name: staging
-        envVarGroups:
-          - name: staging
         services:
           - type: web
             name: maresia-grill-staging
@@ -39,5 +31,3 @@ projects:
               - type: rewrite
                 source: /*
                 destination: /index.html
-            envVars:
-              - fromGroup: staging
