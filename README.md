@@ -107,6 +107,9 @@ Secrets esperados para producao no GitHub:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
+Os deploys de app usam `environment secrets` do GitHub com os mesmos nomes em `production` e `staging`. Quando houver um secret com o mesmo nome no ambiente e no repositório, o secret do ambiente tem precedência, conforme a documentação oficial do GitHub:
+- https://docs.github.com/en/actions/reference/security/secrets
+
 Projeto de produção atual:
 
 - `maresia-grill---production`
@@ -124,9 +127,12 @@ Variáveis e secrets esperados para IaC:
 - `secrets.GCP_TERRAFORM_CREDENTIALS_STAGING`
 - `secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION`
 
-Variáveis adicionais esperadas para deploy do app:
+Variáveis de environment esperadas para deploy do app:
 
-- `vars.RENDER_STAGING_ORIGIN`
+- `GCP_PROJECT_ID`
+- `PUBLIC_WEB_ORIGIN`
+
+Essas variáveis de deploy existem no environment `production` e no environment `staging` com os mesmos nomes. As variáveis com sufixo `_PRODUCTION` e `_STAGING` ficam restritas ao pipeline de IaC, que precisa conhecer os dois ambientes ao mesmo tempo.
 
 ### Render Staging
 
@@ -221,9 +227,8 @@ Hospedado no Render como static site:
 - `Deploy Functions`: publica automaticamente as Functions na `main` e na `staging`
 - `Deploy Firestore Rules`: publica `firestore.rules` na `main` e na `staging`
 - os dois workflows escolhem `production` ou `staging` pela branch
-- os dois workflows usam `vars.GCP_PROJECT_ID_PRODUCTION` na `main`
-- os dois workflows usam `vars.GCP_PROJECT_ID_STAGING` na `staging`
-- `Deploy Functions` usa `vars.RENDER_STAGING_ORIGIN` na branch `staging` para validar CORS/acesso do endpoint público a partir da origem real do staging no Render
+- os dois workflows usam `vars.GCP_PROJECT_ID` do environment atual
+- `Deploy Functions` usa `vars.PUBLIC_WEB_ORIGIN` do environment atual para validar CORS/acesso do endpoint público a partir da origem real do app
 - Os deploys do app assumem que a infraestrutura IAM já foi aplicada pelo pipeline de infra
 
 Secrets obrigatorios para o deploy automatico das Functions:
@@ -231,8 +236,6 @@ Secrets obrigatorios para o deploy automatico das Functions:
 - `FIREBASE_SERVICE_ACCOUNT`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `FIREBASE_SERVICE_ACCOUNT_STAGING`
-- `STRIPE_SECRET_KEY_STAGING`
 - `STRIPE_WEBHOOK_SECRET_STAGING`
 
 A produção canônica do projeto é `maresia-grill---production`. Deploys e IaC de produção devem apontar apenas para esse projeto.
