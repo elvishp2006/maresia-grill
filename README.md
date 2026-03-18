@@ -142,9 +142,9 @@ Neste passo, o arquivo usa:
   - `maresia-grill-production-web`
   - `maresia-grill-staging-web`
 
-Ainda não recolocamos:
+O domínio customizado de produção fica declarado no Blueprint:
 
-- o dominio `maresiagrill.com`
+- `maresiagrill.com` em `web-production`
 
 O checkout Stripe usa a URL de retorno enviada pelo próprio frontend no momento da criação da sessão. O backend valida que essa URL pertence à mesma origem da requisição HTTP, então o frontend publicado em staging funciona sem depender de redeploy dinâmico por PR.
 

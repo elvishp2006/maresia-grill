@@ -12,6 +12,8 @@ projects:
             runtime: static
             buildCommand: npm install && npm run build
             staticPublishPath: dist
+            domains:
+              - maresiagrill.com
             routes:
               - type: rewrite
                 source: /s/*
