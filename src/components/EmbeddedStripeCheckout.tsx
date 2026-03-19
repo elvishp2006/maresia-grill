@@ -40,8 +40,6 @@ interface EmbeddedStripeCheckoutProps {
   onComplete: () => void;
 }
 
-type CheckoutStep = 'select_method' | 'card_form';
-
 const EXPRESS_METHOD_ORDER: Array<keyof AvailablePaymentMethods> = [
   'applePay',
   'googlePay',
@@ -78,7 +76,6 @@ function CheckoutForm({
 }: Omit<EmbeddedStripeCheckoutProps, 'clientSecret'>) {
   const checkoutState = useCheckout();
   const { showToast } = useToast();
-  const [step, setStep] = useState<CheckoutStep>('select_method');
   const [submitting, setSubmitting] = useState(false);
   const [elementReady, setElementReady] = useState(false);
   const [email, setEmail] = useState(initialEmail);
@@ -95,7 +92,7 @@ function CheckoutForm({
   const showExpressElement = !expressReady || availableExpressMethods.length > 0;
 
   useEffect(() => {
-    if (step !== 'select_method' || expressReady) return undefined;
+    if (expressReady) return undefined;
 
     const timeout = window.setTimeout(() => {
       setExpressReady(true);
@@ -103,7 +100,7 @@ function CheckoutForm({
     }, EXPRESS_AVAILABILITY_TIMEOUT_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [expressReady, step]);
+  }, [expressReady]);
 
   const handleEmailChange = (nextEmail: string) => {
     setEmail(nextEmail);
@@ -208,173 +205,124 @@ function CheckoutForm({
 
   return (
     <div className="space-y-[14px]">
-      {step === 'select_method' ? (
-        <>
-          <div className="public-inline-panel space-y-[8px] px-[14px] py-[14px]">
+      {showExpressElement ? (
+        <div className="stripe-payment-shell stripe-payment-frame space-y-[12px] p-[12px]">
+          {expressMethodLabels.length > 0 ? (
             <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-              Escolha como pagar
+              Pagamento rápido
             </p>
-            <p className="text-[14px] leading-[1.6] text-[var(--text-dim)]">
-              Mostramos só os meios disponíveis neste dispositivo.
-            </p>
+          ) : null}
+          <div className="stripe-payment-element stripe-payment-element--ready">
+            <ExpressCheckoutElement
+              options={{
+                buttonHeight: 50,
+                buttonTheme: {
+                  applePay: 'black',
+                  googlePay: 'black',
+                  paypal: 'gold',
+                },
+                buttonType: {
+                  applePay: 'buy',
+                  googlePay: 'pay',
+                  paypal: 'pay',
+                },
+                layout: {
+                  maxColumns: 1,
+                  maxRows: 6,
+                  overflow: 'never',
+                },
+                paymentMethodOrder: ['applePay', 'googlePay', 'link', 'paypal', 'amazonPay', 'klarna'],
+                paymentMethods: {
+                  applePay: 'auto',
+                  googlePay: 'auto',
+                  link: 'auto',
+                  paypal: 'auto',
+                  amazonPay: 'auto',
+                  klarna: 'auto',
+                },
+              }}
+              onReady={(event) => {
+                handleExpressReady(event.availablePaymentMethods);
+              }}
+              onConfirm={handleExpressConfirm}
+              onLoadError={() => {
+                setExpressReady(true);
+                setAvailableExpressMethods([]);
+              }}
+            />
           </div>
+        </div>
+      ) : null}
 
-          <div className="stripe-payment-shell stripe-payment-frame space-y-[12px] p-[12px]">
-            <div className="space-y-[8px]">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-                Pagamento rápido
-              </p>
-              {expressMethodLabels.length > 0 ? (
-                <p className="text-[14px] leading-[1.6] text-[var(--text-dim)]">
-                  Disponível agora: {expressMethodLabels.join(', ')}.
-                </p>
-              ) : expressReady ? (
-                <p className="text-[14px] leading-[1.6] text-[var(--text-dim)]">
-                  Nenhuma carteira compatível disponível neste dispositivo.
-                </p>
-              ) : (
-                <p className="text-[14px] leading-[1.6] text-[var(--text-dim)]">
-                  Verificando carteiras compatíveis...
-                </p>
-              )}
-            </div>
+      {expressSubmitting ? (
+        <div className="public-inline-panel px-[12px] py-[12px] text-center text-[14px] text-[var(--text-dim)]">
+          {EXPRESS_SUBMIT_LABELS[expressSubmitting] ?? 'Processando pagamento...'}
+        </div>
+      ) : null}
 
-            {showExpressElement ? (
-              <div className="stripe-payment-element stripe-payment-element--ready">
-                <ExpressCheckoutElement
-                  options={{
-                    buttonHeight: 50,
-                    buttonTheme: {
-                      applePay: 'black',
-                      googlePay: 'black',
-                      paypal: 'gold',
-                    },
-                    buttonType: {
-                      applePay: 'buy',
-                      googlePay: 'pay',
-                      paypal: 'pay',
-                    },
-                    layout: {
-                      maxColumns: 1,
-                      maxRows: 6,
-                      overflow: 'never',
-                    },
-                    paymentMethodOrder: ['applePay', 'googlePay', 'link', 'paypal', 'amazonPay', 'klarna'],
-                    paymentMethods: {
-                      applePay: 'auto',
-                      googlePay: 'auto',
-                      link: 'auto',
-                      paypal: 'auto',
-                      amazonPay: 'auto',
-                      klarna: 'auto',
-                    },
-                  }}
-                  onReady={(event) => {
-                    handleExpressReady(event.availablePaymentMethods);
-                  }}
-                  onConfirm={handleExpressConfirm}
-                  onLoadError={() => {
-                    setExpressReady(true);
-                    setAvailableExpressMethods([]);
-                  }}
-                />
+      <form onSubmit={handleSubmit} className="space-y-[14px]">
+        <label className="block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+          Seu e-mail
+          <input
+            type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => handleEmailChange(event.target.value)}
+            onBlur={() => setEmailTouched(true)}
+            placeholder="voce@empresa.com"
+            aria-invalid={emailError ? 'true' : 'false'}
+            className="neon-gold-focus mt-[8px] w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+          />
+          {emailError ? (
+            <p className="mt-[8px] text-[13px] leading-[1.5] normal-case tracking-normal text-[var(--accent-red)]">
+              {emailError}
+            </p>
+          ) : null}
+        </label>
+
+        <div className="stripe-payment-shell stripe-payment-frame">
+          {!elementReady || isLoading ? (
+            <div className="stripe-payment-loading" aria-hidden="true">
+              <div className="stripe-payment-skeleton">
+                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
+                <div className="stripe-payment-skeleton__block" />
+                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
+                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+                <div className="stripe-payment-skeleton__button" />
               </div>
-            ) : null}
-          </div>
-
-          {expressSubmitting ? (
-            <div className="public-inline-panel px-[12px] py-[12px] text-center text-[14px] text-[var(--text-dim)]">
-              {EXPRESS_SUBMIT_LABELS[expressSubmitting] ?? 'Processando pagamento...'}
             </div>
           ) : null}
+          {isLoading ? (
+            <div className="stripe-payment-element" aria-hidden="true" />
+          ) : (
+            <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
+              <PaymentElement
+                options={{ layout: 'accordion' }}
+                onReady={() => {
+                  setElementReady(true);
+                }}
+                onLoadError={() => {
+                  // O estado de erro do checkout cobre falhas fatais de carregamento.
+                }}
+              />
+            </div>
+          )}
+        </div>
 
-          <div className="public-inline-panel px-[12px] py-[12px]">
-            <button
-              type="button"
-              onClick={() => {
-                setStep('card_form');
-                setElementReady(false);
-              }}
-              disabled={Boolean(expressSubmitting)}
-              className="neon-gold-fill min-h-[52px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Cartão de crédito
-            </button>
-          </div>
-        </>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-[14px]">
+        <div className="public-inline-panel px-[12px] py-[12px]">
           <button
-            type="button"
-            onClick={() => setStep('select_method')}
-            className="rounded-[14px] border border-[var(--border)] px-[12px] py-[10px] text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text)]"
+            type="submit"
+            disabled={submitting || isLoading || !elementReady}
+            className="neon-gold-fill min-h-[52px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Voltar para os meios de pagamento
+            {submitting ? 'Processando pagamento...' : 'Pagar'}
           </button>
-
-          <label className="block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            Seu e-mail
-            <input
-              type="email"
-              inputMode="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => handleEmailChange(event.target.value)}
-              onBlur={() => setEmailTouched(true)}
-              placeholder="voce@empresa.com"
-              aria-invalid={emailError ? 'true' : 'false'}
-              className="neon-gold-focus mt-[8px] w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
-            />
-            {emailError ? (
-              <p className="mt-[8px] text-[13px] leading-[1.5] normal-case tracking-normal text-[var(--accent-red)]">
-                {emailError}
-              </p>
-            ) : null}
-          </label>
-
-          <div className="stripe-payment-shell stripe-payment-frame">
-            {!elementReady || isLoading ? (
-              <div className="stripe-payment-loading" aria-hidden="true">
-                <div className="stripe-payment-skeleton">
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
-                  <div className="stripe-payment-skeleton__block" />
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-                  <div className="stripe-payment-skeleton__button" />
-                </div>
-              </div>
-            ) : null}
-            {isLoading ? (
-              <div className="stripe-payment-element" aria-hidden="true" />
-            ) : (
-              <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
-                <PaymentElement
-                  options={{ layout: 'accordion' }}
-                  onReady={() => {
-                    setElementReady(true);
-                  }}
-                  onLoadError={() => {
-                    // O estado de erro do checkout cobre falhas fatais de carregamento.
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="public-inline-panel px-[12px] py-[12px]">
-            <button
-              type="submit"
-              disabled={submitting || isLoading || !elementReady}
-              className="neon-gold-fill min-h-[52px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? 'Processando pagamento...' : 'Pagar'}
-            </button>
-          </div>
-        </form>
-      )}
+        </div>
+      </form>
     </div>
   );
 }

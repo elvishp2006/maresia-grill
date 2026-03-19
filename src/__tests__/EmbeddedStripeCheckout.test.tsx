@@ -131,7 +131,7 @@ describe('EmbeddedStripeCheckout', () => {
     vi.useRealTimers();
   });
 
-  it('renders the payment-method selection first and opens the card form on demand', async () => {
+  it('renders express checkout and card form together', async () => {
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
     const onComplete = vi.fn();
 
@@ -143,17 +143,10 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    expect(await screen.findByText('Escolha como pagar')).toBeInTheDocument();
-    expect(screen.getByText('Disponível agora: Apple Pay, Link.')).toBeInTheDocument();
+    expect(await screen.findByText('Pagamento rápido')).toBeInTheDocument();
     expect(screen.getByTestId('express-checkout-element')).toBeInTheDocument();
-    expect(screen.queryByTestId('payment-element')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cartão de crédito' }));
-
     expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('voce@empresa.com')).toHaveValue('teste@empresa.com');
-    fireEvent.click(screen.getByRole('button', { name: 'Voltar para os meios de pagamento' }));
-    expect(await screen.findByText('Escolha como pagar')).toBeInTheDocument();
   });
 
   it('confirms payment from the card flow', async () => {
@@ -168,7 +161,6 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
     expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
 
@@ -222,9 +214,11 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    expect(await screen.findByText('Nenhuma carteira compatível disponível neste dispositivo.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Pagamento rápido')).not.toBeInTheDocument();
+    });
     expect(screen.queryByTestId('express-checkout-element')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cartão de crédito' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('voce@empresa.com')).toBeInTheDocument();
   });
 
   it('falls back to the unavailable-wallet message when express checkout fails to load', async () => {
@@ -240,7 +234,9 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    expect(await screen.findByText('Nenhuma carteira compatível disponível neste dispositivo.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Pagamento rápido')).not.toBeInTheDocument();
+    });
     expect(screen.queryByTestId('express-checkout-element')).not.toBeInTheDocument();
   });
 
@@ -258,13 +254,13 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    expect(screen.getByText('Verificando carteiras compatíveis...')).toBeInTheDocument();
+    expect(screen.getByTestId('express-checkout-element')).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(1200);
     });
 
-    expect(screen.getByText('Nenhuma carteira compatível disponível neste dispositivo.')).toBeInTheDocument();
+    expect(screen.queryByText('Pagamento rápido')).not.toBeInTheDocument();
     expect(screen.queryByTestId('express-checkout-element')).not.toBeInTheDocument();
   });
 
@@ -314,7 +310,6 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
     expect(document.querySelector('.stripe-payment-loading')).toBeInTheDocument();
 
     await waitFor(() => {
@@ -338,7 +333,6 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
     const submitButton = screen.getByRole('button', { name: 'Pagar' });
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();
@@ -367,7 +361,6 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
     const submitButton = screen.getByRole('button', { name: 'Pagar' });
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();
@@ -390,7 +383,6 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cartão de crédito' }));
     const submitButton = screen.getByRole('button', { name: 'Pagar' });
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();

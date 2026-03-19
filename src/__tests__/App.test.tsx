@@ -912,12 +912,6 @@ describe('App', () => {
       }));
     });
     expect(await screen.findByRole('heading', { name: 'Finalize seu pedido' })).toBeInTheDocument();
-    expect(screen.getByText('Escolha como pagar')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cartão de crédito' })).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('voce@empresa.com')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cartão de crédito' }));
-
     expect(await screen.findByPlaceholderText('voce@empresa.com')).toBeInTheDocument();
   });
 
