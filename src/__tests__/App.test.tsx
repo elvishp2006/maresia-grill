@@ -829,9 +829,6 @@ describe('App', () => {
     fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
       target: { value: 'Ana' },
     });
-    fireEvent.change(screen.getByPlaceholderText('voce@empresa.com'), {
-      target: { value: 'ana@empresa.com' },
-    });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Frango do menu do dia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Molho da casa do menu do dia' }));
@@ -862,6 +859,57 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeInTheDocument();
     expect(screen.getByText('Para mudar os itens, cancele este pedido e faça um novo.')).toBeInTheDocument();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
+  });
+
+  it('opens embedded checkout without asking for e-mail in the main form', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    preparePublicOrderCheckoutMock.mockResolvedValue({
+      kind: 'payment_required',
+      draftId: 'draft-1',
+      checkoutSession: {
+        clientSecret: 'cs_test_123',
+        draftId: 'draft-1',
+        provider: 'stripe',
+      },
+    });
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Carnes'],
+        items: [
+          { id: '2', nome: 'Frango', categoria: 'Carnes', priceCents: 1500 },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Frango do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar e finalizar pedido' }));
+
+    await waitFor(() => {
+      expect(preparePublicOrderCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+        customerName: 'Ana',
+      }));
+    });
+    expect(await screen.findByRole('heading', { name: 'Finalize seu pedido' })).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText('voce@empresa.com')).toHaveLength(1);
   });
 
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {
@@ -981,9 +1029,6 @@ describe('App', () => {
     fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
       target: { value: 'Ana' },
     });
-    fireEvent.change(screen.getByPlaceholderText('voce@empresa.com'), {
-      target: { value: 'ana@empresa.com' },
-    });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
@@ -1058,9 +1103,6 @@ describe('App', () => {
     );
 
     expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText('voce@empresa.com'), {
-      target: { value: 'ana@empresa.com' },
-    });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();

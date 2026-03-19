@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { CheckoutProvider, PaymentElement, useCheckout } from '@stripe/react-stripe-js/checkout';
 import { loadStripe } from '@stripe/stripe-js';
 import { useToast } from '../contexts/ToastContext';
+import { isValidCustomerEmail, normalizeCustomerEmail } from '../lib/customerEmail';
 
 const getPublishableKey = () => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
@@ -29,19 +30,32 @@ const getClientSecretMode = (clientSecret: string) => {
 
 interface EmbeddedStripeCheckoutProps {
   clientSecret: string;
-  email: string;
+  initialEmail?: string;
+  onEmailChange?: (email: string) => void;
   onComplete: () => void;
 }
 
 function CheckoutForm({
-  email,
+  initialEmail = '',
+  onEmailChange,
   onComplete,
 }: Omit<EmbeddedStripeCheckoutProps, 'clientSecret'>) {
   const checkoutState = useCheckout();
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [elementReady, setElementReady] = useState(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [emailTouched, setEmailTouched] = useState(false);
   const isLoading = checkoutState.type === 'loading';
+  const normalizedEmail = normalizeCustomerEmail(email);
+  const emailError = emailTouched && email.length > 0 && !isValidCustomerEmail(email)
+    ? 'Informe um e-mail válido para continuar com o pagamento.'
+    : '';
+
+  const handleEmailChange = (nextEmail: string) => {
+    setEmail(nextEmail);
+    onEmailChange?.(nextEmail);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -52,10 +66,17 @@ function CheckoutForm({
       setSubmitting(true);
     }, 180);
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = normalizedEmail;
     if (!trimmedEmail) {
+      setEmailTouched(true);
       window.clearTimeout(pendingLabelTimer);
       showToast('Preencha os dados necessários para continuar.', 'info');
+      return;
+    }
+    if (!isValidCustomerEmail(trimmedEmail)) {
+      setEmailTouched(true);
+      window.clearTimeout(pendingLabelTimer);
+      showToast('Informe um e-mail válido para continuar com o pagamento.', 'info');
       return;
     }
 
@@ -95,6 +116,28 @@ function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-[14px]">
+      <label className="block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+        Seu e-mail
+        <input
+          type="email"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => handleEmailChange(event.target.value)}
+          onBlur={() => setEmailTouched(true)}
+          placeholder="voce@empresa.com"
+          aria-invalid={emailError ? 'true' : 'false'}
+          className="neon-gold-focus mt-[8px] w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+        />
+        {emailError ? (
+          <p className="mt-[8px] text-[13px] leading-[1.5] normal-case tracking-normal text-[var(--accent-red)]">
+            {emailError}
+          </p>
+        ) : null}
+      </label>
+
       <div className="stripe-payment-shell stripe-payment-frame">
         {!elementReady || isLoading ? (
           <div className="stripe-payment-loading" aria-hidden="true">
@@ -140,7 +183,8 @@ function CheckoutForm({
 
 export default function EmbeddedStripeCheckout({
   clientSecret,
-  email,
+  initialEmail,
+  onEmailChange,
   onComplete,
 }: EmbeddedStripeCheckoutProps) {
   const publishableMode = getStripePublishableMode();
@@ -213,7 +257,8 @@ export default function EmbeddedStripeCheckout({
   return (
     <CheckoutProvider stripe={stripePromise} options={options} key={clientSecret}>
       <CheckoutForm
-        email={email}
+        initialEmail={initialEmail}
+        onEmailChange={onEmailChange}
         onComplete={onComplete}
       />
     </CheckoutProvider>

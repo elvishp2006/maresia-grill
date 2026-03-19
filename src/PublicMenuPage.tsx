@@ -98,8 +98,6 @@ const setStoredCustomerEmail = (email: string) => {
   }
 };
 
-const isValidCustomerEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
 const normalizeSelectedItems = (
   selectedItems?: SelectedPublicItem[] | null,
   fallbackSelectedItemIds?: string[] | null,
@@ -867,17 +865,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     if (!menu) return;
 
     const trimmedName = customerName.trim();
-    const trimmedEmail = customerEmail.trim().toLowerCase();
     if (!trimmedName) {
       showToast('Informe seu nome.', 'info');
-      return;
-    }
-    if (!trimmedEmail) {
-      showToast('Informe seu e-mail.', 'info');
-      return;
-    }
-    if (!isValidCustomerEmail(trimmedEmail)) {
-      showToast('Informe um e-mail válido.', 'info');
       return;
     }
     if (selectedCount === 0) {
@@ -891,7 +880,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     setSubmitting(true);
     try {
-      if ((currentPaymentSummary?.paidTotalCents ?? 0) > 0) {
+        if ((currentPaymentSummary?.paidTotalCents ?? 0) > 0) {
         const url = new URL(window.location.href);
         url.hash = '#/enviado';
         url.searchParams.set('draftId', orderId);
@@ -1235,7 +1224,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           </div>
         </div>
         <p className="mt-[10px] text-[14px] leading-[1.7] text-[var(--text-dim)]">
-          Digite seu nome, e-mail e escolha os itens do seu pedido.
+          Digite seu nome e escolha os itens do seu pedido.
         </p>
 
         <label className="mt-[18px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
@@ -1249,20 +1238,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           />
         </label>
 
-        <label className="mt-[14px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          Seu e-mail
-          <input
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="email"
-            value={customerEmail}
-            onChange={(event) => setCustomerEmail(event.target.value)}
-            placeholder="voce@empresa.com"
-            className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[17px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
-          />
-        </label>
       </section>
 
       <section className="mt-[14px] space-y-[12px]">
@@ -1457,7 +1432,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           <div className="overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-[12px] shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
             <EmbeddedStripeCheckout
               clientSecret={checkoutSession.clientSecret}
-              email={customerEmail}
+              initialEmail={customerEmail}
+              onEmailChange={setCustomerEmail}
               onComplete={() => openSubmittedPaymentState(checkoutSession.draftId)}
             />
           </div>

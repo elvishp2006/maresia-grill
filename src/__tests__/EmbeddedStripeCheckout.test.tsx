@@ -78,7 +78,7 @@ describe('EmbeddedStripeCheckout', () => {
     render(
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
-        email="teste@empresa.com"
+        initialEmail="teste@empresa.com"
         onComplete={onComplete}
       />,
     );
@@ -126,7 +126,7 @@ describe('EmbeddedStripeCheckout', () => {
     render(
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
-        email="teste@empresa.com"
+        initialEmail="teste@empresa.com"
         onComplete={vi.fn()}
       />,
     );
@@ -149,7 +149,7 @@ describe('EmbeddedStripeCheckout', () => {
     render(
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
-        email="teste@empresa.com"
+        initialEmail="teste@empresa.com"
         onComplete={vi.fn()}
       />,
     );
@@ -177,7 +177,7 @@ describe('EmbeddedStripeCheckout', () => {
     render(
       <EmbeddedStripeCheckout
         clientSecret="cs_test_123"
-        email=""
+        initialEmail=""
         onComplete={vi.fn()}
       />,
     );
@@ -191,5 +191,27 @@ describe('EmbeddedStripeCheckout', () => {
     expect(mockUpdateEmail).not.toHaveBeenCalled();
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockShowToast).toHaveBeenCalledWith('Preencha os dados necessários para continuar.', 'info');
+  });
+
+  it('blocks payment submission when the e-mail format is invalid', async () => {
+    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
+
+    render(
+      <EmbeddedStripeCheckout
+        clientSecret="cs_test_123"
+        initialEmail="teste@empresa"
+        onComplete={vi.fn()}
+      />,
+    );
+
+    const submitButton = screen.getByRole('button', { name: 'Pagar' });
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled();
+    });
+    fireEvent.click(submitButton);
+
+    expect(mockUpdateEmail).not.toHaveBeenCalled();
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(mockShowToast).toHaveBeenCalledWith('Informe um e-mail válido para continuar com o pagamento.', 'info');
   });
 });
