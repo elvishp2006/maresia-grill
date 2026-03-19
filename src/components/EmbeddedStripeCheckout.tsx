@@ -20,11 +20,6 @@ const getPublishableKey = () => {
   return typeof key === 'string' && key.trim() ? key.trim() : '';
 };
 
-const stripePromise = (() => {
-  const key = getPublishableKey();
-  return key ? loadStripe(key) : null;
-})();
-
 const getStripePublishableMode = () => {
   const key = getPublishableKey();
   if (key.startsWith('pk_test_')) return 'test';
@@ -390,8 +385,12 @@ export default function EmbeddedStripeCheckout({
   onEmailChange,
   onComplete,
 }: EmbeddedStripeCheckoutProps) {
+  const publishableKey = getPublishableKey();
   const publishableMode = getStripePublishableMode();
   const clientSecretMode = getClientSecretMode(clientSecret);
+  const stripePromise = useMemo(() => (
+    publishableKey ? loadStripe(publishableKey) : null
+  ), [publishableKey]);
   const options = useMemo(() => ({
     clientSecret,
     elementsOptions: {
@@ -437,7 +436,7 @@ export default function EmbeddedStripeCheckout({
     },
   }), [clientSecret]);
 
-  if (!stripePromise) {
+  if (!publishableKey || !stripePromise) {
     return (
       <div className="stripe-payment-shell flex min-h-[220px] items-center justify-center px-[18px] text-center text-[14px] text-[var(--danger)]">
         VITE_STRIPE_PUBLISHABLE_KEY não configurado.
