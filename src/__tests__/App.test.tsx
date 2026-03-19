@@ -907,12 +907,18 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pagar e finalizar pedido' }));
 
     await waitFor(() => {
-      expect(preparePublicOrderCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(preparePublicOrderCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
         customerName: 'Ana',
       }));
     });
     expect(await screen.findByRole('heading', { name: 'Finalize seu pedido' })).toBeInTheDocument();
-    expect(screen.getAllByPlaceholderText('voce@empresa.com')).toHaveLength(1);
+    expect(screen.getByText('Escolha como pagar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cartão de crédito' })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('voce@empresa.com')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cartão de crédito' }));
+
+    expect(await screen.findByPlaceholderText('voce@empresa.com')).toBeInTheDocument();
   });
 
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {
