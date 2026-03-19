@@ -29,9 +29,6 @@ importers:
 
   apps/functions:
     dependencies:
-      '@maresia-grill/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
       firebase-admin:
         specifier: ^13.7.0
         version: 13.7.0
