@@ -123,6 +123,7 @@ const syncPublicMenuSnapshotForDateMock = vi.fn().mockResolvedValue(undefined);
 const subscribeOrderIntakeStatusMock = vi.fn();
 const setOrderIntakeStatusMock = vi.fn().mockResolvedValue(undefined);
 const loadPublicMenuVersionsMock = vi.fn().mockResolvedValue({});
+const embeddedStripeCheckoutPropsMock = vi.fn();
 
 vi.mock('../lib/storage', () => ({
   subscribeOrders: (...args: unknown[]) => subscribeOrdersMock(...args),
@@ -173,15 +174,26 @@ vi.mock('../hooks/useMenuState', () => ({
 }));
 
 vi.mock('../components/EmbeddedStripeCheckout', () => ({
-  default: ({ initialEmail, onEmailChange }: { initialEmail?: string; onEmailChange?: (email: string) => void }) => (
-    <div data-testid="embedded-stripe-checkout">
-      <input
-        placeholder="stripe-email-element"
-        value={initialEmail ?? ''}
-        onChange={(event) => onEmailChange?.(event.target.value)}
-      />
-    </div>
-  ),
+  default: ({
+    initialEmail,
+    onEmailChange,
+    ...props
+  }: {
+    initialEmail?: string;
+    onEmailChange?: (email: string) => void;
+    returnUrl: string;
+  }) => {
+    embeddedStripeCheckoutPropsMock(props);
+    return (
+      <div data-testid="embedded-stripe-checkout">
+        <input
+          placeholder="stripe-email-element"
+          value={initialEmail ?? ''}
+          onChange={(event) => onEmailChange?.(event.target.value)}
+        />
+      </div>
+    );
+  },
 }));
 
 afterEach(() => {
@@ -218,6 +230,7 @@ describe('App', () => {
       dismiss: vi.fn(),
     });
     applyUpdateMock.mockReset();
+    embeddedStripeCheckoutPropsMock.mockReset();
     useEditorLockMock.mockReturnValue({
       canEdit: true,
       loading: false,
@@ -926,6 +939,9 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Finalize seu pedido' })).toBeInTheDocument();
     expect(screen.getByTestId('embedded-stripe-checkout')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('stripe-email-element')).toBeInTheDocument();
+    expect(embeddedStripeCheckoutPropsMock).toHaveBeenCalledWith(expect.objectContaining({
+      returnUrl: 'http://localhost:3000/s/token-1/?draftId=draft-1#/enviado',
+    }));
   });
 
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {

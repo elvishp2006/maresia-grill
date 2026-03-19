@@ -7,17 +7,7 @@ const mockElementsSubmit = vi.fn();
 const mockShowToast = vi.fn();
 const mockPaymentElement = vi.fn();
 
-vi.mock('@stripe/stripe-js', () => ({
-  loadStripe: vi.fn(async () => ({})),
-}));
-
-vi.mock('../contexts/ToastContext', () => ({
-  useToast: () => ({
-    showToast: mockShowToast,
-  }),
-}));
-
-vi.mock('@stripe/react-stripe-js', async () => {
+async function buildDefaultReactStripeMock() {
   const React = await import('react');
 
   return {
@@ -72,7 +62,19 @@ vi.mock('@stripe/react-stripe-js', async () => {
       submit: mockElementsSubmit,
     }),
   };
-});
+}
+
+vi.mock('@stripe/stripe-js', () => ({
+  loadStripe: vi.fn(async () => ({})),
+}));
+
+vi.mock('../contexts/ToastContext', () => ({
+  useToast: () => ({
+    showToast: mockShowToast,
+  }),
+}));
+
+vi.mock('@stripe/react-stripe-js', buildDefaultReactStripeMock);
 
 describe('EmbeddedStripeCheckout', () => {
   beforeEach(() => {
@@ -85,6 +87,8 @@ describe('EmbeddedStripeCheckout', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.useRealTimers();
+    vi.resetModules();
+    vi.doMock('@stripe/react-stripe-js', buildDefaultReactStripeMock);
   });
 
   it('renders a simplified checkout with email and payment sections', async () => {
@@ -186,6 +190,61 @@ describe('EmbeddedStripeCheckout', () => {
     await waitFor(() => {
       expect(document.querySelector('.stripe-payment-loading')).not.toBeInTheDocument();
     });
+  });
+
+  it('surfaces payment element load failures instead of waiting forever', async () => {
+    vi.resetModules();
+    vi.doMock('@stripe/react-stripe-js', async () => {
+      return {
+        Elements: ({ children }: { children: ReactNode }) => <>{children}</>,
+        LinkAuthenticationElement: ({
+          options,
+          onChange,
+        }: {
+          options?: { defaultValues?: { email?: string } };
+          onChange?: (event: { value: { email: string } }) => void;
+        }) => (
+          <input
+            placeholder="voce@empresa.com"
+            defaultValue={options?.defaultValues?.email ?? ''}
+            onChange={(event) => onChange?.({ value: { email: event.target.value } })}
+          />
+        ),
+        PaymentElement: ({ onLoadError }: { onLoadError?: () => void }) => (
+          <div>
+            <div data-testid="payment-element">payment-element</div>
+            <button type="button" onClick={() => onLoadError?.()}>
+              disparar-load-error
+            </button>
+          </div>
+        ),
+        useStripe: () => ({ confirmPayment: mockConfirmPayment }),
+        useElements: () => ({ submit: mockElementsSubmit }),
+      };
+    });
+
+    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
+
+    render(
+      <EmbeddedStripeCheckout
+        clientSecret="pi_123_secret_456"
+        initialEmail="teste@empresa.com"
+        onComplete={vi.fn()}
+        returnUrl="https://example.com/return"
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'disparar-load-error' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Não foi possível carregar os meios de pagamento. Feche e tente novamente.')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Pagar' })).toBeDisabled();
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'Não foi possível carregar os meios de pagamento. Feche e tente novamente.',
+      'error',
+    );
+    expect(document.querySelector('.stripe-payment-loading')).not.toBeInTheDocument();
   });
 
   it('keeps the checkout mounted when confirm returns an error', async () => {

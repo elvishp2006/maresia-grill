@@ -36,6 +36,7 @@ function CheckoutForm({
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [elementReady, setElementReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const handleEmailChange = (nextEmail: string) => {
     onEmailChange?.(nextEmail);
@@ -98,12 +99,17 @@ function CheckoutForm({
 
         <section className="min-w-0 pb-[6px]">
           <div className="stripe-payment-shell">
-            {!elementReady ? (
+            {!elementReady && !loadError ? (
               <div className="stripe-payment-loading">
                 <div className="stripe-payment-loading__content" role="status" aria-live="polite">
                   <div className="stripe-payment-loading__spinner" aria-hidden="true" />
                   <span>Carregando pagamento...</span>
                 </div>
+              </div>
+            ) : null}
+            {loadError ? (
+              <div className="stripe-payment-load-error" role="alert">
+                {loadError}
               </div>
             ) : null}
             <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready min-w-0' : 'stripe-payment-element min-w-0'}>
@@ -115,10 +121,13 @@ function CheckoutForm({
                   },
                 }}
                 onReady={() => {
+                  setLoadError(null);
                   setElementReady(true);
                 }}
                 onLoadError={() => {
-                  // O estado de erro do confirmPayment cobre falhas fatais de carregamento.
+                  const nextError = 'Não foi possível carregar os meios de pagamento. Feche e tente novamente.';
+                  setLoadError(nextError);
+                  showToast(nextError, 'error');
                 }}
               />
             </div>
@@ -129,7 +138,7 @@ function CheckoutForm({
       <div className="stripe-checkout-footer px-[8px] pb-[4px] pt-[12px]">
         <button
           type="submit"
-          disabled={submitting || !elementReady || !stripe || !elements}
+          disabled={submitting || !elementReady || !stripe || !elements || Boolean(loadError)}
           className="min-h-[54px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? 'Processando pagamento...' : 'Pagar'}

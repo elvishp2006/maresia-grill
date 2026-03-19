@@ -234,6 +234,18 @@ input[type='search']::-webkit-search-results-decoration {
   transform: translateY(0);
 }
 
+.stripe-payment-load-error {
+  display: flex;
+  min-height: 132px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 @keyframes stripe-payment-spin {
   to {
     transform: rotate(360deg);
