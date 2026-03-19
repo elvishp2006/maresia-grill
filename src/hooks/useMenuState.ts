@@ -8,6 +8,7 @@ import {
   upsertCategorySelectionRule,
   type CategorySelectionRuleInput,
 } from '../lib/categorySelectionRules';
+import { showAdminError, showAdminInfo } from '../lib/adminFeedback';
 import { normalizePriceCents } from '../lib/billing';
 
 let nextId = Date.now();
@@ -24,20 +25,58 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [sortMode, setSortMode] = useState<'alpha' | 'usage'>('alpha');
   const [loading, setLoading] = useState(true);
+  const [pendingWrites, setPendingWrites] = useState(0);
+  const [dataRevision, setDataRevision] = useState(0);
+  const [persistedRevision, setPersistedRevision] = useState(0);
   const [currentDateKey, setCurrentDateKey] = useState(() => storage.getDateKey());
   const lastDateKeyRef = useRef(currentDateKey);
   const loadReadyRef = useRef({ categories: false, complements: false, rules: false, selection: false });
+  const revisionStatusRef = useRef(new Map<number, { pending: number; failed: boolean }>());
   const { showToast } = useToast();
 
-  const handleSaveError = () => showToast('Erro ao salvar. Verifique sua conexão.', 'error');
+  const handleSaveError = (error: unknown) => showAdminError(showToast, 'save', error);
+  const markDataRevision = () => {
+    const nextRevision = dataRevision + 1;
+    setDataRevision(nextRevision);
+    return nextRevision;
+  };
+  const trackWrite = (revision: number, operation: Promise<unknown>) => {
+    const currentRevision = revisionStatusRef.current.get(revision) ?? { pending: 0, failed: false };
+    revisionStatusRef.current.set(revision, { ...currentRevision, pending: currentRevision.pending + 1 });
+    setPendingWrites(current => current + 1);
+    operation
+      .then(() => {
+        const nextStatus = revisionStatusRef.current.get(revision);
+        if (!nextStatus) return;
+        const remaining = nextStatus.pending - 1;
+        if (remaining <= 0) {
+          revisionStatusRef.current.delete(revision);
+          if (!nextStatus.failed) setPersistedRevision(current => Math.max(current, revision));
+          return;
+        }
+        revisionStatusRef.current.set(revision, { ...nextStatus, pending: remaining });
+      })
+      .catch((error) => {
+        const nextStatus = revisionStatusRef.current.get(revision);
+        if (nextStatus) {
+          const remaining = Math.max(0, nextStatus.pending - 1);
+          if (remaining <= 0) revisionStatusRef.current.delete(revision);
+          else revisionStatusRef.current.set(revision, { pending: remaining, failed: true });
+        }
+        handleSaveError(error);
+      })
+      .finally(() => {
+        setPendingWrites(current => Math.max(0, current - 1));
+      });
+  };
 
   const guardWritableAction = () => {
     if (!isOnline) {
-      showToast(OFFLINE_ACTION_MESSAGE, 'info');
+      showAdminInfo(showToast, OFFLINE_ACTION_MESSAGE);
       return false;
     }
     if (canEdit) return true;
-    showToast(READ_ONLY_ACTION_MESSAGE, 'info');
+    showAdminInfo(showToast, READ_ONLY_ACTION_MESSAGE);
     return false;
   };
 
@@ -49,9 +88,9 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       if (active && Object.values(loadReadyRef.current).every(Boolean)) setLoading(false);
     };
 
-    const handleError = () => {
+    const handleError = (error?: Error) => {
       if (!active) return;
-      showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+      showAdminError(showToast, 'load', error);
       setLoading(false);
     };
 
@@ -90,9 +129,9 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       setDaySelection(ids);
       loadReadyRef.current.selection = true;
       if (Object.values(loadReadyRef.current).every(Boolean)) setLoading(false);
-    }, () => {
+    }, (error) => {
       if (!active) return;
-      showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+      showAdminError(showToast, 'load', error);
       setLoading(false);
     });
 
@@ -111,7 +150,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       })
       .catch(() => {
         if (!active) return;
-        showToast('Erro ao carregar dados. Verifique sua conexão.', 'error');
+        showAdminError(showToast, 'load');
       });
 
     return () => {
@@ -133,51 +172,55 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   useEffect(() => {
     if (lastDateKeyRef.current === currentDateKey) return;
     lastDateKeyRef.current = currentDateKey;
-    showToast(DAY_CHANGED_MESSAGE, 'info', 2500);
+    showAdminInfo(showToast, DAY_CHANGED_MESSAGE);
   }, [currentDateKey, showToast]);
 
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
 
   const toggleItem = (id: string) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     setDaySelection(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      storage.saveDaySelection(currentDateKey, next).catch(handleSaveError);
+      trackWrite(revision, storage.saveDaySelection(currentDateKey, next));
       return next;
     });
   };
 
   const addItem = (nome: string, categoria: Categoria, priceCents?: number | null) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     const item: Item = { id: genId(), nome: nome.trim(), categoria, priceCents: normalizePriceCents(priceCents) };
     setComplements(prev => {
       const next = [...prev, item];
-      storage.saveComplements(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveComplements(next));
       return next;
     });
     setDaySelection(prev => {
       const next = [...prev, item.id];
-      storage.saveDaySelection(currentDateKey, next).catch(handleSaveError);
+      trackWrite(revision, storage.saveDaySelection(currentDateKey, next));
       return next;
     });
   };
 
   const removeItem = (id: string) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     setComplements(prev => {
       const next = prev.filter(x => x.id !== id);
-      storage.saveComplements(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveComplements(next));
       return next;
     });
     setDaySelection(prev => {
       const next = prev.filter(x => x !== id);
-      storage.saveDaySelection(currentDateKey, next).catch(handleSaveError);
+      trackWrite(revision, storage.saveDaySelection(currentDateKey, next));
       return next;
     });
   };
 
   const updateItem = (id: string, nextPatch: { nome: string; priceCents?: number | null }) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     setComplements(prev => {
       const next = prev.map(item =>
         item.id === id
@@ -188,7 +231,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
           }
           : item
       );
-      storage.saveComplements(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveComplements(next));
       return next;
     });
   };
@@ -199,35 +242,37 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   const addCategory = (nome: string) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     setCategories(prev => {
       const next = [...prev, nome.trim()];
-      storage.saveCategories(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveCategories(next));
       return next;
     });
   };
 
   const removeCategory = (nome: string) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
     setCategories(prev => {
       const next = prev.filter(c => c !== nome);
-      storage.saveCategories(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveCategories(next));
       return next;
     });
     setCategorySelectionRules(prev => {
       const next = removeCategorySelectionRule(prev, nome);
-      storage.saveCategorySelectionRules(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveCategorySelectionRules(next, categories.filter(category => category !== nome)));
       return next;
     });
     if (removedIds.length > 0) {
       setComplements(prev => {
         const next = prev.filter(item => item.categoria !== nome);
-        storage.saveComplements(next).catch(handleSaveError);
+        trackWrite(revision, storage.saveComplements(next));
         return next;
       });
       setDaySelection(prev => {
         const next = prev.filter(id => !removedIds.includes(id));
-        storage.saveDaySelection(currentDateKey, next).catch(handleSaveError);
+        trackWrite(revision, storage.saveDaySelection(currentDateKey, next));
         return next;
       });
     }
@@ -235,6 +280,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   const moveCategory = (nome: string, direction: 'up' | 'down') => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     setCategories(prev => {
       const idx = prev.indexOf(nome);
       if (idx < 0) return prev;
@@ -242,16 +288,17 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
       if (swapIdx < 0 || swapIdx >= next.length) return prev;
       [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      storage.saveCategories(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveCategories(next));
       return next;
     });
   };
 
   const saveCategoryRule = (category: Categoria, input: CategorySelectionRuleInput) => {
     if (!guardWritableAction()) return;
+    const revision = markDataRevision();
     setCategorySelectionRules(prev => {
       const next = upsertCategorySelectionRule(prev, category, input);
-      storage.saveCategorySelectionRules(next).catch(handleSaveError);
+      trackWrite(revision, storage.saveCategorySelectionRules(next, categories));
       return next;
     });
   };
@@ -264,6 +311,9 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     usageCounts,
     sortMode,
     loading,
+    pendingWrites,
+    dataRevision,
+    persistedRevision,
     currentDateKey,
     toggleSortMode,
     toggleItem,

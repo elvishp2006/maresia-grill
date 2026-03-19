@@ -20,8 +20,7 @@ npm run dev
 | `dev` | Bootstrap local + emuladores Firebase + seed + Vite |
 | `dev:web` | Apenas Vite em `http://127.0.0.1:5173` |
 | `dev:emulators` | Apenas emuladores Firebase |
-| `dev:seed` | Seed local padrão no Firestore emulator |
-| `dev:seed:stripe` | Seed local do cenário de checkout público |
+| `dev:seed` | Seed local único no Firestore emulator |
 | `dev:local` | Alias para `dev` |
 | `emulators` | Alias para `dev:emulators` |
 | `stripe:test:seed` | Cria o cenário local fixo para pagamento |
@@ -46,7 +45,7 @@ npm run dev
 - injeta defaults locais para o projeto `maresia-grill-local`
 - compila as Functions
 - sobe os emuladores Firebase
-- aplica o seed base do app e o seed do checkout público automaticamente
+- aplica o seed local único automaticamente
 - sobe o app em `http://127.0.0.1:5173`
 - tenta ativar o Stripe local automaticamente quando houver chaves e Stripe CLI
 
@@ -76,7 +75,7 @@ URL fixa de teste do fluxo público:
 http://localhost:5173/s/teste-pagamento/#/pedido
 ```
 
-O seed cria um cenario minimo com:
+O seed único cria um cenário local que cobre editor, histórico e checkout público. O cardápio público fixo inclui:
 
 - `Prato executivo` e `Prato vegetariano` gratis
 - `Agua com gas` por `R$ 4,50`
@@ -215,14 +214,63 @@ Para adicionar ou remover alguém:
 2. Mantenha `firestore.rules` alinhado (regras de leitura/escrita por email)
 3. Publique as regras: `firebase deploy --only firestore:rules`
 
+## Troubleshooting do Admin
+
+Quando um erro administrativo não estiver claro pela UI, a ordem de diagnóstico mais rápida é:
+
+1. reproduzir a ação no admin e copiar a mensagem completa do toast
+2. conferir o código bruto do Firestore no próprio toast, quando disponível em `dev`
+3. ler `firebase-debug.log` e `firestore-debug.log` na raiz do projeto
+4. procurar por:
+   - `permission-denied`
+   - `failed-precondition`
+   - `EvaluationException`
+   - o path do documento que falhou
+
+Heurísticas úteis:
+
+- `permission-denied` pode ser problema real de auth/allowlist, mas também pode ser **rule inválida** rejeitando o payload
+- `failed-precondition` costuma indicar concorrência, versão desatualizada ou disputa de lock
+- se o emulator citar uma linha exata de `firestore.rules`, trate como falha de rules antes de investigar frontend
+
+No admin, os toasts de erro são persistentes por padrão e só somem quando fechados manualmente. Isso é intencional para facilitar cópia da mensagem e correlação com os logs do emulator. Toasts de `success` e `info` continuam temporários.
+
+### Firestore: `permission-denied` ao salvar limites de categoria
+
+Incidente já resolvido neste projeto:
+
+- Sintoma na UI:
+  - `Não foi possível salvar os limites da categoria. Recarregue a tela e tente novamente. (Firestore: permission-denied)`
+- Erro real no emulator:
+  - `EvaluationException`
+  - `Property id is undefined on object`
+  - apontando para `firestore.rules`
+- Causa raiz:
+  - a função `isValidCatalogCategory` acessava `request.resource.data.id == null`
+  - o payload de categoria não tem campo `id`
+  - a própria rule quebrava durante a avaliação e o Firestore devolvia `permission-denied`
+- Correção aplicada:
+  - remover a checagem direta de `request.resource.data.id`
+  - manter apenas `keys().hasOnly(['name', 'sortOrder', 'selectionPolicy'])`
+
+Se esse erro voltar:
+
+1. confirme se o emulator/regras carregaram a versão atual de `firestore.rules`
+2. procure no log por `EvaluationException`
+3. use a linha reportada pelo emulator para localizar a expressão da rule que está quebrando
+4. só depois volte para auth/allowlist ou payload do frontend
+
 ## Schema do Firestore
 
-| Documento | Formato |
+| Path | Formato |
 |---|---|
-| `config/categories` | `{ items: string[] }` |
-| `config/complements` | `{ items: Item[] }` |
-| `config/categorySelectionRules` | `{ rules: CategorySelectionRule[] }` |
-| `selections/YYYY-MM-DD` | `{ ids: string[] }` — um doc por dia |
+| `catalog/root/categories/{categoryId}` | `CatalogCategory` |
+| `catalog/root/items/{itemId}` | `CatalogItem` |
+| `dailyMenus/{dateKey}` | `DailyMenu` |
+| `dailyMenus/{dateKey}/versions/{versionId}` | `PublishedMenuVersion` |
+| `dailyMenus/{dateKey}/orders/{orderId}` | `Order` |
+| `config/editorLock` | lock global do editor |
+| `publicOrderDrafts/{draftId}` | draft de checkout criado pelas Functions |
 
 ## Deploy
 
@@ -262,6 +310,6 @@ Os deploys do app não alteram mais IAM estrutural. APIs, grants de runtime e pe
 
 ## Segurança do Firestore
 
-- Regras exigem autenticação para leitura e escrita
-- Deletes pelo cliente são bloqueados pelas regras
+- Regras administrativas exigem autenticação e allowlist
+- Leituras públicas do cardápio publicado e gravações públicas do fluxo de pedido seguem apenas o schema novo
 - Configure exports agendados no GCP para backup contra perda permanente de dados

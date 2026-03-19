@@ -4,78 +4,49 @@ import Stripe from 'stripe';
 import { onRequest } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import {
+  buildOrder,
+  calculateOrderPaymentSummaryFromLines,
+  normalizeSelectionEntries,
+  parseDateKeyFromVersionId,
+  resolveOrderLines,
+} from '../../domain/menu.js';
+import type {
+  OrderLine,
+  OrderPaymentSummary,
+  PublishedMenuVersion,
+  SelectionEntry,
+} from '../../domain/menu.js';
+import {
   buildReturnUrl,
   canReplaceExistingOrderWithPaidDraft,
   createBasePaymentSummary,
   isDuplicatePaidDraft,
   isWinningOrderDraft,
   mapPaymentMethods,
-  normalizeSelectedItems,
   normalizeCustomerName,
-  normalizePriceCents,
-  validateSelection,
+  validateSelectionForVersion,
 } from './core.js';
 
 admin.initializeApp();
 
-type PaymentStatus = 'not_required' | 'awaiting_payment' | 'paid' | 'refund_pending' | 'refunded' | 'failed';
-type PaymentProvider = 'stripe';
-type PaymentMethod = 'pix' | 'card' | null;
-
-interface Item {
-  id: string;
-  nome: string;
-  categoria: string;
-  priceCents?: number | null;
-  quantity?: number | null;
-}
-
-interface SelectedPublicItem {
-  itemId: string;
-  quantity: number;
-}
-
-interface CategorySelectionRule {
-  category: string;
-  maxSelections?: number | null;
-  sharedLimitGroupId?: string | null;
-  allowRepeatedItems?: boolean | null;
-}
-
-interface PublicMenuDocument {
-  token: string;
+interface DailyMenuRecord {
   dateKey: string;
-  acceptingOrders: boolean;
-  currentVersionId: string;
-  categories: string[];
-  items: Item[];
-  categorySelectionRules: CategorySelectionRule[];
+  status: 'draft' | 'published' | 'closed';
+  shareToken?: string | null;
+  activeVersionId?: string | null;
 }
 
-interface PublicMenuVersionDocument {
-  id: string;
-  token: string;
+interface DailyMenuTokenRecord {
+  shareToken: string;
   dateKey: string;
-  itemIds: string[];
-  items: Item[];
-}
-
-interface OrderPaymentSummary {
-  freeTotalCents: number;
-  paidTotalCents: number;
-  currency: 'BRL';
-  paymentStatus: PaymentStatus;
-  provider: PaymentProvider | null;
-  paymentMethod: PaymentMethod;
-  providerPaymentId: string | null;
-  refundedAt: number | null;
+  activeVersionId: string;
 }
 
 interface CheckoutSessionState {
   checkoutUrl: string | null;
   clientSecret: string | null;
   sessionId: string | null;
-  provider: PaymentProvider;
+  provider: 'stripe';
   availableMethods: Array<'pix' | 'card'>;
   expiresAt: number | null;
 }
@@ -87,8 +58,7 @@ interface PublicOrderDraft {
   orderId: string;
   customerName: string;
   menuVersionId: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds: string[];
+  selectedItems: SelectionEntry[];
   paymentSummary: OrderPaymentSummary;
   checkoutSession: CheckoutSessionState | null;
   failureReason?: 'superseded';
@@ -99,13 +69,17 @@ interface PublicOrderDraft {
 }
 
 interface StoredOrderEntry {
-  orderId: string;
-  customerName: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds: string[];
-  submittedItems?: Item[];
-  paymentSummary: OrderPaymentSummary;
   sourceDraftId?: string | null;
+  paymentSummary?: Partial<Pick<OrderPaymentSummary, 'providerPaymentId' | 'paidTotalCents' | 'paymentStatus'>>;
+  customerName?: string;
+  lines?: Array<{
+    itemId: string;
+    quantity: number;
+    unitPriceCents: number;
+    name: string;
+    categoryId: string;
+    categoryName: string;
+  }>;
 }
 
 interface PreparePublicOrderCheckoutBody {
@@ -113,8 +87,7 @@ interface PreparePublicOrderCheckoutBody {
   dateKey: string;
   shareToken: string;
   customerName: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds?: string[];
+  selectedItems: SelectionEntry[];
   successUrl?: string;
   pendingUrl?: string;
   failureUrl?: string;
@@ -144,58 +117,46 @@ const parseBody = <T>(raw: unknown): T => {
   return raw as T;
 };
 
-const loadPublicMenu = async (shareToken: string, requireAcceptingOrders = true) => {
-  const snap = await db.doc(`publicMenus/${shareToken}`).get();
-  if (!snap.exists) throw new Error('Cardápio público indisponível.');
-  const menu = snap.data() as PublicMenuDocument;
-  if (requireAcceptingOrders && !menu.acceptingOrders) {
+const loadActivePublicMenu = async (shareToken: string, requireAcceptingOrders = true) => {
+  const tokenSnap = await db.doc(`dailyMenuTokens/${shareToken}`).get();
+  if (!tokenSnap.exists) throw new Error('Cardápio público indisponível.');
+  const tokenRecord = tokenSnap.data() as DailyMenuTokenRecord;
+  if (!tokenRecord?.dateKey || !tokenRecord?.activeVersionId) throw new Error('Cardápio público indisponível.');
+
+  const dailyMenuDoc = await db.doc(`dailyMenus/${tokenRecord.dateKey}`).get();
+  if (!dailyMenuDoc.exists) throw new Error('Cardápio público indisponível.');
+  const dailyMenu = dailyMenuDoc.data() as DailyMenuRecord;
+  if (!dailyMenu.activeVersionId) throw new Error('Cardápio público indisponível.');
+  if (dailyMenu.activeVersionId !== tokenRecord.activeVersionId) throw new Error('Cardápio público indisponível.');
+  if (requireAcceptingOrders && dailyMenu.status === 'closed') {
     throw new Error('Os pedidos deste cardápio foram encerrados.');
   }
-  return menu;
-};
 
-const loadPublicMenuVersion = async (versionId: string) => {
-  const snap = await db.doc(`publicMenuVersions/${versionId}`).get();
-  if (!snap.exists) throw new Error('Snapshot do cardápio indisponível.');
-  return snap.data() as PublicMenuVersionDocument;
-};
-
-const buildOrderPayload = (
-  menu: Pick<PublicMenuDocument, 'dateKey' | 'token'> & { currentVersionId: string; items: Item[] },
-  input: {
-    orderId: string;
-    customerName: string;
-    selectedItems?: SelectedPublicItem[];
-    selectedItemIds: string[];
-    sourceDraftId?: string | null;
-  },
-  paymentSummary: OrderPaymentSummary,
-) => {
-  const selectedItems = input.selectedItems ?? normalizeSelectedItems(undefined, input.selectedItemIds);
-  const submittedItems = selectedItems
-    .map(({ itemId, quantity }) => {
-      const item = menu.items.find(candidate => candidate.id === itemId);
-      return item ? { ...item, quantity } : null;
-    })
-    .filter((item): item is Item & { quantity: number } => item !== null);
+  const versionSnap = await db.doc(`dailyMenus/${tokenRecord.dateKey}/versions/${dailyMenu.activeVersionId}`).get();
+  if (!versionSnap.exists) throw new Error('Snapshot do cardápio indisponível.');
 
   return {
-    orderId: input.orderId,
-    dateKey: menu.dateKey,
-    shareToken: menu.token,
-    menuVersionId: menu.currentVersionId,
-    customerName: input.customerName.trim(),
-    selectedItems,
-    selectedItemIds: input.selectedItemIds,
-    submittedItems,
-    sourceDraftId: input.sourceDraftId ?? null,
-    selectedPaidItemIds: submittedItems
-      .filter((item): item is Item & { quantity: number } => item !== null && normalizePriceCents(item.priceCents) > 0)
-      .map(item => item.id),
-    paymentSummary,
-    submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+    menu: {
+      dateKey: tokenRecord.dateKey,
+      token: shareToken,
+      currentVersionId: dailyMenu.activeVersionId,
+      acceptingOrders: dailyMenu.status !== 'closed',
+    },
+    version: versionSnap.data() as PublishedMenuVersion,
   };
 };
+
+const buildFinalizedPublicOrder = (
+  orderId: string,
+  customerName: string,
+  lines: OrderLine[],
+  paymentSummary: OrderPaymentSummary,
+) => ({
+  orderId,
+  customerName,
+  lines,
+  paymentSummary,
+});
 
 let stripeClient: Stripe | null = null;
 
@@ -293,7 +254,7 @@ const expireStripeCheckoutSession = async (sessionId: string) => {
   await getStripeClient().checkout.sessions.expire(sessionId);
 };
 
-const getStripePaymentMethod = async (paymentIntentId: string): Promise<PaymentMethod> => {
+const getStripePaymentMethod = async (paymentIntentId: string): Promise<'pix' | 'card' | null> => {
   const paymentIntent = await getStripeClient().paymentIntents.retrieve(paymentIntentId, {
     expand: ['latest_charge'],
   });
@@ -301,45 +262,6 @@ const getStripePaymentMethod = async (paymentIntentId: string): Promise<PaymentM
   if (!latestCharge || typeof latestCharge === 'string') return null;
   const methodType = latestCharge.payment_method_details?.type;
   return methodType === 'pix' || methodType === 'card' ? methodType : null;
-};
-
-const finalizeOrderFromDraft = async (
-  draft: PublicOrderDraft,
-  paymentSummary: OrderPaymentSummary,
-): Promise<'created' | 'replaced' | 'duplicate'> => {
-  const version = await loadPublicMenuVersion(draft.menuVersionId);
-  const orderRef = db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`);
-  let result: 'created' | 'replaced' | 'duplicate' = 'duplicate';
-
-  const orderPayload = buildOrderPayload({
-    dateKey: draft.dateKey,
-    token: draft.shareToken,
-    currentVersionId: draft.menuVersionId,
-    items: version.items,
-  }, {
-    orderId: draft.orderId,
-    customerName: draft.customerName,
-    selectedItems: draft.selectedItems,
-    selectedItemIds: draft.selectedItemIds,
-    sourceDraftId: draft.id,
-  }, paymentSummary);
-
-  await db.runTransaction(async (transaction) => {
-    const existingOrder = await transaction.get(orderRef);
-    if (!existingOrder.exists) {
-      result = 'created';
-      transaction.set(orderRef, orderPayload);
-      return;
-    }
-
-    const existing = existingOrder.data() as StoredOrderEntry;
-    if (!canReplaceExistingOrderWithPaidDraft(existing)) return;
-
-    result = 'replaced';
-    transaction.set(orderRef, orderPayload);
-  });
-
-  return result;
 };
 
 const updateDraftPaymentSummary = async (
@@ -417,24 +339,65 @@ const getDraftFromCheckoutSession = async (session: Stripe.Checkout.Session) => 
   };
 };
 
+const finalizeOrderFromDraft = async (
+  draft: PublicOrderDraft,
+  paymentSummary: OrderPaymentSummary,
+): Promise<'created' | 'replaced' | 'duplicate'> => {
+  const dateKey = parseDateKeyFromVersionId(draft.menuVersionId) || draft.dateKey;
+  const versionSnap = await db.doc(`dailyMenus/${dateKey}/versions/${draft.menuVersionId}`).get();
+  if (!versionSnap.exists) throw new Error('Snapshot do cardápio indisponível.');
+  const version = versionSnap.data() as PublishedMenuVersion;
+  const lines = resolveOrderLines(version, draft.selectedItems);
+  const orderRef = db.doc(`dailyMenus/${draft.dateKey}/orders/${draft.orderId}`);
+  let result: 'created' | 'replaced' | 'duplicate' = 'duplicate';
+
+  const orderPayload = buildOrder({
+    id: draft.orderId,
+    dateKey: draft.dateKey,
+    shareToken: draft.shareToken,
+    menuVersionId: draft.menuVersionId,
+    customerName: draft.customerName,
+    lines,
+    paymentSummary,
+    submittedAt: Date.now(),
+    sourceDraftId: draft.id,
+  });
+
+  await db.runTransaction(async (transaction) => {
+    const existingOrder = await transaction.get(orderRef);
+    if (!existingOrder.exists) {
+      result = 'created';
+      transaction.set(orderRef, orderPayload);
+      return;
+    }
+
+    const existing = existingOrder.data() as StoredOrderEntry;
+    if (!canReplaceExistingOrderWithPaidDraft(existing)) return;
+
+    result = 'replaced';
+    transaction.set(orderRef, orderPayload);
+  });
+
+  return result;
+};
+
 export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions, async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 204, {});
   if (req.method !== 'POST') return json(res, 405, { message: 'Método não permitido.' });
 
   try {
     const body = parseBody<PreparePublicOrderCheckoutBody>(req.body);
-    const menu = await loadPublicMenu(body.shareToken, true);
+    const { menu, version } = await loadActivePublicMenu(body.shareToken, true);
     if (menu.dateKey !== body.dateKey) throw new Error('Cardápio público indisponível para este pedido.');
     const customerName = normalizeCustomerName(body.customerName);
 
-    const normalizedSelectedItems = normalizeSelectedItems(body.selectedItems, body.selectedItemIds);
-    const allowedItemIds = new Set(menu.items.map(item => item.id));
+    const normalizedSelectedItems = normalizeSelectionEntries(body.selectedItems);
+    const allowedItemIds = new Set(version.items.map(item => item.id));
     const selectedItems = normalizedSelectedItems.filter(item => allowedItemIds.has(item.itemId));
-    const selectedItemIds = selectedItems.map(item => item.itemId);
     if (selectedItems.length === 0) throw new Error('Nenhum item válido encontrado para este pedido.');
 
-    validateSelection(menu.items, selectedItems, menu.categorySelectionRules);
-    const paymentSummary = createBasePaymentSummary(menu.items, selectedItems, 'awaiting_payment');
+    validateSelectionForVersion(version, selectedItems);
+    const paymentSummary = createBasePaymentSummary(version, selectedItems, 'awaiting_payment');
 
     if (paymentSummary.paidTotalCents === 0) {
       const finalizedSummary: OrderPaymentSummary = {
@@ -442,24 +405,21 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
         paymentStatus: 'not_required',
         provider: null,
       };
-      await db.doc(`orders/${menu.dateKey}/entries/${body.orderId}`).set(
-        buildOrderPayload(menu, {
-          orderId: body.orderId,
-          customerName,
-          selectedItems,
-          selectedItemIds,
-        }, finalizedSummary),
-      );
+      const lines = resolveOrderLines(version, selectedItems);
+      await db.doc(`dailyMenus/${menu.dateKey}/orders/${body.orderId}`).set(buildOrder({
+        id: body.orderId,
+        dateKey: menu.dateKey,
+        shareToken: menu.token,
+        menuVersionId: menu.currentVersionId,
+        customerName,
+        lines,
+        paymentSummary: finalizedSummary,
+        submittedAt: Date.now(),
+      }));
 
       return json(res, 200, {
         kind: 'free_order_confirmed',
-        order: {
-          orderId: body.orderId,
-          customerName,
-          selectedItems,
-          selectedItemIds,
-          paymentSummary: finalizedSummary,
-        },
+        order: buildFinalizedPublicOrder(body.orderId, customerName, lines, finalizedSummary),
       });
     }
 
@@ -474,7 +434,6 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
       customerName,
       menuVersionId: menu.currentVersionId,
       selectedItems,
-      selectedItemIds,
       paymentSummary,
       checkoutSession: null,
       createdAt: now,
@@ -515,10 +474,12 @@ export const publicOrderStatus = onRequest(publicBrowserEndpointOptions, async (
     const draft = draftSnap.data() as PublicOrderDraft;
     if (draft.shareToken !== body.shareToken) throw new Error('Checkout não corresponde ao cardápio.');
 
-    const orderSnap = await db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`).get();
-    if (draft.paymentSummary.paymentStatus === 'failed'
+    const orderSnap = await db.doc(`dailyMenus/${draft.dateKey}/orders/${draft.orderId}`).get();
+    if (
+      draft.paymentSummary.paymentStatus === 'failed'
       || draft.paymentSummary.paymentStatus === 'refund_pending'
-      || draft.paymentSummary.paymentStatus === 'refunded') {
+      || draft.paymentSummary.paymentStatus === 'refunded'
+    ) {
       return json(res, 200, {
         draftId: draft.id,
         paymentStatus: draft.paymentSummary.paymentStatus,
@@ -526,12 +487,17 @@ export const publicOrderStatus = onRequest(publicBrowserEndpointOptions, async (
     }
 
     if (orderSnap.exists) {
-      const order = orderSnap.data() as StoredOrderEntry;
+      const order = orderSnap.data() as StoredOrderEntry & { customerName: string; lines: OrderLine[]; paymentSummary: OrderPaymentSummary };
       if (isWinningOrderDraft(order, draft.id, draft.paymentSummary.providerPaymentId)) {
         return json(res, 200, {
           draftId: draft.id,
           paymentStatus: order.paymentSummary.paymentStatus,
-          order,
+          order: buildFinalizedPublicOrder(
+            draft.orderId,
+            order.customerName ?? draft.customerName,
+            (order.lines ?? []) as OrderLine[],
+            order.paymentSummary,
+          ),
         });
       }
     }
@@ -552,7 +518,7 @@ export const cancelPublicOrder = onRequest(publicBrowserEndpointOptions, async (
 
   try {
     const body = parseBody<{ orderId: string; dateKey: string; shareToken: string }>(req.body);
-    const orderRef = db.doc(`orders/${body.dateKey}/entries/${body.orderId}`);
+    const orderRef = db.doc(`dailyMenus/${body.dateKey}/orders/${body.orderId}`);
     const orderSnap = await orderRef.get();
     if (!orderSnap.exists) throw new Error('Pedido não encontrado.');
 
@@ -613,7 +579,7 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
         ? session.payment_intent
         : draft.paymentSummary.providerPaymentId;
 
-      const paymentStatus: PaymentStatus = (
+      const paymentStatus = (
         event.type === 'checkout.session.async_payment_failed'
         || event.type === 'checkout.session.expired'
       )
@@ -626,12 +592,15 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
         ? await getStripePaymentMethod(providerPaymentId)
         : draft.paymentSummary.paymentMethod;
 
+      const dateKey = parseDateKeyFromVersionId(draft.menuVersionId) || draft.dateKey;
+      const versionSnap = await db.doc(`dailyMenus/${dateKey}/versions/${draft.menuVersionId}`).get();
+      if (!versionSnap.exists) throw new Error('Snapshot do cardápio indisponível.');
+      const version = versionSnap.data() as PublishedMenuVersion;
+      const lines = resolveOrderLines(version, draft.selectedItems);
       const nextSummary: OrderPaymentSummary = {
-        ...draft.paymentSummary,
-        paymentStatus,
-        provider: 'stripe',
-        providerPaymentId,
-        paymentMethod,
+        ...calculateOrderPaymentSummaryFromLines(lines, paymentStatus, 'stripe', paymentMethod),
+        providerPaymentId: providerPaymentId ?? null,
+        refundedAt: draft.paymentSummary.refundedAt ?? null,
       };
 
       if (paymentStatus === 'paid') {
@@ -642,10 +611,10 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
           return;
         }
 
-        const orderSnap = await db.doc(`orders/${draft.dateKey}/entries/${draft.orderId}`).get();
+        const orderSnap = await db.doc(`dailyMenus/${draft.dateKey}/orders/${draft.orderId}`).get();
         const order = orderSnap.exists ? orderSnap.data() as StoredOrderEntry : null;
 
-        if (isDuplicatePaidDraft(order, draft.id, providerPaymentId)) {
+        if (isDuplicatePaidDraft(order, draft.id, providerPaymentId ?? null)) {
           if (!providerPaymentId) {
             logger.error('Pagamento duplicado sem providerPaymentId.', { draftId, orderId: draft.orderId });
             await updateDraftPaymentSummary(draftId, nextSummary);
@@ -691,7 +660,11 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
         return;
       }
 
-      const draftDoc = draftQuery.docs[0]!;
+      const draftDoc = draftQuery.docs[0];
+      if (!draftDoc) {
+        res.status(202).send('ignored');
+        return;
+      }
       const draft = draftDoc.data() as PublicOrderDraft;
       await updateDraftPaymentSummary(draftDoc.id, {
         ...draft.paymentSummary,

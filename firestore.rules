@@ -18,6 +18,197 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly(keys);
     }
 
+    function isNullableString(value) {
+      return value == null || value is string;
+    }
+
+    function isNullableInt(value) {
+      return value == null || value is int;
+    }
+
+    function isNullableBool(value) {
+      return value == null || value is bool;
+    }
+
+    function isValidSelectionPolicy(policy) {
+      return policy is map
+        && policy.keys().hasOnly([
+          'maxSelections',
+          'sharedLimitGroupId',
+          'allowRepeatedItems'
+        ])
+        && isNullableInt(policy.maxSelections)
+        && isNullableString(policy.sharedLimitGroupId)
+        && policy.allowRepeatedItems is bool;
+    }
+
+    function isValidCatalogCategory(categoryId) {
+      return request.resource.data.keys().hasOnly([
+          'name',
+          'sortOrder',
+          'selectionPolicy'
+        ])
+        && categoryId is string
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.sortOrder is int
+        && isValidSelectionPolicy(request.resource.data.selectionPolicy);
+    }
+
+    function isValidCatalogItem() {
+      return request.resource.data.keys().hasOnly([
+          'categoryId',
+          'name',
+          'priceCents',
+          'isActive',
+          'sortOrder'
+        ])
+        && request.resource.data.categoryId is string
+        && request.resource.data.categoryId.size() > 0
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.priceCents is int
+        && request.resource.data.priceCents >= 0
+        && request.resource.data.isActive is bool
+        && request.resource.data.sortOrder is int;
+    }
+
+    function isValidDailyMenu(dateKey) {
+      return request.resource.data.keys().hasOnly([
+          'dateKey',
+          'status',
+          'shareToken',
+          'activeVersionId',
+          'itemIds',
+          'updatedAt'
+        ])
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.status in ['draft', 'published', 'closed']
+        && isNullableString(request.resource.data.shareToken)
+        && isNullableString(request.resource.data.activeVersionId)
+        && request.resource.data.itemIds is list
+        && request.resource.data.updatedAt is int
+        && (
+          request.resource.data.status == 'draft'
+          || (
+            request.resource.data.shareToken is string
+            && request.resource.data.activeVersionId is string
+          )
+        );
+    }
+
+    function isValidPublishedMenuVersion(dateKey, versionId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'dateKey',
+          'shareToken',
+          'createdAt',
+          'categories',
+          'items'
+        ])
+        && request.resource.data.id == versionId
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.shareToken is string
+        && request.resource.data.createdAt is int
+        && request.resource.data.categories is list
+        && request.resource.data.items is list;
+    }
+
+    function isValidDailyMenuToken(shareToken) {
+      return request.resource.data.keys().hasOnly([
+          'shareToken',
+          'dateKey',
+          'activeVersionId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.shareToken == shareToken
+        && request.resource.data.dateKey is string
+        && request.resource.data.activeVersionId is string
+        && request.resource.data.createdAt is int
+        && request.resource.data.updatedAt is int;
+    }
+
+    function isValidPaymentSummary(summary) {
+      return summary is map
+        && summary.keys().hasOnly([
+          'freeTotalCents',
+          'paidTotalCents',
+          'currency',
+          'paymentStatus',
+          'provider',
+          'paymentMethod',
+          'providerPaymentId',
+          'refundedAt'
+        ])
+        && summary.freeTotalCents is int
+        && summary.paidTotalCents is int
+        && summary.currency == 'BRL'
+        && summary.paymentStatus is string
+        && isNullableString(summary.provider)
+        && isNullableString(summary.paymentMethod)
+        && isNullableString(summary.providerPaymentId)
+        && isNullableInt(summary.refundedAt);
+    }
+
+    function isValidOrder(dateKey, orderId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'dateKey',
+          'shareToken',
+          'menuVersionId',
+          'customerName',
+          'lines',
+          'paymentSummary',
+          'submittedAt',
+          'sourceDraftId'
+        ])
+        && request.resource.data.id == orderId
+        && request.resource.data.dateKey == dateKey
+        && request.resource.data.shareToken is string
+        && request.resource.data.menuVersionId is string
+        && request.resource.data.customerName is string
+        && request.resource.data.customerName.size() > 0
+        && request.resource.data.lines is list
+        && request.resource.data.lines.size() > 0
+        && isValidPaymentSummary(request.resource.data.paymentSummary)
+        && request.resource.data.submittedAt is int
+        && isNullableString(request.resource.data.sourceDraftId);
+    }
+
+    function isValidPublicOrderDraft(draftId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'dateKey',
+          'shareToken',
+          'orderId',
+          'customerName',
+          'menuVersionId',
+          'selectedItems',
+          'paymentSummary',
+          'checkoutSession',
+          'failureReason',
+          'supersededByDraftId',
+          'supersededAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.id == draftId
+        && request.resource.data.dateKey is string
+        && request.resource.data.shareToken is string
+        && request.resource.data.orderId is string
+        && request.resource.data.customerName is string
+        && request.resource.data.menuVersionId is string
+        && request.resource.data.selectedItems is list
+        && isValidPaymentSummary(request.resource.data.paymentSummary)
+        && (request.resource.data.checkoutSession == null || request.resource.data.checkoutSession is map)
+        && isNullableString(request.resource.data.failureReason)
+        && isNullableString(request.resource.data.supersededByDraftId)
+        && isNullableInt(request.resource.data.supersededAt)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
     function isValidEditorLock() {
       return request.resource.data.keys().hasOnly([
           'sessionId',
@@ -37,138 +228,24 @@ service cloud.firestore {
         && request.resource.data.expiresAt is int;
     }
 
-    function isValidShareLink() {
-      return request.resource.data.keys().hasOnly([
-          'token',
-          'dateKey',
-          'acceptingOrders',
-          'createdAt',
-          'expiresAt'
-        ])
-        && request.resource.data.token is string
-        && request.resource.data.dateKey is string
-        && request.resource.data.acceptingOrders is bool
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.expiresAt is timestamp;
-    }
-
-    function isValidPublicMenu() {
-      return request.resource.data.keys().hasOnly([
-          'token',
-          'dateKey',
-          'acceptingOrders',
-          'currentVersionId',
-          'categories',
-          'items',
-          'categorySelectionRules',
-          'createdAt',
-          'expiresAt'
-        ])
-        && request.resource.data.token is string
-        && request.resource.data.dateKey is string
-        && request.resource.data.acceptingOrders is bool
-        && request.resource.data.currentVersionId is string
-        && request.resource.data.categories is list
-        && request.resource.data.items is list
-        && request.resource.data.categorySelectionRules is list
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.expiresAt is timestamp;
-    }
-
-    function isValidPublicMenuVersion(versionId) {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'token',
-          'dateKey',
-          'categories',
-          'itemIds',
-          'items',
-          'categorySelectionRules',
-          'createdAt'
-        ])
-        && request.resource.data.id == versionId
-        && request.resource.data.token is string
-        && request.resource.data.dateKey is string
-        && request.resource.data.categories is list
-        && request.resource.data.itemIds is list
-        && request.resource.data.items is list
-        && request.resource.data.categorySelectionRules is list
-        && request.resource.data.createdAt is timestamp;
-    }
-
-    function isPublicMenuActive(token) {
-      return exists(/databases/$(database)/documents/publicMenus/$(token))
-        && get(/databases/$(database)/documents/publicMenus/$(token)).data.expiresAt > request.time;
-    }
-
-    function isValidPublicOrder(dateKey, orderId) {
-      return request.resource.data.keys().hasOnly([
-          'orderId',
-          'dateKey',
-          'shareToken',
-          'menuVersionId',
-          'customerName',
-          'selectedItemIds',
-          'selectedPaidItemIds',
-          'paymentSummary',
-          'submittedAt'
-        ])
-        && request.resource.data.orderId == orderId
-        && request.resource.data.dateKey == dateKey
-        && request.resource.data.shareToken is string
-        && request.resource.data.menuVersionId is string
-        && request.resource.data.customerName is string
-        && request.resource.data.customerName.size() > 0
-        && request.resource.data.selectedItemIds is list
-        && (!('selectedPaidItemIds' in request.resource.data) || request.resource.data.selectedPaidItemIds is list)
-        && request.resource.data.paymentSummary is map
-        && request.resource.data.paymentSummary.freeTotalCents is int
-        && request.resource.data.paymentSummary.paidTotalCents is int
-        && request.resource.data.paymentSummary.currency == 'BRL'
-        && request.resource.data.paymentSummary.paymentStatus is string
-        && request.resource.data.selectedItemIds.size() > 0
-        && request.resource.data.submittedAt is timestamp
-        && isPublicMenuActive(request.resource.data.shareToken)
-        && get(/databases/$(database)/documents/publicMenus/$(request.resource.data.shareToken)).data.acceptingOrders == true
-        && get(/databases/$(database)/documents/publicMenus/$(request.resource.data.shareToken)).data.dateKey == dateKey
-        && get(/databases/$(database)/documents/publicMenus/$(request.resource.data.shareToken)).data.currentVersionId == request.resource.data.menuVersionId
-        && exists(/databases/$(database)/documents/publicMenuVersions/$(request.resource.data.menuVersionId))
-        && get(/databases/$(database)/documents/publicMenuVersions/$(request.resource.data.menuVersionId)).data.token == request.resource.data.shareToken
-        && get(/databases/$(database)/documents/publicMenuVersions/$(request.resource.data.menuVersionId)).data.dateKey == dateKey
-        && request.resource.data.selectedItemIds.hasOnly(get(/databases/$(database)/documents/publicMenuVersions/$(request.resource.data.menuVersionId)).data.itemIds);
-    }
-
-    function canDeletePublicOrder(dateKey, orderId) {
-      return resource.data.orderId == orderId
-        && resource.data.dateKey == dateKey
+    function isPublicDailyMenuReadable() {
+      return resource.data.status in ['published', 'closed']
         && resource.data.shareToken is string
-        && isPublicMenuActive(resource.data.shareToken)
-        && get(/databases/$(database)/documents/publicMenus/$(resource.data.shareToken)).data.acceptingOrders == true
-        && get(/databases/$(database)/documents/publicMenus/$(resource.data.shareToken)).data.dateKey == dateKey;
+        && resource.data.activeVersionId is string
+        && resource.data.itemIds is list
+        && resource.data.updatedAt is int;
     }
 
-    match /config/categories {
+    match /catalog/root/categories/{categoryId} {
       allow read: if isAuthorizedUser();
-      allow create, update: if isAuthorizedUser()
-        && hasOnlyKeys(['items'])
-        && request.resource.data.items is list;
-      allow delete: if false;
+      allow create, update: if isAuthorizedUser() && isValidCatalogCategory(categoryId);
+      allow delete: if isAuthorizedUser();
     }
 
-    match /config/complements {
+    match /catalog/root/items/{itemId} {
       allow read: if isAuthorizedUser();
-      allow create, update: if isAuthorizedUser()
-        && hasOnlyKeys(['items'])
-        && request.resource.data.items is list;
-      allow delete: if false;
-    }
-
-    match /config/categorySelectionRules {
-      allow read: if isAuthorizedUser();
-      allow create, update: if isAuthorizedUser()
-        && hasOnlyKeys(['rules'])
-        && request.resource.data.rules is list;
-      allow delete: if false;
+      allow create, update: if isAuthorizedUser() && isValidCatalogItem();
+      allow delete: if isAuthorizedUser();
     }
 
     match /config/editorLock {
@@ -177,37 +254,37 @@ service cloud.firestore {
       allow delete: if isAuthorizedUser();
     }
 
-    match /shareLinks/{dateKey} {
-      allow read: if isAuthorizedUser();
-      allow create, update: if isAuthorizedUser() && isValidShareLink();
+    match /dailyMenus/{dateKey} {
+      allow get, list: if isAuthorizedUser() || isPublicDailyMenuReadable();
+      allow create, update: if isAuthorizedUser() && isValidDailyMenu(dateKey);
       allow delete: if false;
     }
 
-    match /selections/{dateKey} {
-      allow read: if isAuthorizedUser();
-      allow create, update: if isAuthorizedUser()
-        && hasOnlyKeys(['ids'])
-        && request.resource.data.ids is list;
-      allow delete: if false;
-    }
-
-    match /publicMenus/{token} {
-      allow get: if resource.data.expiresAt > request.time;
-      allow list: if false;
-      allow create, update: if isAuthorizedUser() && isValidPublicMenu();
-      allow delete: if false;
-    }
-
-    match /publicMenuVersions/{versionId} {
-      allow read: if isAuthorizedUser();
-      allow create: if isAuthorizedUser() && isValidPublicMenuVersion(versionId);
+    match /dailyMenus/{dateKey}/versions/{versionId} {
+      allow get, list: if isAuthorizedUser()
+        || (
+          exists(/databases/$(database)/documents/dailyMenus/$(dateKey))
+          && get(/databases/$(database)/documents/dailyMenus/$(dateKey)).data.activeVersionId == versionId
+          && get(/databases/$(database)/documents/dailyMenus/$(dateKey)).data.status in ['published', 'closed']
+        );
+      allow create: if isAuthorizedUser() && isValidPublishedMenuVersion(dateKey, versionId);
       allow update, delete: if false;
     }
 
-    match /orders/{dateKey}/entries/{orderId} {
+    match /dailyMenuTokens/{shareToken} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isAuthorizedUser() && isValidDailyMenuToken(shareToken);
+      allow delete: if false;
+    }
+
+    match /dailyMenus/{dateKey}/orders/{orderId} {
       allow read: if isAuthorizedUser();
-      allow create, update: if isValidPublicOrder(dateKey, orderId);
-      allow delete: if canDeletePublicOrder(dateKey, orderId);
+      allow create, update, delete: if false;
+    }
+
+    match /publicOrderDrafts/{draftId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

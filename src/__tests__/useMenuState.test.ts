@@ -162,7 +162,20 @@ describe('useMenuState', () => {
     expect(saveCategorySelectionRules).toHaveBeenCalledWith([
       { category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' },
       { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' },
-    ]);
+    ], ['Saladas', 'Carnes']);
+  });
+
+  it('shows the storage message when saving category limits fails', async () => {
+    saveCategorySelectionRules.mockRejectedValueOnce(new Error('Não foi possível salvar os limites da categoria. Recarregue a tela e tente novamente.'));
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.saveCategoryRule('Carnes', { maxSelections: 2 });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Não foi possível salvar os limites da categoria. Recarregue a tela e tente novamente.')).toBeInTheDocument();
   });
 
   it('blocks remote actions and preserves state when offline', async () => {

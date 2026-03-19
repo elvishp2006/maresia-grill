@@ -82,17 +82,23 @@ jobs:
           const db = admin.firestore();
 
           (async () => {
-            const snap = await db.collection('publicMenus').get();
-            for (const doc of snap.docs) {
+            const menuSnap = await db.collection('dailyMenus').where('status', '==', 'published').get();
+            for (const doc of menuSnap.docs) {
               const data = doc.data();
-              const paidItem = Array.isArray(data.items)
-                ? data.items.find((item) => typeof item?.id === 'string' && typeof item?.priceCents === 'number' && item.priceCents > 0)
+              if (typeof data.shareToken !== 'string' || typeof data.activeVersionId !== 'string') continue;
+
+              const versionSnap = await db.doc(`dailyMenus/${doc.id}/versions/${data.activeVersionId}`).get();
+              if (!versionSnap.exists) continue;
+
+              const version = versionSnap.data();
+              const paidItem = Array.isArray(version?.items)
+                ? version.items.find((item) => typeof item?.id === 'string' && typeof item?.priceCents === 'number' && item.priceCents > 0)
                 : null;
-              if (!data.acceptingOrders || !paidItem) continue;
+              if (!paidItem) continue;
 
               process.stdout.write(JSON.stringify({
-                shareToken: data.token,
-                dateKey: data.dateKey,
+                shareToken: data.shareToken,
+                dateKey: doc.id,
                 itemId: paidItem.id,
               }));
               return;

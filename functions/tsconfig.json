@@ -4,13 +4,14 @@
     "target": "ES2022",
     "moduleResolution": "NodeNext",
     "outDir": "lib",
-    "rootDir": "src",
+    "rootDir": "..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "../domain/**/*.ts"
   ]
 }

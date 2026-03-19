@@ -1,13 +1,36 @@
+import type {
+  CatalogCategory,
+  CatalogItem,
+  DailyMenu,
+  MenuEditorState,
+  Order,
+  OrderLine,
+  OrderPaymentSummary,
+  PaymentMethodType,
+  PaymentProvider,
+  PublicOrderPaymentStatus,
+  PublishedMenuCategory,
+  PublishedMenuItem,
+  SelectionEntry,
+  SelectionPolicy,
+} from '../domain/menu';
+import { DEFAULT_CATEGORY_NAMES } from '../domain/menu';
+
+export type {
+  CatalogCategory,
+  CatalogItem,
+  DailyMenu,
+  MenuEditorState,
+  OrderLine,
+  OrderPaymentSummary,
+  PaymentMethodType,
+  PaymentProvider,
+  PublicOrderPaymentStatus,
+  SelectionEntry as SelectedPublicItem,
+  SelectionPolicy,
+};
+
 export type Categoria = string;
-export type PublicOrderPaymentStatus =
-  | 'not_required'
-  | 'awaiting_payment'
-  | 'paid'
-  | 'refund_pending'
-  | 'refunded'
-  | 'failed';
-export type PaymentProvider = 'mercado_pago' | 'stripe';
-export type PaymentMethodType = 'pix' | 'card';
 
 export interface Item {
   id: string;
@@ -17,11 +40,6 @@ export interface Item {
   quantity?: number | null;
 }
 
-export interface SelectedPublicItem {
-  itemId: string;
-  quantity: number;
-}
-
 export interface CategorySelectionRule {
   category: Categoria;
   maxSelections?: number | null;
@@ -29,15 +47,11 @@ export interface CategorySelectionRule {
   allowRepeatedItems?: boolean | null;
 }
 
-export interface OrderPaymentSummary {
-  freeTotalCents: number;
-  paidTotalCents: number;
-  currency: 'BRL';
-  paymentStatus: PublicOrderPaymentStatus;
-  provider?: PaymentProvider | null;
-  paymentMethod?: PaymentMethodType | null;
-  providerPaymentId?: string | null;
-  refundedAt?: number | null;
+export interface FinalizedPublicOrder {
+  orderId: string;
+  customerName: string;
+  lines: OrderLine[];
+  paymentSummary: OrderPaymentSummary;
 }
 
 export interface PublicOrderCheckoutSession {
@@ -57,20 +71,11 @@ export interface PublicOrderDraft {
   orderId: string;
   customerName: string;
   menuVersionId: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds: string[];
+  selectedItems: SelectionEntry[];
   paymentSummary: OrderPaymentSummary;
   checkoutSession?: PublicOrderCheckoutSession | null;
   createdAt: number;
   updatedAt: number;
-}
-
-export interface FinalizedPublicOrder {
-  orderId: string;
-  customerName: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds: string[];
-  paymentSummary: OrderPaymentSummary;
 }
 
 export interface EditorLock {
@@ -101,24 +106,50 @@ export interface OrderEntry {
   orderId: string;
   customerName: string;
   menuVersionId?: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds: string[];
+  selectedItems?: SelectionEntry[];
   paymentSummary: OrderPaymentSummary;
-  selectedPaidItemIds?: string[];
+  lines?: OrderLine[];
   submittedItems?: Item[];
   submittedAt: number;
 }
 
+export type PersistedOrder = Order;
+
 export interface PublicMenuVersion {
   id: string;
-  token: string;
   dateKey: string;
-  categories: Categoria[];
-  itemIds: string[];
-  items: Item[];
-  categorySelectionRules: CategorySelectionRule[];
+  shareToken?: string;
+  token?: string;
   createdAt: number;
+  itemIds?: string[];
+  categories: Array<PublishedMenuCategory | string>;
+  items: Array<PublishedMenuItem | Item>;
+  categorySelectionRules?: CategorySelectionRule[];
 }
 
-// Used as fallback when Firestore has no saved categories list
-export const DEFAULT_CATEGORIES: Categoria[] = ['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco'];
+export const DEFAULT_CATEGORIES: Categoria[] = [...DEFAULT_CATEGORY_NAMES];
+
+export const categoryRuleFromCategory = (category: CatalogCategory): CategorySelectionRule => ({
+  category: category.name,
+  maxSelections: category.selectionPolicy.maxSelections ?? null,
+  sharedLimitGroupId: category.selectionPolicy.sharedLimitGroupId ?? null,
+  allowRepeatedItems: category.selectionPolicy.allowRepeatedItems ? true : undefined,
+});
+
+export const categoryRulesFromCategories = (categories: CatalogCategory[]): CategorySelectionRule[] => (
+  categories
+    .map(categoryRuleFromCategory)
+    .filter((rule) => rule.maxSelections || rule.sharedLimitGroupId || rule.allowRepeatedItems)
+);
+
+export const itemViewFromCatalog = (
+  item: Pick<CatalogItem, 'id' | 'name' | 'priceCents'>,
+  categoryName: string,
+  quantity?: number | null,
+): Item => ({
+  id: item.id,
+  nome: item.name,
+  categoria: categoryName,
+  priceCents: item.priceCents,
+  ...(typeof quantity === 'number' ? { quantity } : {}),
+});

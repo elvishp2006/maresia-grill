@@ -1,14 +1,23 @@
 import {
   collection,
-  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   setDoc,
-  orderBy,
+  writeBatch,
 } from 'firebase/firestore';
+import {
+  buildPublishedMenuVersion,
+  createCategoryId,
+  createVersionId,
+  expandSelectionEntriesToIds,
+  normalizePriceCents,
+  parseDateKeyFromVersionId,
+} from '../../domain/menu';
 import { db } from './firebase';
 import type {
   CategorySelectionRule,
@@ -17,17 +26,12 @@ import type {
   Item,
   OrderEntry,
   OrderPaymentSummary,
-  PublicOrderCheckoutSession,
   PublicMenu,
   PublicMenuVersion,
+  PublicOrderCheckoutSession,
   SelectedPublicItem,
 } from '../types';
-import {
-  calculateOrderPaymentSummary,
-  isPaidItem,
-  normalizePriceCents,
-} from './billing';
-import { normalizeCategorySelectionRules, validateSelectionRules } from './categorySelectionRules';
+import { DEFAULT_CATEGORIES, categoryRulesFromCategories, itemViewFromCatalog } from '../types';
 
 export const LOCK_TIMEOUT_MS = 60_000;
 
@@ -44,15 +48,14 @@ const getDb = () => {
   return db;
 };
 
-const categoriesRef = () => doc(getDb(), 'config', 'categories');
-const complementsRef = () => doc(getDb(), 'config', 'complements');
-const categorySelectionRulesRef = () => doc(getDb(), 'config', 'categorySelectionRules');
-const selectionRef = (dateKey: string) => doc(getDb(), 'selections', dateKey);
+const catalogRootRef = () => doc(getDb(), 'catalog', 'root');
+const categoriesCollectionRef = () => collection(catalogRootRef(), 'categories');
+const itemsCollectionRef = () => collection(catalogRootRef(), 'items');
+const dailyMenuRef = (dateKey: string) => doc(getDb(), 'dailyMenus', dateKey);
+const dailyMenuVersionRef = (dateKey: string, versionId: string) => doc(getDb(), 'dailyMenus', dateKey, 'versions', versionId);
+const dailyMenuOrdersRef = (dateKey: string) => collection(dailyMenuRef(dateKey), 'orders');
+const dailyMenuTokenRef = (shareToken: string) => doc(getDb(), 'dailyMenuTokens', shareToken);
 const editorLockRef = () => doc(getDb(), 'config', 'editorLock');
-const shareLinkRef = (dateKey: string) => doc(getDb(), 'shareLinks', dateKey);
-const publicMenuRef = (token: string) => doc(getDb(), 'publicMenus', token);
-const publicMenuVersionRef = (versionId: string) => doc(getDb(), 'publicMenuVersions', versionId);
-const ordersCollectionRef = (dateKey: string) => collection(getDb(), 'orders', dateKey, 'entries');
 
 export interface SelectionHistoryEntry {
   dateKey: string;
@@ -67,14 +70,6 @@ export interface AcquireEditorLockInput {
 
 export interface AcquireEditorLockOptions {
   force?: boolean;
-}
-
-interface StoredShareLink {
-  token: string;
-  dateKey: string;
-  createdAt: number;
-  expiresAt: number;
-  acceptingOrders: boolean;
 }
 
 export interface CreateDailyShareLinkInput {
@@ -95,14 +90,14 @@ export interface SubmitPublicOrderInput {
   dateKey: string;
   shareToken: string;
   customerName: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds?: string[];
+  selectedItems: SelectedPublicItem[];
 }
 
 export interface SubmitPublicOrderResult {
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds: string[];
-  paymentSummary?: OrderPaymentSummary;
+  orderId: string;
+  customerName: string;
+  lines: FinalizedPublicOrder['lines'];
+  paymentSummary: OrderPaymentSummary;
 }
 
 export interface PreparePublicOrderCheckoutInput {
@@ -110,8 +105,7 @@ export interface PreparePublicOrderCheckoutInput {
   dateKey: string;
   shareToken: string;
   customerName: string;
-  selectedItems?: SelectedPublicItem[];
-  selectedItemIds?: string[];
+  selectedItems: SelectedPublicItem[];
   successUrl?: string;
   pendingUrl?: string;
   failureUrl?: string;
@@ -151,131 +145,41 @@ export interface SetOrderIntakeStatusInput extends CreateDailyShareLinkInput {
   acceptingOrders: boolean;
 }
 
-const isStringArray = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every(item => typeof item === 'string');
-
-const isValidSelectedPublicItem = (value: unknown): value is SelectedPublicItem => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.itemId === 'string'
-    && typeof candidate.quantity === 'number'
-    && Number.isFinite(candidate.quantity)
-    && candidate.quantity > 0;
-};
-
-const normalizeSelectedPublicItems = (
-  selectedItems: unknown,
-  fallbackSelectedItemIds?: unknown,
-): SelectedPublicItem[] => {
-  if (Array.isArray(selectedItems)) {
-    const normalized = new Map<string, number>();
-    for (const candidate of selectedItems) {
-      if (!isValidSelectedPublicItem(candidate)) continue;
-      normalized.set(candidate.itemId, (normalized.get(candidate.itemId) ?? 0) + Math.trunc(candidate.quantity));
-    }
-    if (normalized.size > 0) {
-      return Array.from(normalized.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
-    }
-  }
-
-  if (Array.isArray(fallbackSelectedItemIds) && fallbackSelectedItemIds.every(item => typeof item === 'string')) {
-    const normalized = new Map<string, number>();
-    for (const itemId of fallbackSelectedItemIds as string[]) {
-      normalized.set(itemId, (normalized.get(itemId) ?? 0) + 1);
-    }
-    return Array.from(normalized.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
-  }
-
-  return [];
-};
-
-const expandSelectedItemsToIds = (selectedItems: SelectedPublicItem[]) => selectedItems.map(item => item.itemId);
-const hasRepeatedQuantities = (selectedItems: SelectedPublicItem[]) => selectedItems.some(item => item.quantity > 1);
-
-const isValidItem = (value: unknown): value is Item => {
-  if (!value || typeof value !== 'object') return false;
-
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.id === 'string'
-    && typeof candidate.nome === 'string'
-    && typeof candidate.categoria === 'string'
-    && (
-      candidate.priceCents === undefined
-      || candidate.priceCents === null
-      || typeof candidate.priceCents === 'number'
-    )
-    && (
-      candidate.quantity === undefined
-      || candidate.quantity === null
-      || typeof candidate.quantity === 'number'
-    );
-};
-
-const isValidEditorLock = (value: unknown): value is EditorLock => {
-  if (!value || typeof value !== 'object') return false;
-
-  const candidate = value as Record<string, unknown>;
-  return candidate.status === 'active'
-    && typeof candidate.sessionId === 'string'
-    && typeof candidate.userEmail === 'string'
-    && typeof candidate.deviceLabel === 'string'
-    && typeof candidate.acquiredAt === 'number'
-    && typeof candidate.lastHeartbeatAt === 'number'
-    && typeof candidate.expiresAt === 'number';
-};
-
-const normalizeStringArray = (value: unknown): string[] =>
-  isStringArray(value) ? value : [];
-
-const normalizeItems = (value: unknown): Item[] =>
-  Array.isArray(value)
-    ? value.filter(isValidItem).map((item) => {
-      const priceCents = normalizePriceCents(item.priceCents);
-      const quantity = typeof item.quantity === 'number' && Number.isFinite(item.quantity) && item.quantity > 0
-        ? Math.trunc(item.quantity)
-        : undefined;
-      const baseItem = priceCents === null ? { id: item.id, nome: item.nome, categoria: item.categoria } : {
-        id: item.id,
-        nome: item.nome,
-        categoria: item.categoria,
-        priceCents,
-      };
-      return quantity ? { ...baseItem, quantity } : baseItem;
-    })
-    : [];
-
-const normalizeEditorLock = (value: unknown): EditorLock | null =>
-  isValidEditorLock(value) ? value : null;
-
-const normalizeOrderPaymentSummary = (value: unknown): OrderPaymentSummary | null => {
-  if (!value) {
-    return {
-      freeTotalCents: 0,
-      paidTotalCents: 0,
-      currency: 'BRL',
-      paymentStatus: 'not_required',
-      provider: null,
-      paymentMethod: null,
-      providerPaymentId: null,
-      refundedAt: null,
-    };
-  }
-  if (!isValidOrderPaymentSummary(value)) return null;
-  const candidate = value as unknown as Record<string, unknown>;
-  return {
-    freeTotalCents: normalizePriceCents(candidate.freeTotalCents) ?? 0,
-    paidTotalCents: normalizePriceCents(candidate.paidTotalCents) ?? 0,
-    currency: 'BRL',
-    paymentStatus: String(candidate.paymentStatus) as OrderPaymentSummary['paymentStatus'],
-    provider: candidate.provider === 'mercado_pago' || candidate.provider === 'stripe'
-      ? candidate.provider
-      : null,
-    paymentMethod: candidate.paymentMethod === 'pix' || candidate.paymentMethod === 'card'
-      ? candidate.paymentMethod
-      : null,
-    providerPaymentId: typeof candidate.providerPaymentId === 'string' ? candidate.providerPaymentId : null,
-    refundedAt: normalizeTimestamp(candidate.refundedAt),
+type CatalogCategoryRecord = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  selectionPolicy?: {
+    maxSelections?: number | null;
+    sharedLimitGroupId?: string | null;
+    allowRepeatedItems?: boolean;
   };
+};
+
+type CatalogItemRecord = {
+  id: string;
+  categoryId: string;
+  name: string;
+  priceCents?: number | null;
+  isActive?: boolean;
+  sortOrder: number;
+};
+
+type DailyMenuRecord = {
+  dateKey: string;
+  status: 'draft' | 'published' | 'closed';
+  shareToken?: string | null;
+  activeVersionId?: string | null;
+  itemIds?: string[];
+  updatedAt?: number | Date | { toMillis: () => number };
+};
+
+type DailyMenuTokenRecord = {
+  shareToken: string;
+  dateKey: string;
+  activeVersionId: string;
+  createdAt?: number | Date | { toMillis: () => number };
+  updatedAt?: number | Date | { toMillis: () => number };
 };
 
 const normalizeTimestamp = (value: unknown): number | null => {
@@ -287,190 +191,9 @@ const normalizeTimestamp = (value: unknown): number | null => {
   return null;
 };
 
-const isValidStoredShareLink = (value: unknown): value is StoredShareLink => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.token === 'string'
-    && typeof candidate.dateKey === 'string'
-    && normalizeTimestamp(candidate.createdAt) !== null
-    && normalizeTimestamp(candidate.expiresAt) !== null
-    && (candidate.acceptingOrders === undefined || typeof candidate.acceptingOrders === 'boolean');
-};
-
-const isValidCategorySelectionRule = (value: unknown): value is CategorySelectionRule => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.category === 'string'
-    && (candidate.maxSelections === undefined || typeof candidate.maxSelections === 'number')
-    && (candidate.sharedLimitGroupId === undefined || candidate.sharedLimitGroupId === null || typeof candidate.sharedLimitGroupId === 'string')
-    && (candidate.allowRepeatedItems === undefined || typeof candidate.allowRepeatedItems === 'boolean');
-};
-
-const isValidOrderPaymentSummary = (value: unknown): value is OrderPaymentSummary => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.freeTotalCents === 'number'
-    && typeof candidate.paidTotalCents === 'number'
-    && candidate.currency === 'BRL'
-    && typeof candidate.paymentStatus === 'string';
-};
-
-const isValidPublicMenu = (value: unknown): value is PublicMenu & { createdAt: number } => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.token === 'string'
-    && typeof candidate.dateKey === 'string'
-    && (candidate.acceptingOrders === undefined || typeof candidate.acceptingOrders === 'boolean')
-    && typeof candidate.currentVersionId === 'string'
-    && Array.isArray(candidate.categories)
-    && candidate.categories.every(item => typeof item === 'string')
-    && Array.isArray(candidate.items)
-    && candidate.items.every(isValidItem)
-    && Array.isArray(candidate.categorySelectionRules)
-    && candidate.categorySelectionRules.every(isValidCategorySelectionRule)
-    && normalizeTimestamp(candidate.createdAt) !== null
-    && normalizeTimestamp(candidate.expiresAt) !== null;
-};
-
-const isValidPublicMenuVersion = (value: unknown): value is PublicMenuVersion => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.token === 'string'
-    && typeof candidate.dateKey === 'string'
-    && Array.isArray(candidate.categories)
-    && candidate.categories.every(item => typeof item === 'string')
-    && Array.isArray(candidate.itemIds)
-    && candidate.itemIds.every(item => typeof item === 'string')
-    && Array.isArray(candidate.items)
-    && candidate.items.every(isValidItem)
-    && Array.isArray(candidate.categorySelectionRules)
-    && candidate.categorySelectionRules.every(isValidCategorySelectionRule)
-    && normalizeTimestamp(candidate.createdAt) !== null;
-};
-
-const isValidOrderEntry = (value: unknown, id: string): value is OrderEntry => {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof id === 'string'
-    && typeof candidate.dateKey === 'string'
-    && typeof candidate.shareToken === 'string'
-    && typeof candidate.orderId === 'string'
-    && typeof candidate.customerName === 'string'
-    && (candidate.menuVersionId === undefined || typeof candidate.menuVersionId === 'string')
-    && (candidate.selectedItems === undefined || (
-      Array.isArray(candidate.selectedItems)
-      && candidate.selectedItems.every(isValidSelectedPublicItem)
-    ))
-    && (candidate.selectedItemIds === undefined || isStringArray(candidate.selectedItemIds))
-    && (candidate.paymentSummary === undefined || isValidOrderPaymentSummary(candidate.paymentSummary))
-    && (candidate.submittedItems === undefined || (
-      Array.isArray(candidate.submittedItems)
-      && candidate.submittedItems.every(isValidItem)
-    ))
-    && (candidate.selectedPaidItemIds === undefined || isStringArray(candidate.selectedPaidItemIds))
-    && normalizeTimestamp(candidate.submittedAt) !== null;
-};
-
-const normalizeStoredShareLink = (value: unknown): StoredShareLink | null => {
-  if (!isValidStoredShareLink(value)) return null;
-  return {
-    token: value.token,
-    dateKey: value.dateKey,
-    createdAt: normalizeTimestamp(value.createdAt)!,
-    expiresAt: normalizeTimestamp(value.expiresAt)!,
-    acceptingOrders: value.acceptingOrders ?? true,
-  };
-};
-
-const normalizePublicMenu = (value: unknown): PublicMenu | null => {
-  if (!isValidPublicMenu(value)) return null;
-  return {
-    token: value.token,
-    dateKey: value.dateKey,
-    acceptingOrders: value.acceptingOrders ?? true,
-    currentVersionId: value.currentVersionId,
-    categories: value.categories,
-    items: value.items,
-    categorySelectionRules: normalizeCategorySelectionRules(value.categorySelectionRules),
-    expiresAt: normalizeTimestamp(value.expiresAt)!,
-  };
-};
-
-const normalizePublicMenuVersion = (id: string, value: unknown): PublicMenuVersion | null => {
-  if (!isValidPublicMenuVersion(value)) return null;
-  return {
-    id,
-    token: value.token,
-    dateKey: value.dateKey,
-    categories: value.categories,
-    itemIds: value.itemIds,
-    items: value.items,
-    categorySelectionRules: normalizeCategorySelectionRules(value.categorySelectionRules),
-    createdAt: normalizeTimestamp(value.createdAt)!,
-  };
-};
-
-const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
-  if (!isValidOrderEntry(value, id)) return null;
-  const candidate = value as unknown as Record<string, unknown>;
-  const paymentSummary = normalizeOrderPaymentSummary(value.paymentSummary);
-  if (!paymentSummary) return null;
-  const selectedItems = normalizeSelectedPublicItems(
-    candidate.selectedItems,
-    candidate.selectedItemIds,
-  );
-  return {
-    id,
-    dateKey: value.dateKey,
-    shareToken: value.shareToken,
-    orderId: value.orderId,
-    customerName: value.customerName,
-    menuVersionId: typeof value.menuVersionId === 'string' ? value.menuVersionId : undefined,
-    selectedItems,
-    selectedItemIds: expandSelectedItemsToIds(selectedItems),
-    selectedPaidItemIds: Array.isArray(value.selectedPaidItemIds) ? value.selectedPaidItemIds : undefined,
-    paymentSummary,
-    submittedItems: Array.isArray(value.submittedItems) ? value.submittedItems : undefined,
-    submittedAt: normalizeTimestamp(value.submittedAt)!,
-  };
-};
-
-const buildEditorLock = ({ sessionId, userEmail, deviceLabel }: AcquireEditorLockInput, now: number): EditorLock => ({
-  sessionId,
-  userEmail,
-  deviceLabel,
-  status: 'active',
-  acquiredAt: now,
-  lastHeartbeatAt: now,
-  expiresAt: now + LOCK_TIMEOUT_MS,
-});
-
-export const isLockExpired = (lock: EditorLock | null, now = Date.now()) =>
-  !lock || lock.expiresAt <= now;
-
-export const isMenuExpired = (menu: PublicMenu | null, now = Date.now()) =>
-  !menu || menu.expiresAt <= now;
-
 const buildExpiryDate = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
-  return new Date(year, (month ?? 1) - 1, day ?? 1, 24, 0, 0, 0);
-};
-
-const buildSelectedItemsSnapshot = (
-  categories: string[],
-  complements: Item[],
-  daySelection: string[],
-  categorySelectionRules: CategorySelectionRule[],
-): Pick<PublicMenu, 'categories' | 'items' | 'categorySelectionRules'> => {
-  const selected = complements.filter(item => daySelection.includes(item.id));
-  const categorySet = new Set(selected.map(item => item.categoria));
-
-  return {
-    categories: categories.filter(category => categorySet.has(category)),
-    items: selected.map(item => ({ ...item })),
-    categorySelectionRules: normalizeCategorySelectionRules(categorySelectionRules)
-      .filter(rule => categorySet.has(rule.category)),
-  };
+  return new Date(year, (month ?? 1) - 1, day ?? 1, 24, 0, 0, 0).getTime();
 };
 
 const buildPublicUrl = (token: string) => {
@@ -478,169 +201,602 @@ const buildPublicUrl = (token: string) => {
   return `${base}/s/${token}`;
 };
 
-const buildPublicMenuDocument = ({
-  token,
-  currentVersionId,
-  dateKey,
-  categories,
-  complements,
-  daySelection,
-  categorySelectionRules,
-  acceptingOrders,
-  now,
-}: CreateDailyShareLinkInput & { token: string; currentVersionId: string; now: number; acceptingOrders: boolean }) => {
-  const expiresAt = buildExpiryDate(dateKey);
-  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection, categorySelectionRules);
+const normalizeSortOrder = (value: unknown, fallback = 0) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.trunc(value);
+};
 
+const normalizeCategoryRecord = (id: string, value: unknown) => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as CatalogCategoryRecord;
+  if (typeof candidate.name !== 'string') return null;
   return {
-    token,
-    dateKey,
-    acceptingOrders,
-    currentVersionId,
-    categories: snapshot.categories,
-    items: snapshot.items,
-    categorySelectionRules: snapshot.categorySelectionRules,
-    createdAt: new Date(now),
-    expiresAt,
+    id,
+    name: candidate.name,
+    sortOrder: normalizeSortOrder(candidate.sortOrder),
+    selectionPolicy: {
+      maxSelections: typeof candidate.selectionPolicy?.maxSelections === 'number'
+        ? Math.trunc(candidate.selectionPolicy.maxSelections)
+        : null,
+      sharedLimitGroupId: typeof candidate.selectionPolicy?.sharedLimitGroupId === 'string'
+        ? candidate.selectionPolicy.sharedLimitGroupId
+        : null,
+      allowRepeatedItems: candidate.selectionPolicy?.allowRepeatedItems === true,
+    },
   };
 };
 
-const buildPublicMenuVersionDocument = ({
-  token,
-  versionId,
-  dateKey,
-  categories,
-  complements,
-  daySelection,
-  categorySelectionRules,
-  now,
-}: CreateDailyShareLinkInput & { token: string; versionId: string; now: number }) => {
-  const snapshot = buildSelectedItemsSnapshot(categories, complements, daySelection, categorySelectionRules);
-
+const normalizeItemRecord = (id: string, value: unknown) => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as CatalogItemRecord;
+  if (typeof candidate.name !== 'string' || typeof candidate.categoryId !== 'string') return null;
   return {
-    id: versionId,
-    token,
-    dateKey,
-    categories: snapshot.categories,
-    itemIds: snapshot.items.map(item => item.id),
-    items: snapshot.items,
-    categorySelectionRules: snapshot.categorySelectionRules,
-    createdAt: new Date(now),
+    id,
+    categoryId: candidate.categoryId,
+    name: candidate.name,
+    priceCents: normalizePriceCents(candidate.priceCents),
+    isActive: candidate.isActive !== false,
+    sortOrder: normalizeSortOrder(candidate.sortOrder),
   };
 };
 
-const createVersionId = (dateKey: string) => (
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`
+const normalizeDailyMenuRecord = (dateKey: string, value: unknown) => {
+  if (!value || typeof value !== 'object') {
+    return {
+      dateKey,
+      status: 'draft' as const,
+      shareToken: null,
+      activeVersionId: null,
+      itemIds: [],
+      updatedAt: Date.now(),
+    };
+  }
+
+  const candidate = value as DailyMenuRecord;
+  return {
+    dateKey,
+    status: candidate.status === 'published' || candidate.status === 'closed' ? candidate.status : 'draft',
+    shareToken: typeof candidate.shareToken === 'string' ? candidate.shareToken : null,
+    activeVersionId: typeof candidate.activeVersionId === 'string' ? candidate.activeVersionId : null,
+    itemIds: Array.isArray(candidate.itemIds) ? candidate.itemIds.filter((item): item is string => typeof item === 'string') : [],
+    updatedAt: normalizeTimestamp(candidate.updatedAt) ?? Date.now(),
+  };
+};
+
+const normalizeDailyMenuTokenRecord = (shareToken: string, value: unknown) => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as DailyMenuTokenRecord;
+  if (
+    typeof candidate.shareToken !== 'string'
+    || typeof candidate.dateKey !== 'string'
+    || typeof candidate.activeVersionId !== 'string'
+  ) return null;
+
+  return {
+    shareToken,
+    dateKey: candidate.dateKey,
+    activeVersionId: candidate.activeVersionId,
+    createdAt: normalizeTimestamp(candidate.createdAt) ?? Date.now(),
+    updatedAt: normalizeTimestamp(candidate.updatedAt) ?? Date.now(),
+  };
+};
+
+const sortCategories = <T extends { name: string; sortOrder: number }>(categories: T[]) => (
+  [...categories].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' }))
 );
 
-const buildShareLinkDocument = ({
-  token,
-  dateKey,
-  acceptingOrders,
-  now,
-}: { token: string; dateKey: string; acceptingOrders: boolean; now: number }) => ({
-  token,
-  dateKey,
-  acceptingOrders,
-  createdAt: new Date(now),
-  expiresAt: buildExpiryDate(dateKey),
-});
+const sortItems = <T extends { name: string; sortOrder: number }>(items: T[]) => (
+  [...items].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' }))
+);
+
+const loadCatalogSnapshot = async () => {
+  const [categorySnap, itemSnap] = await Promise.all([
+    getDocs(query(categoriesCollectionRef(), orderBy('sortOrder', 'asc'))),
+    getDocs(query(itemsCollectionRef(), orderBy('sortOrder', 'asc'))),
+  ]);
+
+  const categories = sortCategories(categorySnap.docs
+    .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
+  const items = sortItems(itemSnap.docs
+    .map(docSnap => normalizeItemRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
+
+  return { categories, items };
+};
+
+const loadPersistedPublishedSnapshot = async (dateKey: string) => {
+  const [dailyMenu, catalog] = await Promise.all([
+    loadDailyMenuRecord(dateKey),
+    loadCatalogSnapshot(),
+  ]);
+
+  return {
+    dailyMenu,
+    categories: catalog.categories,
+    items: catalog.items,
+    categorySelectionRules: categoryRulesFromCategories(catalog.categories),
+  };
+};
+
+const reserveDailyMenuToken = async (dateKey: string, existingToken?: string | null) => {
+  if (existingToken) {
+    const existingTokenSnap = await getDoc(dailyMenuTokenRef(existingToken));
+    if (!existingTokenSnap.exists()) return existingToken;
+    const normalized = normalizeDailyMenuTokenRecord(existingToken, existingTokenSnap.data());
+    if (!normalized || normalized.dateKey === dateKey) return existingToken;
+    throw new Error('Conflito de token público do cardápio.');
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const nextToken = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`;
+    const tokenSnap = await getDoc(dailyMenuTokenRef(nextToken));
+    if (!tokenSnap.exists()) return nextToken;
+  }
+
+  throw new Error('Não foi possível reservar um token público único.');
+};
+
+const loadDailyMenuRecord = async (dateKey: string) => {
+  const snap = await getDoc(dailyMenuRef(dateKey));
+  return snap.exists() ? normalizeDailyMenuRecord(dateKey, snap.data()) : normalizeDailyMenuRecord(dateKey, null);
+};
+
+const ensureDefaultCategories = async () => {
+  const snap = await getDocs(categoriesCollectionRef());
+  if (!snap.empty) return;
+
+  const batch = writeBatch(getDb());
+  DEFAULT_CATEGORIES.forEach((name, index) => {
+    const id = createCategoryId(name);
+    batch.set(doc(categoriesCollectionRef(), id), {
+      name,
+      sortOrder: index,
+      selectionPolicy: {
+        maxSelections: null,
+        sharedLimitGroupId: null,
+        allowRepeatedItems: false,
+      },
+    });
+  });
+  await batch.commit();
+};
+
+const saveCategoriesInternal = async (items: string[]): Promise<void> => {
+  await ensureDefaultCategories();
+  const existing = await getDocs(categoriesCollectionRef());
+  const existingEntries = existing.docs
+    .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  const byName = new Map(existingEntries.map(entry => [entry.name, entry]));
+  const batch = writeBatch(getDb());
+  const nextIds = new Set<string>();
+  const nextNamesById = new Map<string, string>();
+
+  items.forEach((name, index) => {
+    const normalizedName = name.trim();
+    if (!normalizedName) return;
+    const existingEntry = byName.get(normalizedName);
+    const id = existingEntry?.id ?? createCategoryId(normalizedName);
+    const conflictingName = nextNamesById.get(id);
+    if (conflictingName && conflictingName !== normalizedName) {
+      throw new StorageActionError(
+        `As categorias "${conflictingName}" e "${normalizedName}" geram o mesmo identificador. Ajuste os nomes para salvar.`,
+        'already-exists',
+      );
+    }
+    nextNamesById.set(id, normalizedName);
+    nextIds.add(id);
+    batch.set(doc(categoriesCollectionRef(), id), {
+      name: normalizedName,
+      sortOrder: index,
+      selectionPolicy: existingEntry?.selectionPolicy ?? {
+        maxSelections: null,
+        sharedLimitGroupId: null,
+        allowRepeatedItems: false,
+      },
+    });
+  });
+
+  existing.docs.forEach((docSnap) => {
+    if (!nextIds.has(docSnap.id)) batch.delete(docSnap.ref);
+  });
+
+  await batch.commit();
+};
+
+const saveComplementsInternal = async (items: Item[]): Promise<void> => {
+  const categories = await loadCatalogSnapshot();
+  const categoryByName = new Map(categories.categories.map(category => [category.name, category.id]));
+  const existing = await getDocs(itemsCollectionRef());
+  const batch = writeBatch(getDb());
+  const nextIds = new Set<string>();
+
+  items.forEach((item, index) => {
+    const categoryId = categoryByName.get(item.categoria) ?? createCategoryId(item.categoria);
+    nextIds.add(item.id);
+    batch.set(doc(itemsCollectionRef(), item.id), {
+      categoryId,
+      name: item.nome.trim(),
+      priceCents: normalizePriceCents(item.priceCents),
+      isActive: true,
+      sortOrder: index,
+    });
+  });
+
+  existing.docs.forEach((docSnap) => {
+    if (!nextIds.has(docSnap.id)) batch.delete(docSnap.ref);
+  });
+
+  await batch.commit();
+};
+
+const saveDailyMenuSelection = async (dateKey: string, ids: string[]) => {
+  const current = await loadDailyMenuRecord(dateKey);
+  await setDoc(dailyMenuRef(dateKey), {
+    dateKey,
+    status: current.status,
+    shareToken: current.shareToken,
+    activeVersionId: current.activeVersionId,
+    itemIds: ids,
+    updatedAt: Date.now(),
+  });
+};
+
+const normalizePublishedMenuVersion = (id: string, value: unknown): PublicMenuVersion | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.categories) || !Array.isArray(candidate.items)) return null;
+  return {
+    id,
+    dateKey: typeof candidate.dateKey === 'string' ? candidate.dateKey : '',
+    shareToken: typeof candidate.shareToken === 'string' ? candidate.shareToken : '',
+    createdAt: normalizeTimestamp(candidate.createdAt) ?? Date.now(),
+    categories: candidate.categories as PublicMenuVersion['categories'],
+    items: candidate.items as PublicMenuVersion['items'],
+  };
+};
+
+const buildPublicMenuFromVersion = (
+  token: string,
+  dateKey: string,
+  acceptingOrders: boolean,
+  version: PublicMenuVersion,
+): PublicMenu => {
+  const versionCategories = version.categories as Array<{
+    id: string;
+    name: string;
+    sortOrder: number;
+    selectionPolicy: {
+      maxSelections?: number | null;
+      sharedLimitGroupId?: string | null;
+      allowRepeatedItems?: boolean;
+    };
+  }>;
+  const versionItems = version.items as Array<{
+    id: string;
+    name: string;
+    sortOrder: number;
+    priceCents: number;
+    categoryId: string;
+  }>;
+  const categoryById = new Map(versionCategories.map(category => [category.id, category]));
+  return {
+    token,
+    dateKey,
+    expiresAt: buildExpiryDate(dateKey),
+    acceptingOrders,
+    currentVersionId: version.id,
+    categories: sortCategories(versionCategories).map(category => category.name),
+    items: sortItems(versionItems).map(item => itemViewFromCatalog(item, categoryById.get(item.categoryId)?.name ?? 'Sem categoria')),
+    categorySelectionRules: versionCategories.flatMap(category => {
+      const hasRule = category.selectionPolicy.maxSelections || category.selectionPolicy.sharedLimitGroupId || category.selectionPolicy.allowRepeatedItems;
+      return hasRule
+        ? [{
+            category: category.name,
+            maxSelections: category.selectionPolicy.maxSelections ?? null,
+            sharedLimitGroupId: category.selectionPolicy.sharedLimitGroupId ?? null,
+            allowRepeatedItems: category.selectionPolicy.allowRepeatedItems ? true : undefined,
+          }]
+        : [];
+    }),
+  };
+};
+
+const loadActivePublicMenuVersion = async (token: string): Promise<{ menu: ReturnType<typeof normalizeDailyMenuRecord>; version: PublicMenuVersion } | null> => {
+  const tokenSnap = await getDoc(dailyMenuTokenRef(token));
+  if (!tokenSnap.exists()) return null;
+  const tokenRecord = normalizeDailyMenuTokenRecord(token, tokenSnap.data());
+  if (!tokenRecord) return null;
+
+  const menuSnap = await getDoc(dailyMenuRef(tokenRecord.dateKey));
+  if (!menuSnap.exists()) return null;
+  const menu = normalizeDailyMenuRecord(tokenRecord.dateKey, menuSnap.data());
+  if (!menu.activeVersionId || menu.activeVersionId !== tokenRecord.activeVersionId) return null;
+
+  const versionSnap = await getDoc(dailyMenuVersionRef(menu.dateKey, menu.activeVersionId));
+  if (!versionSnap.exists()) return null;
+  const version = normalizePublishedMenuVersion(versionSnap.id, versionSnap.data());
+  if (!version) return null;
+  return { menu, version };
+};
+
+const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.dateKey !== 'string'
+    || typeof candidate.shareToken !== 'string'
+    || typeof candidate.menuVersionId !== 'string'
+    || typeof candidate.customerName !== 'string'
+  ) return null;
+
+  const lines = Array.isArray(candidate.lines)
+    ? candidate.lines.filter((line): line is {
+      itemId: string;
+      quantity: number;
+      unitPriceCents: number;
+      name: string;
+      categoryId: string;
+      categoryName: string;
+    } => (
+      Boolean(line)
+      && typeof (line as Record<string, unknown>).itemId === 'string'
+      && typeof (line as Record<string, unknown>).quantity === 'number'
+      && typeof (line as Record<string, unknown>).name === 'string'
+      && typeof (line as Record<string, unknown>).categoryName === 'string'
+      && typeof (line as Record<string, unknown>).categoryId === 'string'
+      && typeof (line as Record<string, unknown>).unitPriceCents === 'number'
+    ))
+    : [];
+
+  const paymentSummary = candidate.paymentSummary as OrderPaymentSummary | undefined;
+  return {
+    id,
+    dateKey: candidate.dateKey,
+    shareToken: candidate.shareToken,
+    orderId: id,
+    customerName: candidate.customerName,
+    menuVersionId: candidate.menuVersionId,
+    selectedItems: lines.map(line => ({ itemId: line.itemId, quantity: line.quantity })),
+    paymentSummary: paymentSummary ?? {
+      freeTotalCents: 0,
+      paidTotalCents: 0,
+      currency: 'BRL',
+      paymentStatus: 'not_required',
+      provider: null,
+      paymentMethod: null,
+      providerPaymentId: null,
+      refundedAt: null,
+    },
+    lines,
+    submittedItems: lines.map(line => ({
+      id: line.itemId,
+      nome: line.name,
+      categoria: line.categoryName,
+      priceCents: line.unitPriceCents,
+      quantity: line.quantity,
+    })),
+    submittedAt: normalizeTimestamp(candidate.submittedAt) ?? Date.now(),
+  };
+};
+
+export const isLockExpired = (lock: EditorLock | null, now = Date.now()) =>
+  !lock || lock.expiresAt <= now;
+
+export const isMenuExpired = (menu: PublicMenu | null, now = Date.now()) =>
+  !menu || menu.expiresAt <= now;
 
 export const loadCategories = async (): Promise<string[]> => {
-  const snap = await getDoc(categoriesRef());
-  return snap.exists() ? normalizeStringArray(snap.data().items) : [];
+  const { categories } = await loadCatalogSnapshot();
+  return categories.map(category => category.name);
 };
 
 export const saveCategories = (items: string[]): Promise<void> => {
-  return setDoc(categoriesRef(), { items });
+  return saveCategoriesInternal(items);
 };
 
 export const subscribeCategories = (
   onValue: (items: string[]) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(categoriesRef(), (snap) => {
-  onValue(snap.exists() ? normalizeStringArray(snap.data().items) : []);
+) => onSnapshot(query(categoriesCollectionRef(), orderBy('sortOrder', 'asc')), (snap) => {
+  const categories = sortCategories(snap.docs
+    .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
+  onValue(categories.length > 0 ? categories.map(category => category.name) : DEFAULT_CATEGORIES);
 }, error => onError?.(error));
 
 export const loadComplements = async (): Promise<Item[]> => {
-  const snap = await getDoc(complementsRef());
-  return snap.exists() ? normalizeItems(snap.data().items) : [];
+  const { categories, items } = await loadCatalogSnapshot();
+  const categoryById = new Map(categories.map(category => [category.id, category.name]));
+  return items.map(item => itemViewFromCatalog(item, categoryById.get(item.categoryId) ?? 'Sem categoria'));
 };
 
 export const saveComplements = (items: Item[]): Promise<void> => {
-  return setDoc(complementsRef(), { items });
+  return saveComplementsInternal(items);
 };
 
 export const loadCategorySelectionRules = async (): Promise<CategorySelectionRule[]> => {
-  const snap = await getDoc(categorySelectionRulesRef());
-  return snap.exists() ? normalizeCategorySelectionRules(snap.data().rules) : [];
+  const { categories } = await loadCatalogSnapshot();
+  return categoryRulesFromCategories(categories);
 };
 
-export const saveCategorySelectionRules = (rules: CategorySelectionRule[]): Promise<void> => {
-  return setDoc(categorySelectionRulesRef(), { rules: normalizeCategorySelectionRules(rules) });
+export class StorageActionError extends Error {
+  code: string;
+
+  constructor(message: string, code = 'unknown') {
+    super(message);
+    this.name = 'StorageActionError';
+    this.code = code;
+  }
+}
+
+const normalizeStorageError = (error: unknown, fallbackMessage: string) => {
+  const code = typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : 'unknown';
+  if (error instanceof StorageActionError) return error;
+  if (error instanceof Error) return new StorageActionError(error.message || fallbackMessage, code);
+  return new StorageActionError(fallbackMessage, code);
+};
+
+export const saveCategorySelectionRules = async (
+  rules: CategorySelectionRule[],
+  categoryNames?: string[],
+): Promise<void> => {
+  const existing = await getDocs(query(categoriesCollectionRef(), orderBy('sortOrder', 'asc')));
+  const existingEntries = sortCategories(existing.docs
+    .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
+  const resolvedCategoryNames = Array.from(new Set(
+    (categoryNames ?? existingEntries.map(category => category.name))
+      .map(category => category.trim())
+      .filter(category => category.length > 0)
+  ));
+  if (resolvedCategoryNames.length === 0) {
+    throw new StorageActionError('Nenhuma categoria carregada para salvar os limites.', 'not-found');
+  }
+
+  const existingByName = new Map(existingEntries.map(entry => [entry.name, entry]));
+  const rulesByName = new Map(rules.map(rule => [rule.category, rule]));
+  const batch = writeBatch(getDb());
+  const nextNamesById = new Map<string, string>();
+
+  resolvedCategoryNames.forEach((categoryName, index) => {
+    const existingCategory = existingByName.get(categoryName);
+    const rule = rulesByName.get(categoryName);
+    const categoryId = existingCategory?.id ?? createCategoryId(categoryName);
+    const conflictingName = nextNamesById.get(categoryId);
+    if (conflictingName && conflictingName !== categoryName) {
+      throw new StorageActionError(
+        `As categorias "${conflictingName}" e "${categoryName}" geram o mesmo identificador. Ajuste os nomes para salvar os limites.`,
+        'already-exists',
+      );
+    }
+    nextNamesById.set(categoryId, categoryName);
+    batch.set(doc(categoriesCollectionRef(), categoryId), {
+      name: categoryName,
+      sortOrder: normalizeSortOrder(existingCategory?.sortOrder, index),
+      selectionPolicy: {
+        maxSelections: rule?.maxSelections ?? null,
+        sharedLimitGroupId: rule?.sharedLimitGroupId ?? null,
+        allowRepeatedItems: rule?.allowRepeatedItems === true,
+      },
+    });
+  });
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    const code = typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : 'unknown';
+    console.error('saveCategorySelectionRules failed', {
+      code,
+      rules,
+      categoryNames: resolvedCategoryNames,
+      error,
+    });
+    if (code === 'permission-denied') {
+      const suffix = import.meta.env.DEV ? ` (Firestore: ${code})` : '';
+      throw new StorageActionError(`Não foi possível salvar os limites da categoria. Recarregue a tela e tente novamente.${suffix}`, code);
+    }
+    if (code === 'failed-precondition') {
+      const suffix = import.meta.env.DEV ? ` (Firestore: ${code})` : '';
+      throw new StorageActionError(`Os limites da categoria ficaram desatualizados. Recarregue a tela e tente novamente.${suffix}`, code);
+    }
+    throw normalizeStorageError(error, 'Não foi possível salvar os limites da categoria.');
+  }
 };
 
 export const subscribeCategorySelectionRules = (
   onValue: (rules: CategorySelectionRule[]) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(categorySelectionRulesRef(), (snap) => {
-  onValue(snap.exists() ? normalizeCategorySelectionRules(snap.data().rules) : []);
+) => onSnapshot(query(categoriesCollectionRef(), orderBy('sortOrder', 'asc')), (snap) => {
+  const categories = sortCategories(snap.docs
+    .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
+  onValue(categoryRulesFromCategories(categories));
 }, error => onError?.(error));
 
 export const subscribeComplements = (
   onValue: (items: Item[]) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(complementsRef(), (snap) => {
-  onValue(snap.exists() ? normalizeItems(snap.data().items) : []);
+) => onSnapshot(query(itemsCollectionRef(), orderBy('sortOrder', 'asc')), async (snap) => {
+  const categorySnapshot = await loadCatalogSnapshot();
+  const categoryById = new Map(categorySnapshot.categories.map(category => [category.id, category.name]));
+  const items = sortItems(snap.docs
+    .map(docSnap => normalizeItemRecord(docSnap.id, docSnap.data()))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null))
+    .map(item => itemViewFromCatalog(item, categoryById.get(item.categoryId) ?? 'Sem categoria'));
+  onValue(items);
 }, error => onError?.(error));
 
 export const loadDaySelection = async (dateKey = getDateKey()): Promise<string[]> => {
-  const snap = await getDoc(selectionRef(dateKey));
-  return snap.exists() ? normalizeStringArray(snap.data().ids) : [];
+  const dailyMenu = await loadDailyMenuRecord(dateKey);
+  return dailyMenu.itemIds;
 };
 
 export const saveDaySelection = (dateKey: string, ids: string[]): Promise<void> => {
-  return setDoc(selectionRef(dateKey), { ids });
+  return saveDailyMenuSelection(dateKey, ids);
 };
 
 export const subscribeDaySelection = (
   dateKey: string,
   onValue: (ids: string[]) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(selectionRef(dateKey), (snap) => {
-  onValue(snap.exists() ? normalizeStringArray(snap.data().ids) : []);
+) => onSnapshot(dailyMenuRef(dateKey), (snap) => {
+  onValue(snap.exists() ? normalizeDailyMenuRecord(dateKey, snap.data()).itemIds : []);
 }, error => onError?.(error));
 
 export const loadRecentSelections = async (days: number): Promise<Record<string, number>> => {
   const counts: Record<string, number> = {};
   const snaps = await loadSelectionHistory(days);
   for (const snap of snaps) {
-    for (const id of snap.ids)
-      counts[id] = (counts[id] ?? 0) + 1;
+    for (const id of snap.ids) counts[id] = (counts[id] ?? 0) + 1;
   }
   return counts;
 };
 
 export const loadSelectionHistory = async (days: number): Promise<SelectionHistoryEntry[]> => {
   const today = new Date();
-  const refs = Array.from({ length: days }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const dateKey = getDateKey(d);
-    return { dateKey, ref: doc(getDb(), 'selections', dateKey) };
+  const dateKeys = Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    return getDateKey(date);
   });
 
-  const snaps = await Promise.all(refs.map(({ ref }) => getDoc(ref)));
-
-  return snaps.flatMap((snap, index) => {
-    if (!snap.exists()) return [];
-    return [{
-      dateKey: refs[index].dateKey,
-      ids: normalizeStringArray(snap.data().ids),
-    }];
+  const orderSnaps = await Promise.all(dateKeys.map(dateKey => getDocs(dailyMenuOrdersRef(dateKey))));
+  return orderSnaps.flatMap((snap, index) => {
+    if (snap.empty) return [];
+    const ids = snap.docs.flatMap(docSnap => {
+      const order = normalizeOrderEntry(docSnap.id, docSnap.data());
+      return order ? expandSelectionEntriesToIds(order.selectedItems ?? []) : [];
+    });
+    return ids.length > 0 ? [{ dateKey: dateKeys[index]!, ids }] : [];
   });
+};
+
+const normalizeEditorLock = (value: unknown): EditorLock | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.status !== 'active'
+    || typeof candidate.sessionId !== 'string'
+    || typeof candidate.userEmail !== 'string'
+    || typeof candidate.deviceLabel !== 'string'
+  ) return null;
+  return {
+    sessionId: candidate.sessionId,
+    userEmail: candidate.userEmail,
+    deviceLabel: candidate.deviceLabel,
+    status: 'active',
+    acquiredAt: normalizeTimestamp(candidate.acquiredAt) ?? Date.now(),
+    lastHeartbeatAt: normalizeTimestamp(candidate.lastHeartbeatAt) ?? Date.now(),
+    expiresAt: normalizeTimestamp(candidate.expiresAt) ?? Date.now() + LOCK_TIMEOUT_MS,
+  };
 };
 
 export const loadEditorLock = async (): Promise<EditorLock | null> => {
@@ -669,16 +825,15 @@ export const acquireEditorLock = async (
       return null;
     }
 
-    const nextLock = current?.sessionId === input.sessionId
-      ? {
-          ...current,
-          userEmail: input.userEmail,
-          deviceLabel: input.deviceLabel,
-          status: 'active' as const,
-          lastHeartbeatAt: now,
-          expiresAt: now + LOCK_TIMEOUT_MS,
-        }
-      : buildEditorLock(input, now);
+    const nextLock: EditorLock = {
+      sessionId: input.sessionId,
+      userEmail: input.userEmail,
+      deviceLabel: input.deviceLabel,
+      status: 'active',
+      acquiredAt: current?.sessionId === input.sessionId ? current.acquiredAt : now,
+      lastHeartbeatAt: now,
+      expiresAt: now + LOCK_TIMEOUT_MS,
+    };
 
     transaction.set(ref, nextLock);
     return nextLock;
@@ -712,228 +867,166 @@ export const releaseEditorLock = async (sessionId: string): Promise<void> => {
     const ref = editorLockRef();
     const snap = await transaction.get(ref);
     if (!snap.exists()) return;
-
     const current = normalizeEditorLock(snap.data());
     if (!current || current.sessionId !== sessionId) return;
-
     transaction.delete(ref);
   });
 };
 
-export const getOrCreateDailyShareLink = async ({
-  dateKey,
-  categories,
-  complements,
-  daySelection,
-  categorySelectionRules,
-}: CreateDailyShareLinkInput): Promise<ShareLinkResult> => {
-  const now = Date.now();
-
-  return runTransaction(getDb(), async (transaction) => {
-    const linkRef = shareLinkRef(dateKey);
-    const linkSnap = await transaction.get(linkRef);
-    const existingLink = linkSnap.exists() ? normalizeStoredShareLink(linkSnap.data()) : null;
-
-    if (existingLink && existingLink.expiresAt > now) {
-      const versionId = createVersionId(dateKey);
-      const publicMenuVersion = buildPublicMenuVersionDocument({
-        token: existingLink.token,
-        versionId,
-        dateKey,
-        categories,
-        complements,
-        daySelection,
-        categorySelectionRules,
-        now,
-      });
-      const publicMenu = buildPublicMenuDocument({
-        token: existingLink.token,
-        currentVersionId: versionId,
-        dateKey,
-        categories,
-        complements,
-        daySelection,
-        categorySelectionRules,
-        acceptingOrders: existingLink.acceptingOrders,
-        now,
-      });
-      transaction.set(publicMenuVersionRef(versionId), publicMenuVersion);
-      transaction.set(publicMenuRef(existingLink.token), publicMenu);
-      return {
-        token: existingLink.token,
-        url: buildPublicUrl(existingLink.token),
-      };
-    }
-
-    const token = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`;
-    const versionId = createVersionId(dateKey);
-    const publicMenuVersion = buildPublicMenuVersionDocument({
-      token,
-      versionId,
-      dateKey,
-      categories,
-      complements,
-      daySelection,
-      categorySelectionRules,
-      now,
-    });
-    const publicMenu = buildPublicMenuDocument({
-      token,
-      currentVersionId: versionId,
-      dateKey,
-      categories,
-      complements,
-      daySelection,
-      categorySelectionRules,
-      acceptingOrders: true,
-      now,
-    });
-
-    transaction.set(linkRef, buildShareLinkDocument({
-      token,
-      dateKey,
-      acceptingOrders: true,
-      now,
-    }));
-    transaction.set(publicMenuVersionRef(versionId), publicMenuVersion);
-    transaction.set(publicMenuRef(token), publicMenu);
-
-    return {
-      token,
-      url: buildPublicUrl(token),
-    };
+const writePublishedMenuVersion = async (
+  input: CreateDailyShareLinkInput,
+  acceptingOrders: boolean,
+  currentMenuOverride?: ReturnType<typeof normalizeDailyMenuRecord> | null,
+) => {
+  const persisted = await loadPersistedPublishedSnapshot(input.dateKey);
+  const currentMenu = currentMenuOverride ?? persisted.dailyMenu;
+  const token = await reserveDailyMenuToken(input.dateKey, currentMenu.shareToken);
+  const versionId = createVersionId(input.dateKey);
+  const version = buildPublishedMenuVersion({
+    versionId,
+    dateKey: input.dateKey,
+    shareToken: token,
+    categories: persisted.categories,
+    items: persisted.items,
+    selectedItemIds: persisted.dailyMenu.itemIds,
+    createdAt: Date.now(),
   });
+
+  await setDoc(dailyMenuVersionRef(input.dateKey, versionId), version);
+  await setDoc(dailyMenuRef(input.dateKey), {
+    dateKey: input.dateKey,
+    status: acceptingOrders ? 'published' : 'closed',
+    shareToken: token,
+    activeVersionId: versionId,
+    itemIds: persisted.dailyMenu.itemIds,
+    updatedAt: Date.now(),
+  });
+  await setDoc(dailyMenuTokenRef(token), {
+    shareToken: token,
+    dateKey: input.dateKey,
+    activeVersionId: versionId,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  return { token, versionId };
+};
+
+const publishMenuVersion = async (input: CreateDailyShareLinkInput, acceptingOrders: boolean) => {
+  await saveCategoriesInternal(input.categories);
+  await saveComplementsInternal(input.complements);
+  await saveCategorySelectionRules(input.categorySelectionRules, input.categories);
+  await saveDaySelection(input.dateKey, input.daySelection);
+  return writePublishedMenuVersion(input, acceptingOrders);
+};
+
+export const getOrCreateDailyShareLink = async (input: CreateDailyShareLinkInput): Promise<ShareLinkResult> => {
+  const { token } = await publishMenuVersion(input, true);
+  return {
+    token,
+    url: buildPublicUrl(token),
+  };
 };
 
 export const loadPublicMenu = async (token: string): Promise<PublicMenu | null> => {
-  const snap = await getDoc(publicMenuRef(token));
-  if (!snap.exists()) return null;
-  const menu = normalizePublicMenu(snap.data());
-  if (!menu || isMenuExpired(menu)) return null;
-  return menu;
+  const resolved = await loadActivePublicMenuVersion(token);
+  if (!resolved) return null;
+  const publicMenu = buildPublicMenuFromVersion(
+    token,
+    resolved.menu.dateKey,
+    resolved.menu.status !== 'closed',
+    resolved.version,
+  );
+  return isMenuExpired(publicMenu) ? null : publicMenu;
 };
 
 export const subscribePublicMenu = (
   token: string,
   onValue: (menu: PublicMenu | null) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(publicMenuRef(token), (snap) => {
-  if (!snap.exists()) {
-    onValue(null);
-    return;
-  }
+) => {
+  let menuUnsubscribe: (() => void) | null = null;
+  let versionUnsubscribe: (() => void) | null = null;
 
-  const menu = normalizePublicMenu(snap.data());
-  onValue(menu && !isMenuExpired(menu) ? menu : null);
-}, error => onError?.(error));
+  const unsubscribeToken = onSnapshot(
+    dailyMenuTokenRef(token),
+    (tokenSnap) => {
+      if (menuUnsubscribe) {
+        menuUnsubscribe();
+        menuUnsubscribe = null;
+      }
+      if (versionUnsubscribe) {
+        versionUnsubscribe();
+        versionUnsubscribe = null;
+      }
 
-export const syncPublicMenuSnapshotForDate = async ({
-  dateKey,
-  categories,
-  complements,
-  daySelection,
-  categorySelectionRules,
-}: CreateDailyShareLinkInput): Promise<void> => {
-  const linkSnap = await getDoc(shareLinkRef(dateKey));
-  if (!linkSnap.exists()) return;
+      if (!tokenSnap.exists()) {
+        onValue(null);
+        return;
+      }
 
-  const existingLink = normalizeStoredShareLink(linkSnap.data());
-  if (!existingLink || existingLink.expiresAt <= Date.now()) return;
+      const tokenRecord = normalizeDailyMenuTokenRecord(token, tokenSnap.data());
+      if (!tokenRecord) {
+        onValue(null);
+        return;
+      }
+      menuUnsubscribe = onSnapshot(dailyMenuRef(tokenRecord.dateKey), (menuSnap) => {
+        if (!menuSnap.exists()) {
+          onValue(null);
+          return;
+        }
+        const menu = normalizeDailyMenuRecord(tokenRecord.dateKey, menuSnap.data());
+        if (!menu.activeVersionId || menu.activeVersionId !== tokenRecord.activeVersionId) {
+          onValue(null);
+          return;
+        }
 
-  const now = Date.now();
-  const versionId = createVersionId(dateKey);
-  const publicMenuVersion = buildPublicMenuVersionDocument({
-    token: existingLink.token,
-    versionId,
-    dateKey,
-    categories,
-    complements,
-    daySelection,
-    categorySelectionRules,
-    now,
-  });
-  const publicMenu = buildPublicMenuDocument({
-    token: existingLink.token,
-    currentVersionId: versionId,
-    dateKey,
-    categories,
-    complements,
-    daySelection,
-    categorySelectionRules,
-    acceptingOrders: existingLink.acceptingOrders,
-    now,
-  });
+        if (versionUnsubscribe) {
+          versionUnsubscribe();
+          versionUnsubscribe = null;
+        }
 
-  await setDoc(publicMenuVersionRef(versionId), publicMenuVersion);
-  await setDoc(publicMenuRef(existingLink.token), publicMenu);
+        versionUnsubscribe = onSnapshot(dailyMenuVersionRef(menu.dateKey, menu.activeVersionId), (versionSnap) => {
+          if (!versionSnap.exists()) {
+            onValue(null);
+            return;
+          }
+          const version = normalizePublishedMenuVersion(versionSnap.id, versionSnap.data());
+          if (!version) {
+            onValue(null);
+            return;
+          }
+          const publicMenu = buildPublicMenuFromVersion(token, menu.dateKey, menu.status !== 'closed', version);
+          onValue(isMenuExpired(publicMenu) ? null : publicMenu);
+        }, error => onError?.(error));
+      }, error => onError?.(error));
+    },
+    error => onError?.(error),
+  );
+
+  return () => {
+    unsubscribeToken();
+    menuUnsubscribe?.();
+    versionUnsubscribe?.();
+  };
+};
+
+export const syncPublicMenuSnapshotForDate = async (input: CreateDailyShareLinkInput): Promise<void> => {
+  const currentMenu = await loadDailyMenuRecord(input.dateKey);
+  if (!currentMenu.shareToken) return;
+  await writePublishedMenuVersion(input, currentMenu.status !== 'closed', currentMenu);
 };
 
 export const subscribeOrderIntakeStatus = (
   dateKey: string,
   onValue: (acceptingOrders: boolean) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(shareLinkRef(dateKey), (snap) => {
-  if (!snap.exists()) {
-    onValue(true);
-    return;
-  }
-
-  const link = normalizeStoredShareLink(snap.data());
-  onValue(link?.acceptingOrders ?? true);
+) => onSnapshot(dailyMenuRef(dateKey), (snap) => {
+  onValue(!snap.exists() || normalizeDailyMenuRecord(dateKey, snap.data()).status !== 'closed');
 }, error => onError?.(error));
 
-export const setOrderIntakeStatus = async ({
-  dateKey,
-  categories,
-  complements,
-  daySelection,
-  categorySelectionRules,
-  acceptingOrders,
-}: SetOrderIntakeStatusInput): Promise<void> => {
-  const now = Date.now();
-
-  await runTransaction(getDb(), async (transaction) => {
-    const linkRef = shareLinkRef(dateKey);
-    const linkSnap = await transaction.get(linkRef);
-    const existingLink = linkSnap.exists() ? normalizeStoredShareLink(linkSnap.data()) : null;
-    const validExistingLink = existingLink && existingLink.expiresAt > now ? existingLink : null;
-    const token = validExistingLink?.token ?? (
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `${dateKey}-${Math.random().toString(36).slice(2, 12)}`
-    );
-
-    transaction.set(linkRef, buildShareLinkDocument({
-      token,
-      dateKey,
-      acceptingOrders,
-      now,
-    }));
-    const versionId = createVersionId(dateKey);
-    transaction.set(publicMenuVersionRef(versionId), buildPublicMenuVersionDocument({
-      token,
-      versionId,
-      dateKey,
-      categories,
-      complements,
-      daySelection,
-      categorySelectionRules,
-      now,
-    }));
-    transaction.set(publicMenuRef(token), buildPublicMenuDocument({
-      token,
-      currentVersionId: versionId,
-      dateKey,
-      categories,
-      complements,
-      daySelection,
-      categorySelectionRules,
-      acceptingOrders,
-      now,
-    }));
-  });
+export const setOrderIntakeStatus = async (input: SetOrderIntakeStatusInput): Promise<void> => {
+  await publishMenuVersion(input, input.acceptingOrders);
 };
 
 const publicOrdersApiBase = () => {
@@ -982,82 +1075,21 @@ export const fetchPublicOrderStatus = async (
 );
 
 export const submitPublicOrder = async ({
-  orderId,
-  dateKey,
-  shareToken,
-  customerName,
-  selectedItems,
-  selectedItemIds,
+  ...input
 }: SubmitPublicOrderInput): Promise<SubmitPublicOrderResult> => {
-  const publicMenu = await loadPublicMenu(shareToken);
-  if (!publicMenu || publicMenu.dateKey !== dateKey) {
-    throw new Error('Cardapio publico indisponivel para este pedido.');
-  }
-  if (!publicMenu.acceptingOrders) {
-    throw new Error('Os pedidos deste cardapio foram encerrados.');
-  }
-
-  const requestedSelectedItems = normalizeSelectedPublicItems(selectedItems, selectedItemIds);
-  const allowedItemIds = new Set(publicMenu.items.map(item => item.id));
-  const submittedSelectedItems = requestedSelectedItems.filter(item => allowedItemIds.has(item.itemId));
-  const submittedItemIds = expandSelectedItemsToIds(submittedSelectedItems);
-
-  if (submittedSelectedItems.length === 0) {
-    throw new Error('Nenhum item valido encontrado para este pedido.');
-  }
-
-  const selectionViolations = validateSelectionRules(
-    publicMenu.items,
-    submittedSelectedItems,
-    publicMenu.categorySelectionRules,
-  );
-  if (selectionViolations.length > 0) {
-    throw new Error(selectionViolations[0]?.message ?? 'Selecao invalida para este pedido.');
-  }
-
-  const paymentSummary = calculateOrderPaymentSummary(
-    publicMenu.items,
-    submittedSelectedItems,
-  );
-
-  await setDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId), {
-    orderId,
-    dateKey,
-    shareToken,
-    customerName: customerName.trim(),
-    menuVersionId: publicMenu.currentVersionId,
-    selectedItems: submittedSelectedItems,
-    selectedItemIds: submittedItemIds,
-    submittedItems: submittedSelectedItems.map(({ itemId, quantity }) => {
-      const item = publicMenu.items.find(candidate => candidate.id === itemId);
-      return item ? { ...item, quantity } : null;
-    }).filter((item): item is Item & { quantity: number } => item !== null),
-    selectedPaidItemIds: publicMenu.items
-      .filter(item => submittedItemIds.includes(item.id) && isPaidItem(item))
-      .map(item => item.id),
-    paymentSummary,
-    submittedAt: new Date(),
+  const checkout = await preparePublicOrderCheckout({
+    ...input,
   });
-
-  return hasRepeatedQuantities(submittedSelectedItems)
-    ? { selectedItems: submittedSelectedItems, selectedItemIds: submittedItemIds }
-    : { selectedItemIds: submittedItemIds };
+  if (checkout.kind !== 'free_order_confirmed' || !checkout.order) {
+    throw new Error('Este pedido exige checkout antes da finalização.');
+  }
+  return checkout.order;
 };
 
 export const deletePublicOrder = async ({
-  orderId,
-  dateKey,
-  shareToken,
+  ...input
 }: DeletePublicOrderInput): Promise<void> => {
-  const publicMenu = await loadPublicMenu(shareToken);
-  if (!publicMenu || publicMenu.dateKey !== dateKey) {
-    throw new Error('Cardapio publico indisponivel para este pedido.');
-  }
-  if (!publicMenu.acceptingOrders) {
-    throw new Error('Os pedidos deste cardapio foram encerrados.');
-  }
-
-  await deleteDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId));
+  await cancelPublicOrder(input);
 };
 
 export const cancelPublicOrder = async ({
@@ -1074,13 +1106,16 @@ export const cancelPublicOrder = async ({
 
 export const loadPublicMenuVersions = async (versionIds: string[]): Promise<Record<string, PublicMenuVersion>> => {
   const uniqueIds = Array.from(new Set(versionIds.filter(Boolean)));
-  const snaps = await Promise.all(uniqueIds.map(versionId => getDoc(publicMenuVersionRef(versionId))));
+  const snaps = await Promise.all(uniqueIds.map((versionId) => {
+    const dateKey = parseDateKeyFromVersionId(versionId);
+    return dateKey ? getDoc(dailyMenuVersionRef(dateKey, versionId)) : Promise.resolve(null);
+  }));
 
   return snaps.reduce<Record<string, PublicMenuVersion>>((acc, snap, index) => {
-    if (!snap.exists()) return acc;
+    if (!snap || !snap.exists()) return acc;
     const versionId = uniqueIds[index];
     if (!versionId) return acc;
-    const normalized = normalizePublicMenuVersion(versionId, snap.data());
+    const normalized = normalizePublishedMenuVersion(versionId, snap.data());
     if (normalized) acc[versionId] = normalized;
     return acc;
   }, {});
@@ -1091,7 +1126,7 @@ export const subscribeOrders = (
   onValue: (orders: OrderEntry[]) => void,
   onError?: (error: Error) => void,
 ) => onSnapshot(
-  query(ordersCollectionRef(dateKey), orderBy('submittedAt', 'desc')),
+  query(dailyMenuOrdersRef(dateKey), orderBy('submittedAt', 'desc')),
   (snap) => {
     const orders = snap.docs
       .map(docSnap => normalizeOrderEntry(docSnap.id, docSnap.data()))

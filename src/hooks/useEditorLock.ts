@@ -7,6 +7,7 @@ import {
   renewEditorLock,
   subscribeEditorLock,
 } from '../lib/storage';
+import { getAdminErrorMessage } from '../lib/adminFeedback';
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SESSION_STORAGE_KEY = 'menu-editor-session-id';
@@ -95,7 +96,7 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
       setError(null);
       return acquired?.sessionId === sessionId;
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel solicitar a edicao.');
+      setError(getAdminErrorMessage('lock_request', nextError));
       return false;
     }
   }, [deviceLabel, isOnline, sessionId, userEmail]);
@@ -107,7 +108,7 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
       setError(null);
       return acquired?.sessionId === sessionId;
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel assumir o controle.');
+      setError(getAdminErrorMessage('lock_takeover', nextError));
       return false;
     }
   }, [deviceLabel, isOnline, sessionId, userEmail]);
@@ -142,7 +143,7 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
         const nextLock = await renewEditorLock(sessionId);
         if (!nextLock) setLock(current => current?.sessionId === sessionId ? null : current);
       } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : 'Nao foi possivel renovar a sessao de edicao.');
+        setError(getAdminErrorMessage('lock_renew', nextError));
         setLock(current => current?.sessionId === sessionId ? null : current);
       }
     }, HEARTBEAT_INTERVAL_MS);

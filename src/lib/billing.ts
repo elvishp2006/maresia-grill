@@ -1,63 +1,52 @@
+import {
+  calculateOrderPaymentSummaryFromLines,
+  normalizePriceCents as normalizePriceCentsValue,
+  resolveOrderLines,
+} from '../../domain/menu';
 import type { Item, OrderPaymentSummary, PaymentMethodType, PaymentProvider, SelectedPublicItem } from '../types';
 
 export const normalizePriceCents = (value: unknown): number | null => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  const normalized = Math.round(value);
-  return normalized >= 0 ? normalized : null;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
+  return normalizePriceCentsValue(value);
 };
 
-export const isPaidItem = (item: Item) => (normalizePriceCents(item.priceCents) ?? 0) > 0;
-
-const normalizeSelectedItems = (selection: string[] | SelectedPublicItem[]) => {
-  if (selection.length === 0) return [] as SelectedPublicItem[];
-
-  if (typeof selection[0] === 'string') {
-    const counts = new Map<string, number>();
-    for (const itemId of selection as string[]) {
-      counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
-    }
-    return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
-  }
-
-  return (selection as SelectedPublicItem[])
-    .filter(item => typeof item.itemId === 'string' && Number.isFinite(item.quantity) && item.quantity > 0)
-    .map(item => ({ itemId: item.itemId, quantity: Math.trunc(item.quantity) }));
-};
+export const isPaidItem = (item: Item) => (
+  normalizePriceCents(item.priceCents) ?? 0
+) > 0;
 
 export const calculateOrderPaymentSummary = (
-  items: Item[],
-  selectedItemIds: string[] | SelectedPublicItem[],
+  items: Array<{ id: string; categoria?: string; categoryId?: string; nome?: string; name?: string; priceCents?: number | null }>,
+  selectedItems: string[] | SelectedPublicItem[],
   paymentStatus: OrderPaymentSummary['paymentStatus'] = 'not_required',
   provider: PaymentProvider | null = null,
   paymentMethod: PaymentMethodType | null = null,
 ): OrderPaymentSummary => {
-  let freeTotalCents = 0;
-  let paidTotalCents = 0;
-  const selectedItems = normalizeSelectedItems(selectedItemIds);
-  const selectedQuantities = new Map(selectedItems.map(item => [item.itemId, item.quantity]));
-
-  for (const item of items) {
-    const quantity = selectedQuantities.get(item.id) ?? 0;
-    if (quantity <= 0) continue;
-
-    const priceCents = normalizePriceCents(item.priceCents) ?? 0;
-    if (priceCents > 0) {
-      paidTotalCents += priceCents * quantity;
-    } else {
-      freeTotalCents += priceCents * quantity;
-    }
-  }
-
-  return {
-    freeTotalCents,
-    paidTotalCents,
-    currency: 'BRL',
-    paymentStatus,
-    provider,
-    paymentMethod,
-    providerPaymentId: null,
-    refundedAt: null,
+  const version = {
+    id: 'inline',
+    dateKey: 'inline',
+    shareToken: 'inline',
+    createdAt: Date.now(),
+    categories: Array.from(new Set(items.map(item => item.categoryId ?? item.categoria ?? 'sem-categoria'))).map((categoryId, index) => ({
+      id: categoryId,
+      name: items.find(item => (item.categoryId ?? item.categoria) === categoryId)?.categoria ?? categoryId,
+      sortOrder: index,
+      selectionPolicy: { allowRepeatedItems: false, maxSelections: null, sharedLimitGroupId: null },
+    })),
+    items: items.map((item, index) => ({
+      id: item.id,
+      categoryId: item.categoryId ?? item.categoria ?? 'sem-categoria',
+      name: item.name ?? item.nome ?? '',
+      priceCents: normalizePriceCents(item.priceCents) ?? 0,
+      sortOrder: index,
+    })),
   };
+  const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
+    ? Array.from(new Map((selectedItems as string[]).map(itemId => [itemId, ((selectedItems as string[]).filter(id => id === itemId).length)])).entries())
+        .map(([itemId, quantity]) => ({ itemId, quantity }))
+    : selectedItems as SelectedPublicItem[];
+
+  const lines = resolveOrderLines(version, normalizedSelection);
+  return calculateOrderPaymentSummaryFromLines(lines, paymentStatus, provider, paymentMethod);
 };
 
 export const formatCurrency = (valueCents: number) => (

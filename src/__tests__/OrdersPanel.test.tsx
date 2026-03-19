@@ -19,7 +19,24 @@ describe('OrdersPanel', () => {
           orderId: 'order-1',
           customerName: 'Ana',
           menuVersionId: 'version-1',
-          selectedItemIds: ['free-1', 'paid-1'],
+          lines: [
+            {
+              itemId: 'free-1',
+              quantity: 1,
+              unitPriceCents: 0,
+              name: 'Arroz',
+              categoryId: 'Acompanhamentos',
+              categoryName: 'Acompanhamentos',
+            },
+            {
+              itemId: 'paid-1',
+              quantity: 1,
+              unitPriceCents: 700,
+              name: 'Refrigerante',
+              categoryId: 'Bebidas',
+              categoryName: 'Bebidas',
+            },
+          ],
           submittedItems: [
             { id: 'free-1', nome: 'Arroz', categoria: 'Acompanhamentos' },
             { id: 'paid-1', nome: 'Refrigerante', categoria: 'Bebidas', priceCents: 700 },

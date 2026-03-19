@@ -1,53 +1,29 @@
-export type PaymentStatus =
-  | 'not_required'
-  | 'awaiting_payment'
-  | 'paid'
-  | 'refund_pending'
-  | 'refunded'
-  | 'failed';
+import {
+  calculateOrderPaymentSummaryFromLines,
+  normalizePriceCents,
+  normalizeSelectionEntries,
+  resolveOrderLines,
+  validateSelection as validateDomainSelection,
+} from '../../domain/menu.js';
+import type {
+  OrderPaymentSummary,
+  PaymentMethodType,
+  PaymentProvider,
+  PublicOrderPaymentStatus,
+  PublishedMenuVersion,
+  SelectionEntry,
+} from '../../domain/menu.js';
 
-export type PaymentProvider = 'stripe';
-export type PaymentMethod = 'pix' | 'card' | null;
-
-export interface Item {
-  id: string;
-  nome: string;
-  categoria: string;
-  priceCents?: number | null;
-  quantity?: number | null;
-}
-
-export interface SelectedPublicItem {
-  itemId: string;
-  quantity: number;
-}
-
-export interface CategorySelectionRule {
-  category: string;
-  maxSelections?: number | null;
-  sharedLimitGroupId?: string | null;
-  allowRepeatedItems?: boolean | null;
-}
-
-export interface OrderPaymentSummary {
-  freeTotalCents: number;
-  paidTotalCents: number;
-  currency: 'BRL';
-  paymentStatus: PaymentStatus;
-  provider: PaymentProvider | null;
-  paymentMethod: PaymentMethod;
-  providerPaymentId: string | null;
-  refundedAt: number | null;
-}
+export type PaymentStatus = PublicOrderPaymentStatus;
+export type PaymentProviderName = Extract<PaymentProvider, 'stripe'>;
+export type PaymentMethod = PaymentMethodType | null;
+export type SelectedPublicItem = SelectionEntry;
+export type PublicMenuVersionDocument = PublishedMenuVersion;
 
 export interface FinalizedOrderReference {
   sourceDraftId?: string | null;
   paymentSummary?: Partial<Pick<OrderPaymentSummary, 'providerPaymentId' | 'paidTotalCents'>> | null;
 }
-
-export const normalizePriceCents = (value: unknown) => (
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : 0
-);
 
 export const normalizeCustomerName = (value: unknown) => {
   if (typeof value !== 'string') throw new Error('Nome do cliente inválido.');
@@ -56,91 +32,78 @@ export const normalizeCustomerName = (value: unknown) => {
   return normalized;
 };
 
-export const normalizeSelectedItems = (
-  selectedItems: SelectedPublicItem[] | undefined,
-  selectedItemIds?: string[],
-) => {
-  const counts = new Map<string, number>();
-
-  for (const item of selectedItems ?? []) {
-    if (typeof item?.itemId !== 'string' || !Number.isFinite(item.quantity) || item.quantity <= 0) continue;
-    counts.set(item.itemId, (counts.get(item.itemId) ?? 0) + Math.trunc(item.quantity));
-  }
-
-  if (counts.size === 0) {
-    for (const itemId of selectedItemIds ?? []) {
-      counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
-    }
-  }
-
-  return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
-};
-
 export const createBasePaymentSummary = (
-  items: Item[],
-  selectedItemIds: SelectedPublicItem[] | string[],
+  versionOrItems: PublishedMenuVersion | Array<{ id: string; nome: string; categoria: string; priceCents?: number | null }>,
+  selectedItems: SelectedPublicItem[] | string[],
   paymentStatus: PaymentStatus,
 ): OrderPaymentSummary => {
-  let freeTotalCents = 0;
-  let paidTotalCents = 0;
-  const normalizedSelectedItems = Array.isArray(selectedItemIds) && typeof selectedItemIds[0] !== 'string'
-    ? selectedItemIds as SelectedPublicItem[]
-    : normalizeSelectedItems(undefined, selectedItemIds as string[]);
-  const selectedQuantities = new Map(normalizedSelectedItems.map(item => [item.itemId, item.quantity]));
+  const version = Array.isArray(versionOrItems)
+    ? {
+        id: 'inline',
+        dateKey: 'inline',
+        shareToken: 'inline',
+        createdAt: Date.now(),
+        categories: Array.from(new Set(versionOrItems.map(item => item.categoria))).map((categoryName, index) => ({
+          id: categoryName,
+          name: categoryName,
+          sortOrder: index,
+          selectionPolicy: { allowRepeatedItems: false, maxSelections: null, sharedLimitGroupId: null },
+        })),
+        items: versionOrItems.map((item, index) => ({
+          id: item.id,
+          categoryId: item.categoria,
+          name: item.nome,
+          priceCents: normalizePriceCents(item.priceCents),
+          sortOrder: index,
+        })),
+      } satisfies PublishedMenuVersion
+    : versionOrItems;
+  const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
+    ? normalizeSelectionEntries(undefined, selectedItems as string[])
+    : selectedItems as SelectedPublicItem[];
+  const lines = resolveOrderLines(version, normalizedSelection);
+  return calculateOrderPaymentSummaryFromLines(lines, paymentStatus);
+};
 
-  for (const item of items) {
-    const quantity = selectedQuantities.get(item.id) ?? 0;
-    if (quantity <= 0) continue;
-    const priceCents = normalizePriceCents(item.priceCents);
-    if (priceCents > 0) {
-      paidTotalCents += priceCents * quantity;
-    } else {
-      freeTotalCents += priceCents * quantity;
-    }
+export const validateSelectionForVersion = (
+  version: PublishedMenuVersion,
+  selectedItems: SelectedPublicItem[] | string[],
+) => {
+  const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
+    ? normalizeSelectionEntries(undefined, selectedItems as string[])
+    : selectedItems as SelectedPublicItem[];
+  const violations = validateDomainSelection(version.categories, version.items, normalizedSelection);
+  if (violations.length > 0) {
+    throw new Error(violations[0]?.message ?? 'Selecao invalida.');
   }
-
-  return {
-    freeTotalCents,
-    paidTotalCents,
-    currency: 'BRL',
-    paymentStatus,
-    provider: paidTotalCents > 0 ? 'stripe' : null,
-    paymentMethod: null,
-    providerPaymentId: null,
-    refundedAt: null,
-  };
 };
 
 export const validateSelection = (
-  items: Item[],
-  selectedItemIds: SelectedPublicItem[] | string[],
-  rules: CategorySelectionRule[],
+  items: Array<{ id: string; categoria: string; nome?: string; priceCents?: number | null }>,
+  selectedItems: SelectedPublicItem[] | string[],
+  rules: Array<{ category: string; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
 ) => {
-  const normalizedSelectedItems = Array.isArray(selectedItemIds) && typeof selectedItemIds[0] !== 'string'
-    ? selectedItemIds as SelectedPublicItem[]
-    : normalizeSelectedItems(undefined, selectedItemIds as string[]);
-  const selectedQuantities = new Map(normalizedSelectedItems.map(item => [item.itemId, item.quantity]));
+  const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
+    ? normalizeSelectionEntries(undefined, selectedItems as string[])
+    : selectedItems as SelectedPublicItem[];
   const counts = new Map<string, number>();
-  for (const item of items) {
-    const quantity = selectedQuantities.get(item.id) ?? 0;
-    if (quantity <= 0) continue;
-    counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + quantity);
-  }
+  const itemCategoryById = new Map(items.map(item => [item.id, item.categoria]));
+
+  normalizedSelection.forEach(({ itemId, quantity }) => {
+    const category = itemCategoryById.get(itemId);
+    if (!category) return;
+    counts.set(category, (counts.get(category) ?? 0) + quantity);
+  });
 
   const groupedCounts = new Map<string, number>();
   for (const rule of rules) {
     if (typeof rule.maxSelections !== 'number') continue;
-
     const categoryCount = counts.get(rule.category) ?? 0;
     if (!rule.sharedLimitGroupId && categoryCount > rule.maxSelections) {
       throw new Error(`A categoria ${rule.category} excedeu o limite permitido.`);
     }
-
     if (rule.sharedLimitGroupId) {
-      groupedCounts.set(
-        rule.sharedLimitGroupId,
-        (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount,
-      );
+      groupedCounts.set(rule.sharedLimitGroupId, (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount);
     }
   }
 
@@ -210,4 +173,11 @@ export const isDuplicatePaidDraft = (
   if (order.sourceDraftId === draftId) return false;
   if (providerPaymentId && order.paymentSummary?.providerPaymentId === providerPaymentId) return false;
   return true;
+};
+
+export {
+  calculateOrderPaymentSummaryFromLines,
+  normalizePriceCents,
+  normalizeSelectionEntries,
+  resolveOrderLines,
 };
