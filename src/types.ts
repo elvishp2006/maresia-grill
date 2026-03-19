@@ -14,12 +14,19 @@ export interface Item {
   nome: string;
   categoria: Categoria;
   priceCents?: number | null;
+  quantity?: number | null;
+}
+
+export interface SelectedPublicItem {
+  itemId: string;
+  quantity: number;
 }
 
 export interface CategorySelectionRule {
   category: Categoria;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
+  allowRepeatedItems?: boolean | null;
 }
 
 export interface OrderPaymentSummary {
@@ -50,6 +57,7 @@ export interface PublicOrderDraft {
   orderId: string;
   customerName: string;
   menuVersionId: string;
+  selectedItems?: SelectedPublicItem[];
   selectedItemIds: string[];
   paymentSummary: OrderPaymentSummary;
   checkoutSession?: PublicOrderCheckoutSession | null;
@@ -60,6 +68,7 @@ export interface PublicOrderDraft {
 export interface FinalizedPublicOrder {
   orderId: string;
   customerName: string;
+  selectedItems?: SelectedPublicItem[];
   selectedItemIds: string[];
   paymentSummary: OrderPaymentSummary;
 }
@@ -92,6 +101,7 @@ export interface OrderEntry {
   orderId: string;
   customerName: string;
   menuVersionId?: string;
+  selectedItems?: SelectedPublicItem[];
   selectedItemIds: string[];
   paymentSummary: OrderPaymentSummary;
   selectedPaidItemIds?: string[];

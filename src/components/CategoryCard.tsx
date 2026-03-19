@@ -71,6 +71,7 @@ export default function CategoryCard({
   const [showRuleSheet, setShowRuleSheet] = useState(false);
   const [draftMaxSelections, setDraftMaxSelections] = useState<number | null>(categoryRule?.maxSelections ?? null);
   const [draftLinkedCategories, setDraftLinkedCategories] = useState<string[]>(() => getLinkedCategories(categoria, allCategoryRules));
+  const [draftAllowRepeatedItems, setDraftAllowRepeatedItems] = useState(Boolean(categoryRule?.allowRepeatedItems));
   const { lightTap, mediumTap } = useHapticFeedback();
   const { confirm } = useModal();
 
@@ -105,8 +106,9 @@ export default function CategoryCard({
   const handleOpenRuleSheet = () => {
     if (!onSaveCategoryRule) return;
     lightTap();
-    setDraftMaxSelections(categoryRule?.maxSelections ?? DEFAULT_LIMIT);
+    setDraftMaxSelections(categoryRule?.maxSelections ?? null);
     setDraftLinkedCategories(getLinkedCategories(categoria, allCategoryRules));
+    setDraftAllowRepeatedItems(Boolean(categoryRule?.allowRepeatedItems));
     setShowRuleSheet(true);
   };
 
@@ -139,6 +141,7 @@ export default function CategoryCard({
       maxSelections: draftMaxSelections,
       sharedLimitGroupId: categoryRule?.sharedLimitGroupId ?? null,
       linkedCategories: draftLinkedCategories,
+      allowRepeatedItems: draftAllowRepeatedItems ? true : undefined,
     });
     setShowRuleSheet(false);
   };
@@ -148,7 +151,13 @@ export default function CategoryCard({
     lightTap();
     setDraftMaxSelections(null);
     setDraftLinkedCategories([]);
-    onSaveCategoryRule({ maxSelections: null, sharedLimitGroupId: null, linkedCategories: [] });
+    setDraftAllowRepeatedItems(false);
+    onSaveCategoryRule({
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      linkedCategories: [],
+      allowRepeatedItems: false,
+    });
     setShowRuleSheet(false);
   };
 
@@ -202,8 +211,8 @@ export default function CategoryCard({
                   <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
                     {selectedCount}/{items.length} itens
                   </p>
-                  <p className={`mt-[6px] text-[12px] leading-[1.5] ${hasRule ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
-                    {ruleSummary ?? 'Sem limite no pedido publico'}
+                <p className={`mt-[6px] text-[12px] leading-[1.5] ${hasRule ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
+                    {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite e permite repetir item' : 'Sem limite no pedido publico')}
                   </p>
                 </div>
                 <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
@@ -278,7 +287,7 @@ export default function CategoryCard({
                         Pedido publico
                       </p>
                       <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
-                        {ruleSummary ?? 'Sem limite de selecao para esta categoria.'}
+                        {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite de selecao e com repeticao do mesmo item liberada.' : 'Sem limite de selecao para esta categoria.')}
                       </p>
                     </div>
                     <button
@@ -363,6 +372,42 @@ export default function CategoryCard({
         description="Defina quantos itens o cliente pode escolher e, se quiser, vincule outras categorias ao mesmo limite."
       >
         <div className="space-y-[16px]">
+          <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px]">
+            <div className="flex items-start justify-between gap-[12px]">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+                  Repeticao do mesmo item
+                </p>
+                <p className="mt-[6px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
+                  Quando ativo, o cliente pode aumentar a quantidade do mesmo item no pedido publico.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={draftAllowRepeatedItems}
+                aria-label={`Permitir repetir itens em ${categoria}`}
+                className={`relative inline-flex h-[34px] w-[60px] shrink-0 items-center rounded-full border transition-colors ${
+                  draftAllowRepeatedItems
+                    ? 'border-[var(--accent)] bg-[rgba(215,176,92,0.28)]'
+                    : 'border-[var(--border)] bg-[var(--bg-elevated)]'
+                } disabled:cursor-not-allowed disabled:opacity-45`}
+                onClick={() => {
+                  lightTap();
+                  setDraftAllowRepeatedItems(prev => !prev);
+                }}
+                disabled={!isOnline}
+              >
+                <span
+                  className={`absolute left-[4px] h-[24px] w-[24px] rounded-full bg-[var(--text)] shadow-[0_6px_14px_rgba(0,0,0,0.18)] transition-transform ${
+                    draftAllowRepeatedItems ? 'translate-x-[26px]' : 'translate-x-0'
+                  }`}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          </section>
+
           <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
               Quantidade maxima
@@ -482,7 +527,7 @@ export default function CategoryCard({
               type="button"
               className="neon-gold-fill min-h-[52px] flex-1 rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
               onClick={handleSaveCategoryRule}
-              disabled={!isOnline || draftMaxSelections === null}
+              disabled={!isOnline || (draftMaxSelections === null && !draftAllowRepeatedItems)}
             >
               Salvar limite
             </button>

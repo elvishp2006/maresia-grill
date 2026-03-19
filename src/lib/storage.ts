@@ -20,6 +20,7 @@ import type {
   PublicOrderCheckoutSession,
   PublicMenu,
   PublicMenuVersion,
+  SelectedPublicItem,
 } from '../types';
 import {
   calculateOrderPaymentSummary,
@@ -94,10 +95,12 @@ export interface SubmitPublicOrderInput {
   dateKey: string;
   shareToken: string;
   customerName: string;
-  selectedItemIds: string[];
+  selectedItems?: SelectedPublicItem[];
+  selectedItemIds?: string[];
 }
 
 export interface SubmitPublicOrderResult {
+  selectedItems?: SelectedPublicItem[];
   selectedItemIds: string[];
   paymentSummary?: OrderPaymentSummary;
 }
@@ -107,7 +110,8 @@ export interface PreparePublicOrderCheckoutInput {
   dateKey: string;
   shareToken: string;
   customerName: string;
-  selectedItemIds: string[];
+  selectedItems?: SelectedPublicItem[];
+  selectedItemIds?: string[];
   successUrl?: string;
   pendingUrl?: string;
   failureUrl?: string;
@@ -150,6 +154,44 @@ export interface SetOrderIntakeStatusInput extends CreateDailyShareLinkInput {
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(item => typeof item === 'string');
 
+const isValidSelectedPublicItem = (value: unknown): value is SelectedPublicItem => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.itemId === 'string'
+    && typeof candidate.quantity === 'number'
+    && Number.isFinite(candidate.quantity)
+    && candidate.quantity > 0;
+};
+
+const normalizeSelectedPublicItems = (
+  selectedItems: unknown,
+  fallbackSelectedItemIds?: unknown,
+): SelectedPublicItem[] => {
+  if (Array.isArray(selectedItems)) {
+    const normalized = new Map<string, number>();
+    for (const candidate of selectedItems) {
+      if (!isValidSelectedPublicItem(candidate)) continue;
+      normalized.set(candidate.itemId, (normalized.get(candidate.itemId) ?? 0) + Math.trunc(candidate.quantity));
+    }
+    if (normalized.size > 0) {
+      return Array.from(normalized.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+    }
+  }
+
+  if (Array.isArray(fallbackSelectedItemIds) && fallbackSelectedItemIds.every(item => typeof item === 'string')) {
+    const normalized = new Map<string, number>();
+    for (const itemId of fallbackSelectedItemIds as string[]) {
+      normalized.set(itemId, (normalized.get(itemId) ?? 0) + 1);
+    }
+    return Array.from(normalized.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+  }
+
+  return [];
+};
+
+const expandSelectedItemsToIds = (selectedItems: SelectedPublicItem[]) => selectedItems.map(item => item.itemId);
+const hasRepeatedQuantities = (selectedItems: SelectedPublicItem[]) => selectedItems.some(item => item.quantity > 1);
+
 const isValidItem = (value: unknown): value is Item => {
   if (!value || typeof value !== 'object') return false;
 
@@ -161,6 +203,11 @@ const isValidItem = (value: unknown): value is Item => {
       candidate.priceCents === undefined
       || candidate.priceCents === null
       || typeof candidate.priceCents === 'number'
+    )
+    && (
+      candidate.quantity === undefined
+      || candidate.quantity === null
+      || typeof candidate.quantity === 'number'
     );
 };
 
@@ -184,12 +231,16 @@ const normalizeItems = (value: unknown): Item[] =>
   Array.isArray(value)
     ? value.filter(isValidItem).map((item) => {
       const priceCents = normalizePriceCents(item.priceCents);
-      return priceCents === null ? { id: item.id, nome: item.nome, categoria: item.categoria } : {
+      const quantity = typeof item.quantity === 'number' && Number.isFinite(item.quantity) && item.quantity > 0
+        ? Math.trunc(item.quantity)
+        : undefined;
+      const baseItem = priceCents === null ? { id: item.id, nome: item.nome, categoria: item.categoria } : {
         id: item.id,
         nome: item.nome,
         categoria: item.categoria,
         priceCents,
       };
+      return quantity ? { ...baseItem, quantity } : baseItem;
     })
     : [];
 
@@ -251,7 +302,8 @@ const isValidCategorySelectionRule = (value: unknown): value is CategorySelectio
   const candidate = value as Record<string, unknown>;
   return typeof candidate.category === 'string'
     && (candidate.maxSelections === undefined || typeof candidate.maxSelections === 'number')
-    && (candidate.sharedLimitGroupId === undefined || candidate.sharedLimitGroupId === null || typeof candidate.sharedLimitGroupId === 'string');
+    && (candidate.sharedLimitGroupId === undefined || candidate.sharedLimitGroupId === null || typeof candidate.sharedLimitGroupId === 'string')
+    && (candidate.allowRepeatedItems === undefined || typeof candidate.allowRepeatedItems === 'boolean');
 };
 
 const isValidOrderPaymentSummary = (value: unknown): value is OrderPaymentSummary => {
@@ -305,7 +357,11 @@ const isValidOrderEntry = (value: unknown, id: string): value is OrderEntry => {
     && typeof candidate.orderId === 'string'
     && typeof candidate.customerName === 'string'
     && (candidate.menuVersionId === undefined || typeof candidate.menuVersionId === 'string')
-    && isStringArray(candidate.selectedItemIds)
+    && (candidate.selectedItems === undefined || (
+      Array.isArray(candidate.selectedItems)
+      && candidate.selectedItems.every(isValidSelectedPublicItem)
+    ))
+    && (candidate.selectedItemIds === undefined || isStringArray(candidate.selectedItemIds))
     && (candidate.paymentSummary === undefined || isValidOrderPaymentSummary(candidate.paymentSummary))
     && (candidate.submittedItems === undefined || (
       Array.isArray(candidate.submittedItems)
@@ -356,8 +412,13 @@ const normalizePublicMenuVersion = (id: string, value: unknown): PublicMenuVersi
 
 const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
   if (!isValidOrderEntry(value, id)) return null;
+  const candidate = value as unknown as Record<string, unknown>;
   const paymentSummary = normalizeOrderPaymentSummary(value.paymentSummary);
   if (!paymentSummary) return null;
+  const selectedItems = normalizeSelectedPublicItems(
+    candidate.selectedItems,
+    candidate.selectedItemIds,
+  );
   return {
     id,
     dateKey: value.dateKey,
@@ -365,7 +426,8 @@ const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
     orderId: value.orderId,
     customerName: value.customerName,
     menuVersionId: typeof value.menuVersionId === 'string' ? value.menuVersionId : undefined,
-    selectedItemIds: value.selectedItemIds,
+    selectedItems,
+    selectedItemIds: expandSelectedItemsToIds(selectedItems),
     selectedPaidItemIds: Array.isArray(value.selectedPaidItemIds) ? value.selectedPaidItemIds : undefined,
     paymentSummary,
     submittedItems: Array.isArray(value.submittedItems) ? value.submittedItems : undefined,
@@ -924,6 +986,7 @@ export const submitPublicOrder = async ({
   dateKey,
   shareToken,
   customerName,
+  selectedItems,
   selectedItemIds,
 }: SubmitPublicOrderInput): Promise<SubmitPublicOrderResult> => {
   const publicMenu = await loadPublicMenu(shareToken);
@@ -934,17 +997,18 @@ export const submitPublicOrder = async ({
     throw new Error('Os pedidos deste cardapio foram encerrados.');
   }
 
-  const submittedItemIds = publicMenu.items
-    .filter(item => selectedItemIds.includes(item.id))
-    .map(item => item.id);
+  const requestedSelectedItems = normalizeSelectedPublicItems(selectedItems, selectedItemIds);
+  const allowedItemIds = new Set(publicMenu.items.map(item => item.id));
+  const submittedSelectedItems = requestedSelectedItems.filter(item => allowedItemIds.has(item.itemId));
+  const submittedItemIds = expandSelectedItemsToIds(submittedSelectedItems);
 
-  if (submittedItemIds.length === 0) {
+  if (submittedSelectedItems.length === 0) {
     throw new Error('Nenhum item valido encontrado para este pedido.');
   }
 
   const selectionViolations = validateSelectionRules(
     publicMenu.items,
-    submittedItemIds,
+    submittedSelectedItems,
     publicMenu.categorySelectionRules,
   );
   if (selectionViolations.length > 0) {
@@ -953,7 +1017,7 @@ export const submitPublicOrder = async ({
 
   const paymentSummary = calculateOrderPaymentSummary(
     publicMenu.items,
-    submittedItemIds,
+    submittedSelectedItems,
   );
 
   await setDoc(doc(getDb(), 'orders', dateKey, 'entries', orderId), {
@@ -962,7 +1026,12 @@ export const submitPublicOrder = async ({
     shareToken,
     customerName: customerName.trim(),
     menuVersionId: publicMenu.currentVersionId,
+    selectedItems: submittedSelectedItems,
     selectedItemIds: submittedItemIds,
+    submittedItems: submittedSelectedItems.map(({ itemId, quantity }) => {
+      const item = publicMenu.items.find(candidate => candidate.id === itemId);
+      return item ? { ...item, quantity } : null;
+    }).filter((item): item is Item & { quantity: number } => item !== null),
     selectedPaidItemIds: publicMenu.items
       .filter(item => submittedItemIds.includes(item.id) && isPaidItem(item))
       .map(item => item.id),
@@ -970,7 +1039,9 @@ export const submitPublicOrder = async ({
     submittedAt: new Date(),
   });
 
-  return { selectedItemIds: submittedItemIds };
+  return hasRepeatedQuantities(submittedSelectedItems)
+    ? { selectedItems: submittedSelectedItems, selectedItemIds: submittedItemIds }
+    : { selectedItemIds: submittedItemIds };
 };
 
 export const deletePublicOrder = async ({

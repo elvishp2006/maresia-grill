@@ -1,9 +1,10 @@
-import type { CategorySelectionRule, Item } from '../types';
+import type { CategorySelectionRule, Item, SelectedPublicItem } from '../types';
 
 export interface CategorySelectionRuleInput {
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
   linkedCategories?: string[];
+  allowRepeatedItems?: boolean;
 }
 
 export interface SelectionViolation {
@@ -38,6 +39,7 @@ export const normalizeCategorySelectionRule = (value: unknown): CategorySelectio
     category: candidate.category.trim(),
     maxSelections: normalizePositiveInteger(candidate.maxSelections),
     sharedLimitGroupId: normalizeGroupId(candidate.sharedLimitGroupId),
+    allowRepeatedItems: candidate.allowRepeatedItems === true ? true : undefined,
   };
 };
 
@@ -64,9 +66,10 @@ export const sanitizeCategorySelectionRuleInput = (
     category: normalizedCategory,
     maxSelections: normalizePositiveInteger(input.maxSelections),
     sharedLimitGroupId: normalizeGroupId(input.sharedLimitGroupId),
+    allowRepeatedItems: input.allowRepeatedItems ? true : undefined,
   };
 
-  if (normalized.maxSelections === null && !normalized.sharedLimitGroupId) return null;
+  if (normalized.maxSelections === null && !normalized.sharedLimitGroupId && !normalized.allowRepeatedItems) return null;
   return normalized;
 };
 
@@ -109,6 +112,7 @@ export const upsertCategorySelectionRule = (
   }
 
   const nextRules = normalizedRules.filter(rule => !affectedCategories.has(rule.category));
+  const nextAllowRepeatedItems = input.allowRepeatedItems ?? currentRule?.allowRepeatedItems ?? false;
 
   if (typeof nextMaxSelections === 'number') {
     if (desiredCategories.length > 1) {
@@ -123,10 +127,14 @@ export const upsertCategorySelectionRule = (
           .join('__')}`;
 
       for (const targetCategory of desiredCategories) {
+        const previousRule = normalizedRules.find(rule => rule.category === targetCategory);
         nextRules.push({
           category: targetCategory,
           maxSelections: nextMaxSelections,
           sharedLimitGroupId: existingGroupId,
+          allowRepeatedItems: targetCategory === normalizedCategory
+            ? (nextAllowRepeatedItems ? true : undefined)
+            : (previousRule?.allowRepeatedItems ? true : undefined),
         });
       }
     } else {
@@ -134,8 +142,16 @@ export const upsertCategorySelectionRule = (
         category: normalizedCategory,
         maxSelections: nextMaxSelections,
         sharedLimitGroupId: null,
+        allowRepeatedItems: nextAllowRepeatedItems ? true : undefined,
       });
     }
+  } else if (nextAllowRepeatedItems) {
+    nextRules.push({
+      category: normalizedCategory,
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: true,
+    });
   }
 
   for (const affectedCategory of affectedCategories) {
@@ -146,6 +162,7 @@ export const upsertCategorySelectionRule = (
       category: affectedCategory,
       maxSelections: previousRule.maxSelections,
       sharedLimitGroupId: null,
+      allowRepeatedItems: previousRule.allowRepeatedItems ? true : undefined,
     });
   }
 
@@ -205,18 +222,36 @@ export const getLinkedCategories = (
     .sort((left, right) => left.localeCompare(right, 'pt-BR', { sensitivity: 'base' }));
 };
 
-const getSelectionCounts = (items: Item[], selectedItemIds: string[]) => {
+const normalizeSelectedItems = (selected: string[] | SelectedPublicItem[]) => {
+  if (selected.length === 0) return [] as SelectedPublicItem[];
+
+  if (typeof selected[0] === 'string') {
+    const counts = new Map<string, number>();
+    for (const itemId of selected as string[]) {
+      counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+  }
+
+  return (selected as SelectedPublicItem[])
+    .filter(item => typeof item.itemId === 'string' && Number.isFinite(item.quantity) && item.quantity > 0)
+    .map(item => ({ itemId: item.itemId, quantity: Math.trunc(item.quantity) }));
+};
+
+const getSelectionCounts = (items: Item[], selectedItemIds: string[] | SelectedPublicItem[]) => {
   const counts = new Map<string, number>();
+  const selectedQuantities = new Map(normalizeSelectedItems(selectedItemIds).map(item => [item.itemId, item.quantity]));
   for (const item of items) {
-    if (!selectedItemIds.includes(item.id)) continue;
-    counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + 1);
+    const quantity = selectedQuantities.get(item.id) ?? 0;
+    if (quantity <= 0) continue;
+    counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + quantity);
   }
   return counts;
 };
 
 export const validateSelectionRules = (
   items: Item[],
-  selectedItemIds: string[],
+  selectedItemIds: string[] | SelectedPublicItem[],
   rules: CategorySelectionRule[],
 ): SelectionViolation[] => {
   const normalizedRules = normalizeCategorySelectionRules(rules);
@@ -277,13 +312,24 @@ export const canSelectItem = ({
   rules,
 }: {
   items: Item[];
-  selectedItemIds: string[];
+  selectedItemIds: string[] | SelectedPublicItem[];
   itemId: string;
   rules: CategorySelectionRule[];
 }) => {
-  if (selectedItemIds.includes(itemId)) return { allowed: true as const };
+  const normalizedRules = normalizeCategorySelectionRules(rules);
+  const item = items.find(candidate => candidate.id === itemId);
+  const currentSelectedItems = normalizeSelectedItems(selectedItemIds);
+  const currentQuantity = currentSelectedItems.find(candidate => candidate.itemId === itemId)?.quantity ?? 0;
 
-  const nextSelectedItemIds = [...selectedItemIds, itemId];
+  if (currentQuantity > 0 && !normalizedRules.find(rule => rule.category === item?.categoria)?.allowRepeatedItems) {
+    return { allowed: true as const };
+  }
+
+  const nextSelectedItemIds = currentQuantity > 0
+    ? currentSelectedItems.map(candidate => (
+      candidate.itemId === itemId ? { ...candidate, quantity: candidate.quantity + 1 } : candidate
+    ))
+    : [...currentSelectedItems, { itemId, quantity: 1 }];
   const violations = validateSelectionRules(items, nextSelectedItemIds, rules);
   if (violations.length === 0) return { allowed: true as const };
 
@@ -300,16 +346,18 @@ export const getItemSelectionAvailability = ({
   rules,
 }: {
   items: Item[];
-  selectedItemIds: string[];
+  selectedItemIds: string[] | SelectedPublicItem[];
   item: Item;
   rules: CategorySelectionRule[];
 }) => {
-  const active = selectedItemIds.includes(item.id);
+  const currentQuantity = normalizeSelectedItems(selectedItemIds)
+    .find(candidate => candidate.itemId === item.id)?.quantity ?? 0;
+  const active = currentQuantity > 0;
   if (active) {
     return {
       active: true,
       disabled: false,
-      helperText: 'Selecionado no pedido',
+      helperText: currentQuantity > 1 ? `${currentQuantity} selecionados no pedido` : 'Selecionado no pedido',
     };
   }
 

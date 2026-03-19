@@ -59,7 +59,10 @@ export const groupOrderItemsByCategory = (items: Item[], configuredCategories: s
       const names = items
         .filter(item => item.categoria === category)
         .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
-        .map(item => item.nome);
+        .map(item => {
+          const quantity = typeof item.quantity === 'number' && item.quantity > 1 ? Math.trunc(item.quantity) : 1;
+          return quantity > 1 ? `${quantity}x ${item.nome}` : item.nome;
+        });
 
       if (names.length === 0) return null;
 

@@ -10,6 +10,7 @@ import {
   isDuplicatePaidDraft,
   isWinningOrderDraft,
   mapPaymentMethods,
+  normalizeSelectedItems,
   normalizeCustomerName,
   normalizePriceCents,
   validateSelection,
@@ -26,12 +27,19 @@ interface Item {
   nome: string;
   categoria: string;
   priceCents?: number | null;
+  quantity?: number | null;
+}
+
+interface SelectedPublicItem {
+  itemId: string;
+  quantity: number;
 }
 
 interface CategorySelectionRule {
   category: string;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
+  allowRepeatedItems?: boolean | null;
 }
 
 interface PublicMenuDocument {
@@ -79,6 +87,7 @@ interface PublicOrderDraft {
   orderId: string;
   customerName: string;
   menuVersionId: string;
+  selectedItems?: SelectedPublicItem[];
   selectedItemIds: string[];
   paymentSummary: OrderPaymentSummary;
   checkoutSession: CheckoutSessionState | null;
@@ -92,6 +101,7 @@ interface PublicOrderDraft {
 interface StoredOrderEntry {
   orderId: string;
   customerName: string;
+  selectedItems?: SelectedPublicItem[];
   selectedItemIds: string[];
   submittedItems?: Item[];
   paymentSummary: OrderPaymentSummary;
@@ -103,7 +113,8 @@ interface PreparePublicOrderCheckoutBody {
   dateKey: string;
   shareToken: string;
   customerName: string;
-  selectedItemIds: string[];
+  selectedItems?: SelectedPublicItem[];
+  selectedItemIds?: string[];
   successUrl?: string;
   pendingUrl?: string;
   failureUrl?: string;
@@ -154,14 +165,19 @@ const buildOrderPayload = (
   input: {
     orderId: string;
     customerName: string;
+    selectedItems?: SelectedPublicItem[];
     selectedItemIds: string[];
     sourceDraftId?: string | null;
   },
   paymentSummary: OrderPaymentSummary,
 ) => {
-  const submittedItems = menu.items
-    .filter(item => input.selectedItemIds.includes(item.id))
-    .map(item => ({ ...item }));
+  const selectedItems = input.selectedItems ?? normalizeSelectedItems(undefined, input.selectedItemIds);
+  const submittedItems = selectedItems
+    .map(({ itemId, quantity }) => {
+      const item = menu.items.find(candidate => candidate.id === itemId);
+      return item ? { ...item, quantity } : null;
+    })
+    .filter((item): item is Item & { quantity: number } => item !== null);
 
   return {
     orderId: input.orderId,
@@ -169,11 +185,12 @@ const buildOrderPayload = (
     shareToken: menu.token,
     menuVersionId: menu.currentVersionId,
     customerName: input.customerName.trim(),
+    selectedItems,
     selectedItemIds: input.selectedItemIds,
     submittedItems,
     sourceDraftId: input.sourceDraftId ?? null,
     selectedPaidItemIds: submittedItems
-      .filter(item => normalizePriceCents(item.priceCents) > 0)
+      .filter((item): item is Item & { quantity: number } => item !== null && normalizePriceCents(item.priceCents) > 0)
       .map(item => item.id),
     paymentSummary,
     submittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -285,6 +302,7 @@ const finalizeOrderFromDraft = async (
   }, {
     orderId: draft.orderId,
     customerName: draft.customerName,
+    selectedItems: draft.selectedItems,
     selectedItemIds: draft.selectedItemIds,
     sourceDraftId: draft.id,
   }, paymentSummary);
@@ -392,13 +410,14 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
     if (menu.dateKey !== body.dateKey) throw new Error('Cardápio público indisponível para este pedido.');
     const customerName = normalizeCustomerName(body.customerName);
 
-    const selectedItemIds = menu.items
-      .filter(item => body.selectedItemIds.includes(item.id))
-      .map(item => item.id);
-    if (selectedItemIds.length === 0) throw new Error('Nenhum item válido encontrado para este pedido.');
+    const normalizedSelectedItems = normalizeSelectedItems(body.selectedItems, body.selectedItemIds);
+    const allowedItemIds = new Set(menu.items.map(item => item.id));
+    const selectedItems = normalizedSelectedItems.filter(item => allowedItemIds.has(item.itemId));
+    const selectedItemIds = selectedItems.map(item => item.itemId);
+    if (selectedItems.length === 0) throw new Error('Nenhum item válido encontrado para este pedido.');
 
-    validateSelection(menu.items, selectedItemIds, menu.categorySelectionRules);
-    const paymentSummary = createBasePaymentSummary(menu.items, selectedItemIds, 'awaiting_payment');
+    validateSelection(menu.items, selectedItems, menu.categorySelectionRules);
+    const paymentSummary = createBasePaymentSummary(menu.items, selectedItems, 'awaiting_payment');
 
     if (paymentSummary.paidTotalCents === 0) {
       const finalizedSummary: OrderPaymentSummary = {
@@ -410,6 +429,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
         buildOrderPayload(menu, {
           orderId: body.orderId,
           customerName,
+          selectedItems,
           selectedItemIds,
         }, finalizedSummary),
       );
@@ -419,6 +439,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
         order: {
           orderId: body.orderId,
           customerName,
+          selectedItems,
           selectedItemIds,
           paymentSummary: finalizedSummary,
         },
@@ -435,6 +456,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
       orderId: body.orderId,
       customerName,
       menuVersionId: menu.currentVersionId,
+      selectedItems,
       selectedItemIds,
       paymentSummary,
       checkoutSession: null,

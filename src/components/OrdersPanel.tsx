@@ -120,10 +120,27 @@ export default function OrdersPanel({
       {!loading && !error ? orders.map((order) => {
         const paymentSummary = getPaymentSummary(order);
         const resolvedVersion = order.menuVersionId ? menuVersions[order.menuVersionId] : undefined;
+        const selectedQuantities = new Map(
+          (order.selectedItems ?? []).map(item => [item.itemId, item.quantity] as const),
+        );
         const resolvedItems = order.submittedItems?.length
           ? order.submittedItems
+          : order.selectedItems?.length
+            ? resolvedVersion
+              ? order.selectedItems
+                .map(({ itemId, quantity }) => {
+                  const item = resolvedVersion.items.find(candidate => candidate.id === itemId);
+                  return item ? { ...item, quantity } : null;
+                })
+                .filter((item): item is NonNullable<typeof item> => item !== null)
+              : []
           : resolvedVersion
-            ? resolvedVersion.items.filter(item => order.selectedItemIds.includes(item.id))
+            ? resolvedVersion.items
+              .filter(item => order.selectedItemIds.includes(item.id))
+              .map(item => ({
+                ...item,
+                quantity: selectedQuantities.get(item.id) ?? 1,
+              }))
             : [];
         const orderedCategories = resolvedVersion?.categories ?? categories;
         const groupedItems = groupOrderItemsByCategory(resolvedItems, orderedCategories);

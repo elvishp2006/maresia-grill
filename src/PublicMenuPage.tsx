@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import type { FinalizedPublicOrder, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession } from './types';
+import type { FinalizedPublicOrder, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession, SelectedPublicItem } from './types';
 import EmbeddedStripeCheckout from './components/EmbeddedStripeCheckout';
 import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -16,9 +16,7 @@ import { useToast } from './contexts/ToastContext';
 import { useHapticFeedback } from './hooks/useHapticFeedback';
 import { useModal } from './contexts/ModalContext';
 import {
-  canSelectItem,
   describeCategorySelectionRule,
-  getItemSelectionAvailability,
   validateSelectionRules,
 } from './lib/categorySelectionRules';
 import { calculateOrderPaymentSummary, formatCurrency } from './lib/billing';
@@ -29,7 +27,7 @@ const CUSTOMER_EMAIL_STORAGE_KEY = 'public-menu-customer-email';
 interface CachedPublicOrder {
   orderId: string;
   customerName: string;
-  selectedItemIds: string[];
+  selectedItems: SelectedPublicItem[];
   paymentSummary: OrderPaymentSummary;
 }
 
@@ -44,7 +42,7 @@ interface PendingPublicPaymentState {
 
 interface PendingPublicOrderSummary {
   customerName: string;
-  selectedItemIds: string[];
+  selectedItems: SelectedPublicItem[];
   paymentSummary: OrderPaymentSummary;
 }
 
@@ -102,6 +100,45 @@ const setStoredCustomerEmail = (email: string) => {
 };
 
 const isValidCustomerEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+const normalizeSelectedItems = (
+  selectedItems?: SelectedPublicItem[] | null,
+  fallbackSelectedItemIds?: string[] | null,
+) => {
+  const counts = new Map<string, number>();
+
+  for (const item of selectedItems ?? []) {
+    if (typeof item?.itemId !== 'string' || !Number.isFinite(item.quantity) || item.quantity <= 0) continue;
+    counts.set(item.itemId, (counts.get(item.itemId) ?? 0) + Math.trunc(item.quantity));
+  }
+
+  if (counts.size === 0) {
+    for (const itemId of fallbackSelectedItemIds ?? []) {
+      counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+};
+
+const getSelectedQuantity = (selectedItems: SelectedPublicItem[], itemId: string) => (
+  selectedItems.find(item => item.itemId === itemId)?.quantity ?? 0
+);
+
+const setSelectedQuantity = (selectedItems: SelectedPublicItem[], itemId: string, quantity: number) => {
+  const normalizedQuantity = Math.max(0, Math.trunc(quantity));
+  const remaining = selectedItems.filter(item => item.itemId !== itemId);
+  return normalizedQuantity > 0
+    ? [...remaining, { itemId, quantity: normalizedQuantity }]
+    : remaining;
+};
+
+const expandSelectedItemsToIds = (selectedItems: SelectedPublicItem[]) => selectedItems.map(item => item.itemId);
+const hasRepeatedQuantities = (selectedItems: SelectedPublicItem[]) => selectedItems.some(item => item.quantity > 1);
+
+const countSelectedUnits = (selectedItems: SelectedPublicItem[]) => (
+  selectedItems.reduce((sum, item) => sum + item.quantity, 0)
+);
 
 const getOrderSessionStorageKey = (token: string) => `public-menu-order-session:${token}`;
 const getCachedOrderStorageKey = (token: string) => `public-menu-last-order:${token}`;
@@ -174,9 +211,12 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
     if (
       typeof parsed.orderId === 'string'
       && typeof parsed.customerName === 'string'
-      && Array.isArray(parsed.selectedItemIds)
-      && parsed.selectedItemIds.every(item => typeof item === 'string')
     ) {
+      const selectedItems = normalizeSelectedItems(
+        (parsed as Partial<{ selectedItems: SelectedPublicItem[] }>).selectedItems,
+        (parsed as Partial<{ selectedItemIds: string[] }>).selectedItemIds,
+      );
+      if (selectedItems.length === 0) return null;
       const paymentSummary = parsed.paymentSummary
         && typeof parsed.paymentSummary === 'object'
         && typeof parsed.paymentSummary.freeTotalCents === 'number'
@@ -197,7 +237,7 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
       return {
         orderId: parsed.orderId,
         customerName: parsed.customerName,
-        selectedItemIds: parsed.selectedItemIds,
+        selectedItems,
         paymentSummary,
       };
     }
@@ -209,12 +249,21 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
 
 const setCachedOrder = (token: string, order: CachedPublicOrder) => {
   try {
-    const payload = order.paymentSummary.paidTotalCents > 0
+    const basePayload = order.paymentSummary.paidTotalCents > 0
       ? order
       : {
         orderId: order.orderId,
         customerName: order.customerName,
-        selectedItemIds: order.selectedItemIds,
+      };
+    const payload = hasRepeatedQuantities(order.selectedItems)
+      ? {
+        ...basePayload,
+        selectedItems: order.selectedItems,
+        selectedItemIds: expandSelectedItemsToIds(order.selectedItems),
+      }
+      : {
+        ...basePayload,
+        selectedItemIds: expandSelectedItemsToIds(order.selectedItems),
       };
     localStorage.setItem(getCachedOrderStorageKey(token), JSON.stringify(payload));
   } catch {
@@ -267,8 +316,6 @@ const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null 
     const parsed = JSON.parse(raw) as Partial<PendingPublicOrderSummary>;
     if (
       typeof parsed.customerName === 'string'
-      && Array.isArray(parsed.selectedItemIds)
-      && parsed.selectedItemIds.every(item => typeof item === 'string')
       && parsed.paymentSummary
       && typeof parsed.paymentSummary === 'object'
       && typeof parsed.paymentSummary.freeTotalCents === 'number'
@@ -276,9 +323,14 @@ const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null 
       && parsed.paymentSummary.currency === 'BRL'
       && typeof parsed.paymentSummary.paymentStatus === 'string'
     ) {
+      const selectedItems = normalizeSelectedItems(
+        (parsed as Partial<{ selectedItems: SelectedPublicItem[] }>).selectedItems,
+        (parsed as Partial<{ selectedItemIds: string[] }>).selectedItemIds,
+      );
+      if (selectedItems.length === 0) return null;
       return {
         customerName: parsed.customerName,
-        selectedItemIds: parsed.selectedItemIds,
+        selectedItems,
         paymentSummary: parsed.paymentSummary,
       };
     }
@@ -290,7 +342,18 @@ const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null 
 
 const setStoredPendingOrder = (token: string, pendingOrder: PendingPublicOrderSummary) => {
   try {
-    localStorage.setItem(getPendingOrderStorageKey(token), JSON.stringify(pendingOrder));
+    const payload = hasRepeatedQuantities(pendingOrder.selectedItems)
+      ? {
+        ...pendingOrder,
+        selectedItems: pendingOrder.selectedItems,
+        selectedItemIds: expandSelectedItemsToIds(pendingOrder.selectedItems),
+      }
+      : {
+        customerName: pendingOrder.customerName,
+        paymentSummary: pendingOrder.paymentSummary,
+        selectedItemIds: expandSelectedItemsToIds(pendingOrder.selectedItems),
+      };
+    localStorage.setItem(getPendingOrderStorageKey(token), JSON.stringify(payload));
   } catch {
     // Ignore local storage failures on unsupported browsers.
   }
@@ -330,7 +393,7 @@ const setStoredOrderId = (token: string, nextOrderId: string) => {
 const toCachedOrder = (order: FinalizedPublicOrder): CachedPublicOrder => ({
   orderId: order.orderId,
   customerName: order.customerName,
-  selectedItemIds: order.selectedItemIds,
+  selectedItems: normalizeSelectedItems(order.selectedItems, order.selectedItemIds),
   paymentSummary: order.paymentSummary,
 });
 
@@ -391,13 +454,14 @@ function PublicOrderSummary({
   customerName?: string;
   paidTotalCents: number;
   categories: string[];
-  selectedItems: Array<{ id: string; nome: string; categoria: string }>;
+  selectedItems: Array<{ id: string; nome: string; categoria: string; quantity?: number }>;
 }) {
   const groupedItems = groupOrderItemsByCategory(
     selectedItems.map(item => ({
       id: item.id,
       nome: item.nome,
       categoria: item.categoria,
+      quantity: item.quantity,
     })),
     categories,
   );
@@ -424,7 +488,7 @@ function PublicOrderSummary({
       </div>
       <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[13px] text-[var(--text-dim)]">
         <span>Itens escolhidos</span>
-        <span>{selectedItems.length} selecionados</span>
+        <span>{countSelectedUnits(selectedItems.map(item => ({ itemId: item.id, quantity: item.quantity ?? 1 })))} selecionados</span>
       </div>
       {groupedItems.length > 0 ? (
         <div className="mt-[10px] space-y-[10px]">
@@ -475,7 +539,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const [menu, setMenu] = useState<PublicMenu | null | undefined>(undefined);
   const [customerName, setCustomerName] = useState(() => getStoredCustomerName());
   const [customerEmail, setCustomerEmail] = useState(() => getStoredCustomerEmail());
-  const [selection, setSelection] = useState<string[]>([]);
+  const [selection, setSelection] = useState<SelectedPublicItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState(() => getStoredOrderId(token));
   const [successState, setSuccessState] = useState<CachedPublicOrder | null>(null);
@@ -492,6 +556,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const [footerHeight, setFooterHeight] = useState(112);
   const footerRef = useRef<HTMLDivElement | null>(null);
   const lastVisualStateRef = useRef<PublicVisualState | null>(null);
+  const selectedCount = countSelectedUnits(selection);
 
   useEffect(() => {
     setMenu(undefined);
@@ -528,7 +593,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     if (cachedOrder) {
       setCustomerName(cachedOrder.customerName);
-      setSelection(cachedOrder.selectedItemIds);
+      setSelection(cachedOrder.selectedItems);
       if (storedView === 'submitted') {
         setSuccessState(cachedOrder);
         setCancelledState(null);
@@ -549,7 +614,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setCustomerName(storedPendingOrder.customerName);
       setSuccessState(null);
       setCancelledState(null);
-      setSelection(storedPendingOrder.selectedItemIds);
+      setSelection(storedPendingOrder.selectedItems);
       setCurrentView('submitted');
       return;
     }
@@ -598,7 +663,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         clearStoredCancelledState(token);
         setSuccessState(cachedOrder);
         setCancelledState(null);
-        setSelection(cachedOrder.selectedItemIds);
+        setSelection(cachedOrder.selectedItems);
         setCustomerName(cachedOrder.customerName);
         return;
       }
@@ -632,13 +697,13 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     const validIds = new Set(menu.items.map(item => item.id));
 
-    setSelection(prev => prev.filter(id => validIds.has(id)));
+    setSelection(prev => prev.filter(item => validIds.has(item.itemId)));
     setSuccessState(prev => {
       if (!prev) return null;
-      const nextSelectedItemIds = prev.selectedItemIds.filter(id => validIds.has(id));
-      if (nextSelectedItemIds.length === prev.selectedItemIds.length) return prev;
+      const nextSelectedItems = prev.selectedItems.filter(item => validIds.has(item.itemId));
+      if (nextSelectedItems.length === prev.selectedItems.length) return prev;
 
-      const nextState = { ...prev, selectedItemIds: nextSelectedItemIds };
+      const nextState = { ...prev, selectedItems: nextSelectedItems };
       setCachedOrder(token, nextState);
       return nextState;
     });
@@ -646,10 +711,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const cachedOrder = getCachedOrder(token);
     if (!cachedOrder) return;
 
-    const nextSelectedItemIds = cachedOrder.selectedItemIds.filter(id => validIds.has(id));
-    if (nextSelectedItemIds.length === cachedOrder.selectedItemIds.length) return;
+    const nextSelectedItems = cachedOrder.selectedItems.filter(item => validIds.has(item.itemId));
+    if (nextSelectedItems.length === cachedOrder.selectedItems.length) return;
 
-    setCachedOrder(token, { ...cachedOrder, selectedItemIds: nextSelectedItemIds });
+    setCachedOrder(token, { ...cachedOrder, selectedItems: nextSelectedItems });
   }, [menu, token]);
 
   useEffect(() => {
@@ -672,7 +737,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           clearStoredPendingOrder(menu.token);
           setSuccessState(nextOrder);
           setCancelledState(null);
-          setSelection(nextOrder.selectedItemIds);
+          setSelection(nextOrder.selectedItems);
           setCustomerName(nextOrder.customerName);
           setPendingPayment(null);
           setPendingOrderSummary(null);
@@ -731,7 +796,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [successState, submitting, selection.length]);
+  }, [successState, submitting, selectedCount]);
 
   const visualState: PublicVisualState = successState
     ? 'submitted-success'
@@ -757,24 +822,31 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const canModifyExistingOrder = Boolean(menu?.acceptingOrders);
   const canStartNewOrder = Boolean(menu?.acceptingOrders);
   const isMenuExpired = menu === null;
-  const selectedCount = selection.length;
   const currentPaymentSummary = useMemo(() => (
     menu
       ? calculateOrderPaymentSummary(menu.items, selection)
       : null
   ), [menu, selection]);
-  const pendingSelectedItemIds = pendingOrderSummary?.selectedItemIds ?? selection;
+  const pendingSelectedItemIds = pendingOrderSummary?.selectedItems ?? selection;
   const pendingSelectedItems = useMemo(() => {
     if (!menu) return [];
     const itemMap = new Map(menu.items.map(item => [item.id, item] as const));
     return pendingSelectedItemIds
-      .map(itemId => itemMap.get(itemId))
+      .map(({ itemId, quantity }) => {
+        const item = itemMap.get(itemId);
+        return item ? { ...item, quantity } : null;
+      })
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
   }, [menu, pendingSelectedItemIds]);
   const pendingPaymentSummary = pendingOrderSummary?.paymentSummary ?? currentPaymentSummary;
   const selectionViolations = useMemo(() => (
     menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
   ), [menu, selection]);
+  const repeatedCategories = useMemo(() => new Set(
+    menu?.categorySelectionRules
+      .filter(rule => rule.allowRepeatedItems)
+      .map(rule => rule.category) ?? []
+  ), [menu]);
 
   const openSubmittedPaymentState = (draftId: string) => {
     setDraftIdInUrl(draftId);
@@ -783,24 +855,46 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     setCurrentView('submitted');
   };
 
+  const canIncreaseItemQuantity = (itemId: string, currentSelection: SelectedPublicItem[]) => {
+    if (!menu) return;
+    const currentQuantity = getSelectedQuantity(currentSelection, itemId);
+    const nextSelection = setSelectedQuantity(currentSelection, itemId, currentQuantity + 1);
+    const violations = validateSelectionRules(menu.items, nextSelection, menu.categorySelectionRules);
+    return violations[0] ?? null;
+  };
+
+  const incrementItem = (itemId: string) => {
+    if (!menu) return;
+    lightTap();
+    setSelection(prev => {
+      const violation = canIncreaseItemQuantity(itemId, prev);
+      if (violation) {
+        showToast(violation.message, 'info');
+        return prev;
+      }
+      return setSelectedQuantity(prev, itemId, getSelectedQuantity(prev, itemId) + 1);
+    });
+  };
+
+  const decrementItem = (itemId: string) => {
+    lightTap();
+    setSelection(prev => setSelectedQuantity(prev, itemId, getSelectedQuantity(prev, itemId) - 1));
+  };
+
   const toggleItem = (id: string) => {
     if (!menu) return;
     lightTap();
     setSelection(prev => {
-      if (prev.includes(id)) return prev.filter(itemId => itemId !== id);
+      const currentQuantity = getSelectedQuantity(prev, id);
+      if (currentQuantity > 0) return setSelectedQuantity(prev, id, 0);
 
-      const result = canSelectItem({
-        items: menu.items,
-        selectedItemIds: prev,
-        itemId: id,
-        rules: menu.categorySelectionRules,
-      });
-      if (!result.allowed) {
-        showToast(result.violation.message, 'info');
+      const violation = canIncreaseItemQuantity(id, prev);
+      if (violation) {
+        showToast(violation.message, 'info');
         return prev;
       }
 
-      return [...prev, id];
+      return setSelectedQuantity(prev, id, 1);
     });
   };
 
@@ -821,7 +915,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       showToast('Informe um e-mail válido.', 'info');
       return;
     }
-    if (selection.length === 0) {
+    if (selectedCount === 0) {
       showToast('Selecione pelo menos um item.', 'info');
       return;
     }
@@ -841,7 +935,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           dateKey: menu.dateKey,
           shareToken: menu.token,
           customerName: trimmedName,
-          selectedItemIds: selection,
+          selectedItems: selection,
+          selectedItemIds: expandSelectedItemsToIds(selection),
           successUrl: url.toString(),
           pendingUrl: url.toString(),
           failureUrl: `${window.location.origin}${window.location.pathname}#/pedido`,
@@ -858,7 +953,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           setCheckoutSession(null);
           setSuccessState(nextOrder);
           setCancelledState(null);
-          setSelection(nextOrder.selectedItemIds);
+          setSelection(nextOrder.selectedItems);
           setCurrentView('submitted');
           return;
         }
@@ -870,7 +965,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         ) {
           const nextPendingOrderSummary = {
             customerName: trimmedName,
-            selectedItemIds: selection,
+            selectedItems: selection,
             paymentSummary: currentPaymentSummary ?? {
               freeTotalCents: 0,
               paidTotalCents: 0,
@@ -896,13 +991,14 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         dateKey: menu.dateKey,
         shareToken: menu.token,
         customerName: trimmedName,
-        selectedItemIds: selection,
+        selectedItems: selection,
+        selectedItemIds: expandSelectedItemsToIds(selection),
       });
-      const persistedSelection = submission?.selectedItemIds ?? selection;
+      const persistedSelection = normalizeSelectedItems(submission?.selectedItems, submission?.selectedItemIds) ?? selection;
       const nextOrder = {
         orderId,
         customerName: trimmedName,
-        selectedItemIds: persistedSelection,
+        selectedItems: persistedSelection,
         paymentSummary: submission.paymentSummary ?? currentPaymentSummary ?? {
           freeTotalCents: 0,
           paidTotalCents: 0,
@@ -1047,12 +1143,13 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               customerName={successState.customerName}
               paidTotalCents={successState.paymentSummary.paidTotalCents}
               categories={menu?.categories ?? []}
-              selectedItems={successState.selectedItemIds.map(itemId => {
+              selectedItems={successState.selectedItems.map(({ itemId, quantity }) => {
                 const item = menu?.items.find(candidate => candidate.id === itemId);
                 return {
                   id: itemId,
                   nome: item?.nome ?? itemId,
                   categoria: item?.categoria ?? 'Outros',
+                  quantity,
                 };
               })}
             />
@@ -1106,6 +1203,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 id: item.id,
                 nome: item.nome,
                 categoria: item.categoria,
+                quantity: item.quantity,
               }))}
             />
           )}
@@ -1253,57 +1351,118 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             ) : null}
             <ul className="mt-[14px] flex list-none flex-col gap-[10px]">
               {items.map(item => {
-                const availability = getItemSelectionAvailability({
-                  items: menu.items,
-                  selectedItemIds: selection,
-                  item,
-                  rules: menu.categorySelectionRules,
-                });
-                const active = availability.active;
+                const quantity = getSelectedQuantity(selection, item.id);
+                const active = quantity > 0;
+                const allowsRepeating = repeatedCategories.has(category);
+                const blockingViolation = canIncreaseItemQuantity(item.id, selection);
+                const canIncrement = !submitting && !blockingViolation;
+                const helperText = active
+                  ? quantity > 1
+                    ? `${quantity} selecionados no pedido`
+                    : 'Selecionado no pedido'
+                  : blockingViolation
+                    ? 'Limite atingido'
+                    : allowsRepeating
+                      ? 'Use + e - para ajustar'
+                      : 'Disponivel para incluir';
                 return (
                   <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => toggleItem(item.id)}
-                      disabled={submitting || availability.disabled}
-                      aria-pressed={active}
-                      aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
-                      className={`public-choice flex min-h-[72px] w-full items-center gap-[14px] px-[14px] py-[13px] text-left disabled:cursor-not-allowed ${
-                        availability.disabled ? 'opacity-45 grayscale-[0.2]' : 'disabled:opacity-60'
-                      }`}
-                    >
-                      <span
-                        className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[14px] border text-[16px] font-bold transition-colors ${
+                    {allowsRepeating ? (
+                      <div
+                        className={`public-choice flex min-h-[72px] items-center gap-[14px] px-[14px] py-[13px] ${
+                          blockingViolation && quantity === 0 ? 'opacity-80' : ''
+                        }`}
+                      >
+                        <span className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[14px] border text-[16px] font-bold transition-colors ${
                           active
                             ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
-                            : availability.disabled
-                              ? 'border-[var(--border)] bg-[rgba(255,255,255,0.01)] text-transparent'
                             : 'border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] text-transparent'
-                        }`}
-                        aria-hidden="true"
-                      >
-                        ✓
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className={`block text-[16px] leading-[1.35] ${
-                          active
-                            ? 'font-semibold text-[var(--text)]'
-                            : availability.disabled
-                              ? 'font-medium text-[var(--text-dim)]'
-                              : 'font-medium text-[var(--text-muted)]'
-                        }`}>
-                          {item.nome}
+                        }`} aria-hidden="true">
+                          ✓
                         </span>
-                        <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
-                          {availability.helperText}
-                        </span>
-                        {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
-                          <span className="mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
-                            {formatCurrency(item.priceCents)}
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-[16px] leading-[1.35] ${
+                            active ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--text-muted)]'
+                          }`}>
+                            {item.nome}
                           </span>
-                        ) : null}
-                      </span>
-                    </button>
+                          <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                            {helperText}
+                          </span>
+                          {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
+                            <span className="mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                              {formatCurrency(item.priceCents)}
+                            </span>
+                          ) : null}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-[8px]">
+                          <button
+                            type="button"
+                            onClick={() => decrementItem(item.id)}
+                            disabled={submitting || quantity === 0}
+                            aria-label={`Diminuir ${item.nome}`}
+                            className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[20px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            -
+                          </button>
+                          <span className="flex min-w-[32px] items-center justify-center text-[16px] font-semibold text-[var(--text)]">
+                            {quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => incrementItem(item.id)}
+                            disabled={!canIncrement}
+                            aria-label={`Aumentar ${item.nome}`}
+                            className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[20px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(item.id)}
+                        disabled={submitting || Boolean(blockingViolation && !active)}
+                        aria-pressed={active}
+                        aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
+                        className={`public-choice flex min-h-[72px] w-full items-center gap-[14px] px-[14px] py-[13px] text-left disabled:cursor-not-allowed ${
+                          blockingViolation && !active ? 'opacity-45 grayscale-[0.2]' : 'disabled:opacity-60'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[14px] border text-[16px] font-bold transition-colors ${
+                            active
+                              ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
+                              : blockingViolation
+                                ? 'border-[var(--border)] bg-[rgba(255,255,255,0.01)] text-transparent'
+                                : 'border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] text-transparent'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          ✓
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-[16px] leading-[1.35] ${
+                            active
+                              ? 'font-semibold text-[var(--text)]'
+                              : blockingViolation
+                                ? 'font-medium text-[var(--text-dim)]'
+                                : 'font-medium text-[var(--text-muted)]'
+                          }`}>
+                            {item.nome}
+                          </span>
+                          <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                            {helperText}
+                          </span>
+                          {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
+                            <span className="mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                              {formatCurrency(item.priceCents)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    )}
                   </li>
                 );
               })}

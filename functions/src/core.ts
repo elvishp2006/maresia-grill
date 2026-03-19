@@ -14,12 +14,19 @@ export interface Item {
   nome: string;
   categoria: string;
   priceCents?: number | null;
+  quantity?: number | null;
+}
+
+export interface SelectedPublicItem {
+  itemId: string;
+  quantity: number;
 }
 
 export interface CategorySelectionRule {
   category: string;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
+  allowRepeatedItems?: boolean | null;
 }
 
 export interface OrderPaymentSummary {
@@ -49,21 +56,46 @@ export const normalizeCustomerName = (value: unknown) => {
   return normalized;
 };
 
+export const normalizeSelectedItems = (
+  selectedItems: SelectedPublicItem[] | undefined,
+  selectedItemIds?: string[],
+) => {
+  const counts = new Map<string, number>();
+
+  for (const item of selectedItems ?? []) {
+    if (typeof item?.itemId !== 'string' || !Number.isFinite(item.quantity) || item.quantity <= 0) continue;
+    counts.set(item.itemId, (counts.get(item.itemId) ?? 0) + Math.trunc(item.quantity));
+  }
+
+  if (counts.size === 0) {
+    for (const itemId of selectedItemIds ?? []) {
+      counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+};
+
 export const createBasePaymentSummary = (
   items: Item[],
-  selectedItemIds: string[],
+  selectedItemIds: SelectedPublicItem[] | string[],
   paymentStatus: PaymentStatus,
 ): OrderPaymentSummary => {
   let freeTotalCents = 0;
   let paidTotalCents = 0;
+  const normalizedSelectedItems = Array.isArray(selectedItemIds) && typeof selectedItemIds[0] !== 'string'
+    ? selectedItemIds as SelectedPublicItem[]
+    : normalizeSelectedItems(undefined, selectedItemIds as string[]);
+  const selectedQuantities = new Map(normalizedSelectedItems.map(item => [item.itemId, item.quantity]));
 
   for (const item of items) {
-    if (!selectedItemIds.includes(item.id)) continue;
+    const quantity = selectedQuantities.get(item.id) ?? 0;
+    if (quantity <= 0) continue;
     const priceCents = normalizePriceCents(item.priceCents);
     if (priceCents > 0) {
-      paidTotalCents += priceCents;
+      paidTotalCents += priceCents * quantity;
     } else {
-      freeTotalCents += priceCents;
+      freeTotalCents += priceCents * quantity;
     }
   }
 
@@ -81,13 +113,18 @@ export const createBasePaymentSummary = (
 
 export const validateSelection = (
   items: Item[],
-  selectedItemIds: string[],
+  selectedItemIds: SelectedPublicItem[] | string[],
   rules: CategorySelectionRule[],
 ) => {
+  const normalizedSelectedItems = Array.isArray(selectedItemIds) && typeof selectedItemIds[0] !== 'string'
+    ? selectedItemIds as SelectedPublicItem[]
+    : normalizeSelectedItems(undefined, selectedItemIds as string[]);
+  const selectedQuantities = new Map(normalizedSelectedItems.map(item => [item.itemId, item.quantity]));
   const counts = new Map<string, number>();
   for (const item of items) {
-    if (!selectedItemIds.includes(item.id)) continue;
-    counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + 1);
+    const quantity = selectedQuantities.get(item.id) ?? 0;
+    if (quantity <= 0) continue;
+    counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + quantity);
   }
 
   const groupedCounts = new Map<string, number>();

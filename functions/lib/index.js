@@ -3,7 +3,7 @@ import admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { onRequest } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
-import { buildReturnUrl, canReplaceExistingOrderWithPaidDraft, createBasePaymentSummary, isDuplicatePaidDraft, isWinningOrderDraft, mapPaymentMethods, normalizeCustomerName, normalizePriceCents, validateSelection, } from './core.js';
+import { buildReturnUrl, canReplaceExistingOrderWithPaidDraft, createBasePaymentSummary, isDuplicatePaidDraft, isWinningOrderDraft, mapPaymentMethods, normalizeSelectedItems, normalizeCustomerName, normalizePriceCents, validateSelection, } from './core.js';
 admin.initializeApp();
 const db = admin.firestore();
 const publicBrowserEndpointOptions = {
@@ -42,20 +42,25 @@ const loadPublicMenuVersion = async (versionId) => {
     return snap.data();
 };
 const buildOrderPayload = (menu, input, paymentSummary) => {
-    const submittedItems = menu.items
-        .filter(item => input.selectedItemIds.includes(item.id))
-        .map(item => ({ ...item }));
+    const selectedItems = input.selectedItems ?? normalizeSelectedItems(undefined, input.selectedItemIds);
+    const submittedItems = selectedItems
+        .map(({ itemId, quantity }) => {
+        const item = menu.items.find(candidate => candidate.id === itemId);
+        return item ? { ...item, quantity } : null;
+    })
+        .filter((item) => item !== null);
     return {
         orderId: input.orderId,
         dateKey: menu.dateKey,
         shareToken: menu.token,
         menuVersionId: menu.currentVersionId,
         customerName: input.customerName.trim(),
+        selectedItems,
         selectedItemIds: input.selectedItemIds,
         submittedItems,
         sourceDraftId: input.sourceDraftId ?? null,
         selectedPaidItemIds: submittedItems
-            .filter(item => normalizePriceCents(item.priceCents) > 0)
+            .filter((item) => item !== null && normalizePriceCents(item.priceCents) > 0)
             .map(item => item.id),
         paymentSummary,
         submittedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -148,6 +153,7 @@ const finalizeOrderFromDraft = async (draft, paymentSummary) => {
     }, {
         orderId: draft.orderId,
         customerName: draft.customerName,
+        selectedItems: draft.selectedItems,
         selectedItemIds: draft.selectedItemIds,
         sourceDraftId: draft.id,
     }, paymentSummary);
@@ -238,13 +244,14 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
         if (menu.dateKey !== body.dateKey)
             throw new Error('Cardápio público indisponível para este pedido.');
         const customerName = normalizeCustomerName(body.customerName);
-        const selectedItemIds = menu.items
-            .filter(item => body.selectedItemIds.includes(item.id))
-            .map(item => item.id);
-        if (selectedItemIds.length === 0)
+        const normalizedSelectedItems = normalizeSelectedItems(body.selectedItems, body.selectedItemIds);
+        const allowedItemIds = new Set(menu.items.map(item => item.id));
+        const selectedItems = normalizedSelectedItems.filter(item => allowedItemIds.has(item.itemId));
+        const selectedItemIds = selectedItems.map(item => item.itemId);
+        if (selectedItems.length === 0)
             throw new Error('Nenhum item válido encontrado para este pedido.');
-        validateSelection(menu.items, selectedItemIds, menu.categorySelectionRules);
-        const paymentSummary = createBasePaymentSummary(menu.items, selectedItemIds, 'awaiting_payment');
+        validateSelection(menu.items, selectedItems, menu.categorySelectionRules);
+        const paymentSummary = createBasePaymentSummary(menu.items, selectedItems, 'awaiting_payment');
         if (paymentSummary.paidTotalCents === 0) {
             const finalizedSummary = {
                 ...paymentSummary,
@@ -254,6 +261,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
             await db.doc(`orders/${menu.dateKey}/entries/${body.orderId}`).set(buildOrderPayload(menu, {
                 orderId: body.orderId,
                 customerName,
+                selectedItems,
                 selectedItemIds,
             }, finalizedSummary));
             return json(res, 200, {
@@ -261,6 +269,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
                 order: {
                     orderId: body.orderId,
                     customerName,
+                    selectedItems,
                     selectedItemIds,
                     paymentSummary: finalizedSummary,
                 },
@@ -276,6 +285,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
             orderId: body.orderId,
             customerName,
             menuVersionId: menu.currentVersionId,
+            selectedItems,
             selectedItemIds,
             paymentSummary,
             checkoutSession: null,

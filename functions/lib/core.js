@@ -7,18 +7,37 @@ export const normalizeCustomerName = (value) => {
         throw new Error('Informe o nome para finalizar o pedido.');
     return normalized;
 };
+export const normalizeSelectedItems = (selectedItems, selectedItemIds) => {
+    const counts = new Map();
+    for (const item of selectedItems ?? []) {
+        if (typeof item?.itemId !== 'string' || !Number.isFinite(item.quantity) || item.quantity <= 0)
+            continue;
+        counts.set(item.itemId, (counts.get(item.itemId) ?? 0) + Math.trunc(item.quantity));
+    }
+    if (counts.size === 0) {
+        for (const itemId of selectedItemIds ?? []) {
+            counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+        }
+    }
+    return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+};
 export const createBasePaymentSummary = (items, selectedItemIds, paymentStatus) => {
     let freeTotalCents = 0;
     let paidTotalCents = 0;
+    const normalizedSelectedItems = Array.isArray(selectedItemIds) && typeof selectedItemIds[0] !== 'string'
+        ? selectedItemIds
+        : normalizeSelectedItems(undefined, selectedItemIds);
+    const selectedQuantities = new Map(normalizedSelectedItems.map(item => [item.itemId, item.quantity]));
     for (const item of items) {
-        if (!selectedItemIds.includes(item.id))
+        const quantity = selectedQuantities.get(item.id) ?? 0;
+        if (quantity <= 0)
             continue;
         const priceCents = normalizePriceCents(item.priceCents);
         if (priceCents > 0) {
-            paidTotalCents += priceCents;
+            paidTotalCents += priceCents * quantity;
         }
         else {
-            freeTotalCents += priceCents;
+            freeTotalCents += priceCents * quantity;
         }
     }
     return {
@@ -33,11 +52,16 @@ export const createBasePaymentSummary = (items, selectedItemIds, paymentStatus) 
     };
 };
 export const validateSelection = (items, selectedItemIds, rules) => {
+    const normalizedSelectedItems = Array.isArray(selectedItemIds) && typeof selectedItemIds[0] !== 'string'
+        ? selectedItemIds
+        : normalizeSelectedItems(undefined, selectedItemIds);
+    const selectedQuantities = new Map(normalizedSelectedItems.map(item => [item.itemId, item.quantity]));
     const counts = new Map();
     for (const item of items) {
-        if (!selectedItemIds.includes(item.id))
+        const quantity = selectedQuantities.get(item.id) ?? 0;
+        if (quantity <= 0)
             continue;
-        counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + 1);
+        counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + quantity);
     }
     const groupedCounts = new Map();
     for (const rule of rules) {
