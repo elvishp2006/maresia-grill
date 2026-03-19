@@ -83,54 +83,56 @@ function CheckoutForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full min-w-0 space-y-[16px]">
-      <section className="min-w-0 space-y-[8px]">
-        <div className="stripe-payment-element stripe-payment-element--ready min-w-0">
-          <LinkAuthenticationElement
-            options={{
-              defaultValues: initialEmail ? { email: initialEmail } : undefined,
-            }}
-            onChange={handleLinkChange}
-          />
-        </div>
-      </section>
-
-      <section className="min-w-0 space-y-[8px]">
-        <p className="text-[12px] font-semibold text-[var(--text)]">
-          Pagamento
-        </p>
-        <div className="stripe-payment-shell">
-          {!elementReady ? (
-            <div className="stripe-payment-loading" aria-hidden="true">
-              <div className="stripe-payment-skeleton">
-                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
-                <div className="stripe-payment-skeleton__block" />
-                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
-                <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-                <div className="stripe-payment-skeleton__button" />
-              </div>
-            </div>
-          ) : null}
-          <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready min-w-0' : 'stripe-payment-element min-w-0'}>
-            <PaymentElement
-              options={{ layout: 'accordion' }}
-              onReady={() => {
-                setElementReady(true);
+    <form onSubmit={handleSubmit} className="flex h-full min-h-0 w-full min-w-0 flex-col">
+      <div className="stripe-checkout-scroll flex-1 min-h-0 space-y-[16px] overflow-y-auto pb-[18px] pr-[10px]">
+        <section className="min-w-0 space-y-[8px]">
+          <div className="stripe-payment-element stripe-payment-element--ready min-w-0">
+            <LinkAuthenticationElement
+              options={{
+                defaultValues: initialEmail ? { email: initialEmail } : undefined,
               }}
-              onLoadError={() => {
-                // O estado de erro do confirmPayment cobre falhas fatais de carregamento.
-              }}
+              onChange={handleLinkChange}
             />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <div className="px-[8px] pb-[12px] pt-[6px]">
+        <section className="min-w-0 space-y-[8px] pb-[6px]">
+          <p className="text-[12px] font-semibold text-[var(--text)]">
+            Pagamento
+          </p>
+          <div className="stripe-payment-shell">
+            {!elementReady ? (
+              <div className="stripe-payment-loading" aria-hidden="true">
+                <div className="stripe-payment-skeleton">
+                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
+                  <div className="stripe-payment-skeleton__block" />
+                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
+                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
+                  <div className="stripe-payment-skeleton__button" />
+                </div>
+              </div>
+            ) : null}
+            <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready min-w-0' : 'stripe-payment-element min-w-0'}>
+              <PaymentElement
+                options={{ layout: 'accordion' }}
+                onReady={() => {
+                  setElementReady(true);
+                }}
+                onLoadError={() => {
+                  // O estado de erro do confirmPayment cobre falhas fatais de carregamento.
+                }}
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="stripe-checkout-footer px-[8px] pb-[4px] pt-[12px]">
         <button
           type="submit"
           disabled={submitting || !elementReady || !stripe || !elements}
-          className="min-h-[54px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_10px_22px_rgba(0,0,0,0.18)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-[54px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? 'Processando pagamento...' : 'Pagar'}
         </button>

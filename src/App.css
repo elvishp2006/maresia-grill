@@ -156,6 +156,17 @@ input[type='search']::-webkit-search-results-decoration {
     inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
+.stripe-checkout-scroll {
+  scrollbar-gutter: stable;
+}
+
+.stripe-checkout-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: transparent;
+}
+
 .public-inline-panel {
   border-radius: 20px;
   border: 1px solid var(--border);
