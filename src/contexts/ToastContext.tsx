@@ -28,7 +28,6 @@ const DEFAULT_NON_ERROR_DURATION_MS = 2500;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const safeToasts = Array.isArray(toasts) ? toasts : [];
 
   const dismissToast = useCallback((id: number) => {
     setToasts(prev => (Array.isArray(prev) ? prev : []).filter(toast => toast.id !== id));
@@ -51,21 +50,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const timers = safeToasts
+    const timers = toasts
       .filter((toast) => toast.duration !== null && toast.duration > 0)
       .map((toast) => window.setTimeout(() => dismissToast(toast.id), toast.duration ?? 0));
 
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [dismissToast, safeToasts]);
+  }, [dismissToast, toasts]);
 
   return (
     <ToastContext.Provider value={{ showToast, dismissToast }}>
       {children}
-      {safeToasts.length > 0 && (
+      {toasts.length > 0 && (
         <div className="fixed top-4 left-1/2 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 flex-col gap-2">
-          {safeToasts.map(toast => (
+          {toasts.map(toast => (
             <div
               key={toast.id}
               className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-[13px] font-mono text-[var(--text)] shadow-lg transition-all duration-300"
