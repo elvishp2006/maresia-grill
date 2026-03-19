@@ -106,10 +106,8 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
   const [acceptingOrders, setAcceptingOrders] = useState(true);
   const [orderIntakePending, setOrderIntakePending] = useState(false);
   const [publicSyncState, setPublicSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
-  const [showPublicSyncIndicator, setShowPublicSyncIndicator] = useState(false);
   const syncTimerRef = useRef<number | null>(null);
   const retryTimerRef = useRef<number | null>(null);
-  const syncIndicatorTimerRef = useRef<number | null>(null);
   const syncInFlightRef = useRef(false);
   const syncQueuedRef = useRef(false);
   const lastSyncedRevisionRef = useRef<number | null>(null);
@@ -358,30 +356,6 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     userEmail,
   ]);
 
-  useEffect(() => {
-    if (syncIndicatorTimerRef.current !== null) {
-      window.clearTimeout(syncIndicatorTimerRef.current);
-      syncIndicatorTimerRef.current = null;
-    }
-
-    if (publicSyncState === 'syncing') {
-      syncIndicatorTimerRef.current = window.setTimeout(() => {
-        setShowPublicSyncIndicator(true);
-        syncIndicatorTimerRef.current = null;
-      }, 900);
-      return;
-    }
-
-    setShowPublicSyncIndicator(false);
-
-    return () => {
-      if (syncIndicatorTimerRef.current !== null) {
-        window.clearTimeout(syncIndicatorTimerRef.current);
-        syncIndicatorTimerRef.current = null;
-      }
-    };
-  }, [publicSyncState]);
-
   if (loading) return <LoadingSpinner />;
 
   const isReadOnly = isOnline && !canEdit;
@@ -437,15 +411,6 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
             Edição, seleção do menu e estatísticas estão indisponíveis até a conexão voltar.
           </p>
         </section>
-      ) : null}
-
-      {isOnline && canEdit && showPublicSyncIndicator && publicSyncState === 'syncing' ? (
-        <div className="mb-[12px] flex justify-end">
-          <div className="inline-flex items-center gap-[8px] rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.72)] px-[10px] py-[6px] text-[12px] leading-none text-[var(--text-dim)] shadow-[0_6px_14px_rgba(0,0,0,0.06)]">
-            <span className="h-[7px] w-[7px] rounded-full bg-[var(--accent)] animate-pulse"/>
-            <span>Sincronizando público</span>
-          </div>
-        </div>
       ) : null}
 
       {isReadOnly ? (

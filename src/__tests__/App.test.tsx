@@ -796,6 +796,7 @@ describe('App', () => {
       categories: ['Saladas', 'Carnes'],
       daySelection: ['1'],
     }));
+    expect(screen.queryByText('Sincronizando público')).not.toBeInTheDocument();
 
     useMenuStateMock.mockImplementation(() => defaultMenuState);
   });
