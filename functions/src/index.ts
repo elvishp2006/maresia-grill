@@ -199,10 +199,19 @@ const buildOrderPayload = (
 
 let stripeClient: Stripe | null = null;
 
+const getStripeModeFromSecretKey = (secretKey: string): 'test' | 'live' => {
+  const trimmed = secretKey.trim();
+  if (trimmed.startsWith('sk_test_')) return 'test';
+  if (trimmed.startsWith('sk_live_')) return 'live';
+  throw new Error('STRIPE_SECRET_KEY inválido. Use uma chave Stripe test ou live.');
+};
+
 const getStripeClient = () => {
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) throw new Error('STRIPE_SECRET_KEY não configurado.');
+  const stripeMode = getStripeModeFromSecretKey(secretKey);
   if (!stripeClient) {
+    logger.info('Inicializando cliente Stripe.', { stripeMode });
     stripeClient = new Stripe(secretKey);
   }
   return stripeClient;
@@ -220,6 +229,7 @@ const createStripeCheckout = async (
   requestOrigin?: string,
 ) => {
   const stripe = getStripeClient();
+  const stripeMode = getStripeModeFromSecretKey(process.env.STRIPE_SECRET_KEY ?? '');
   const session = await stripe.checkout.sessions.create({
     ui_mode: 'custom',
     mode: 'payment',
@@ -253,6 +263,13 @@ const createStripeCheckout = async (
   if (!session.client_secret) {
     throw new Error('Checkout do Stripe sem client secret.');
   }
+
+  logger.info('Checkout Stripe criado.', {
+    draftId: draft.id,
+    orderId: draft.orderId,
+    stripeMode,
+    clientSecretPrefix: session.client_secret.slice(0, 7),
+  });
 
   return {
     checkoutUrl: session.url ?? null,

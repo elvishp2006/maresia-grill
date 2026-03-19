@@ -14,6 +14,19 @@ const stripePromise = (() => {
   return key ? loadStripe(key) : null;
 })();
 
+const getStripePublishableMode = () => {
+  const key = getPublishableKey();
+  if (key.startsWith('pk_test_')) return 'test';
+  if (key.startsWith('pk_live_')) return 'live';
+  return 'unknown';
+};
+
+const getClientSecretMode = (clientSecret: string) => {
+  if (clientSecret.startsWith('cs_test_')) return 'test';
+  if (clientSecret.startsWith('cs_live_')) return 'live';
+  return 'unknown';
+};
+
 interface EmbeddedStripeCheckoutProps {
   clientSecret: string;
   email: string;
@@ -130,6 +143,8 @@ export default function EmbeddedStripeCheckout({
   email,
   onComplete,
 }: EmbeddedStripeCheckoutProps) {
+  const publishableMode = getStripePublishableMode();
+  const clientSecretMode = getClientSecretMode(clientSecret);
   const options = useMemo(() => ({
     clientSecret,
     elementsOptions: {
@@ -179,6 +194,18 @@ export default function EmbeddedStripeCheckout({
     return (
       <div className="stripe-payment-shell flex min-h-[220px] items-center justify-center px-[18px] text-center text-[14px] text-[var(--danger)]">
         VITE_STRIPE_PUBLISHABLE_KEY não configurado.
+      </div>
+    );
+  }
+
+  if (
+    publishableMode !== 'unknown'
+    && clientSecretMode !== 'unknown'
+    && publishableMode !== clientSecretMode
+  ) {
+    return (
+      <div className="stripe-payment-shell flex min-h-[220px] items-center justify-center px-[18px] text-center text-[14px] text-[var(--danger)]">
+        Não foi possível carregar o pagamento agora. Tente novamente em instantes.
       </div>
     );
   }

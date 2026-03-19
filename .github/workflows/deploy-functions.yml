@@ -36,6 +36,24 @@ jobs:
 
       - run: npm --prefix functions run build
 
+      - name: Validate Stripe Key Mode
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            if [[ "${STRIPE_SECRET_KEY}" != sk_live_* ]]; then
+              echo "Produção exige STRIPE_SECRET_KEY live."
+              exit 1
+            fi
+          else
+            if [[ "${STRIPE_SECRET_KEY}" != sk_test_* ]]; then
+              echo "Staging exige STRIPE_SECRET_KEY test."
+              exit 1
+            fi
+          fi
+
       - name: Write Functions Env
         run: |
           cat <<EOF > functions/.env
@@ -47,6 +65,96 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
 
       - run: firebase deploy --only functions --project "${{ vars.GCP_PROJECT_ID }}" --force
+
+      - name: Validate Checkout Secret Mode
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          TEST_ORIGIN: ${{ vars.PUBLIC_WEB_ORIGIN }}
+          EXPECTED_CLIENT_SECRET_PREFIX: ${{ github.ref_name == 'main' && 'cs_live_' || 'cs_test_' }}
+        run: |
+          set -euo pipefail
+
+          checkout_probe="$(node <<'EOF'
+          const admin = require('./functions/node_modules/firebase-admin');
+
+          if (!admin.apps.length) admin.initializeApp();
+
+          const db = admin.firestore();
+
+          (async () => {
+            const snap = await db.collection('publicMenus').get();
+            for (const doc of snap.docs) {
+              const data = doc.data();
+              const paidItem = Array.isArray(data.items)
+                ? data.items.find((item) => typeof item?.id === 'string' && typeof item?.priceCents === 'number' && item.priceCents > 0)
+                : null;
+              if (!data.acceptingOrders || !paidItem) continue;
+
+              process.stdout.write(JSON.stringify({
+                shareToken: data.token,
+                dateKey: data.dateKey,
+                itemId: paidItem.id,
+              }));
+              return;
+            }
+
+            process.exit(2);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          EOF
+          )"
+
+          endpoint="https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/preparePublicOrderCheckout"
+          response_file="$(mktemp)"
+          payload="$(
+            node -e '
+              const probe = JSON.parse(process.argv[1]);
+              const orderId = `stripe-smoke-${Date.now()}`;
+              const body = {
+                orderId,
+                shareToken: probe.shareToken,
+                dateKey: probe.dateKey,
+                customerName: "Smoke Test",
+                selectedItemIds: [probe.itemId],
+                successUrl: process.argv[2] + "/#/enviado",
+                pendingUrl: process.argv[2] + "/#/enviado",
+                failureUrl: process.argv[2] + "/#/pedido",
+              };
+              process.stdout.write(JSON.stringify(body));
+            ' "$checkout_probe" "$TEST_ORIGIN"
+          )"
+
+          status="$(
+            curl -sS -o "$response_file" \
+              -X POST \
+              -H "Origin: ${TEST_ORIGIN}" \
+              -H "Content-Type: application/json" \
+              --data "$payload" \
+              "$endpoint" \
+              -w '%{http_code}'
+          )"
+
+          if [ "$status" != "200" ]; then
+            echo "Falha ao validar o checkout publico."
+            cat "$response_file"
+            exit 1
+          fi
+
+          client_secret="$(
+            node -e '
+              const fs = require("node:fs");
+              const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              process.stdout.write(data.checkoutSession?.clientSecret ?? "");
+            ' "$response_file"
+          )"
+
+          if [[ "${client_secret}" != ${EXPECTED_CLIENT_SECRET_PREFIX}* ]]; then
+            echo "Checkout gerou client secret com modo incorreto."
+            cat "$response_file"
+            exit 1
+          fi
 
       - name: Verify Public Checkout Access
         env:
