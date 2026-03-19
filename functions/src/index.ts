@@ -191,15 +191,12 @@ const createStripeCheckout = async (
 ) => {
   const stripe = getStripeClient();
   const stripeMode = getStripeModeFromSecretKey(process.env.STRIPE_SECRET_KEY ?? '');
-  const session = await stripe.checkout.sessions.create({
-    ui_mode: 'custom',
-    mode: 'payment',
-    return_url: buildReturnUrl(
-      draft.id,
-      payload.pendingUrl ?? payload.successUrl,
-      requestOrigin,
-    ),
-    client_reference_id: draft.id,
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: draft.paymentSummary.paidTotalCents,
+    currency: 'brl',
+    automatic_payment_methods: {
+      enabled: true,
+    },
     metadata: {
       draftId: draft.id,
       orderId: draft.orderId,
@@ -207,38 +204,34 @@ const createStripeCheckout = async (
       dateKey: draft.dateKey,
       menuVersionId: draft.menuVersionId,
     },
-    line_items: [{
-      quantity: 1,
-      price_data: {
-        currency: 'brl',
-        unit_amount: draft.paymentSummary.paidTotalCents,
-        product_data: {
-          name: `Extras do pedido ${draft.customerName}`,
-        },
-      },
-    }],
+    description: `Extras do pedido ${draft.customerName}`,
   }, {
     idempotencyKey: draft.id,
   });
 
-  if (!session.client_secret) {
-    throw new Error('Checkout do Stripe sem client secret.');
+  if (!paymentIntent.client_secret) {
+    throw new Error('PaymentIntent do Stripe sem client secret.');
   }
 
-  logger.info('Checkout Stripe criado.', {
+  logger.info('PaymentIntent Stripe criado.', {
     draftId: draft.id,
     orderId: draft.orderId,
     stripeMode,
-    clientSecretPrefix: session.client_secret.slice(0, 7),
+    clientSecretPrefix: paymentIntent.client_secret.slice(0, 7),
+    returnUrl: buildReturnUrl(
+      draft.id,
+      payload.pendingUrl ?? payload.successUrl,
+      requestOrigin,
+    ),
   });
 
   return {
-    checkoutUrl: session.url ?? null,
-    clientSecret: session.client_secret,
-    sessionId: session.id,
+    checkoutUrl: null,
+    clientSecret: paymentIntent.client_secret,
+    sessionId: paymentIntent.id,
     provider: 'stripe' as const,
-    availableMethods: mapPaymentMethods(session.payment_method_types),
-    expiresAt: typeof session.expires_at === 'number' ? session.expires_at * 1000 : null,
+    availableMethods: mapPaymentMethods(['card']),
+    expiresAt: null,
   };
 };
 
@@ -250,8 +243,12 @@ const refundStripePayment = async (providerPaymentId: string) => {
   });
 };
 
-const expireStripeCheckoutSession = async (sessionId: string) => {
-  await getStripeClient().checkout.sessions.expire(sessionId);
+const cancelStripePendingPayment = async (sessionId: string) => {
+  if (sessionId.startsWith('cs_')) {
+    await getStripeClient().checkout.sessions.expire(sessionId);
+    return;
+  }
+  await getStripeClient().paymentIntents.cancel(sessionId);
 };
 
 const getStripePaymentMethod = async (paymentIntentId: string): Promise<'pix' | 'card' | null> => {
@@ -303,7 +300,7 @@ const supersedeExistingDrafts = async (
     const sessionId = existingDraft.checkoutSession?.sessionId;
     if (sessionId) {
       try {
-        await expireStripeCheckoutSession(sessionId);
+        await cancelStripePendingPayment(sessionId);
       } catch (error) {
         logger.warn('Falha ao expirar sessão Stripe anterior.', {
           draftId: existingDraft.id,
@@ -326,8 +323,8 @@ const supersedeExistingDrafts = async (
   }
 };
 
-const getDraftFromCheckoutSession = async (session: Stripe.Checkout.Session) => {
-  const draftId = session.metadata?.draftId ?? session.client_reference_id;
+const getDraftFromStripeObject = async (payload: {metadata?: Record<string, string> | null}) => {
+  const draftId = payload.metadata?.draftId;
   if (!draftId) return null;
   const draftRef = db.doc(`publicOrderDrafts/${draftId}`);
   const draftSnap = await draftRef.get();
@@ -562,29 +559,26 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
     const event = getStripeClient().webhooks.constructEvent(rawBody, signature, getWebhookSecret());
 
     if (
-      event.type === 'checkout.session.completed'
-      || event.type === 'checkout.session.async_payment_succeeded'
-      || event.type === 'checkout.session.async_payment_failed'
-      || event.type === 'checkout.session.expired'
+      event.type === 'payment_intent.succeeded'
+      || event.type === 'payment_intent.payment_failed'
+      || event.type === 'payment_intent.canceled'
     ) {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const draftPayload = await getDraftFromCheckoutSession(session);
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const draftPayload = await getDraftFromStripeObject(paymentIntent);
       if (!draftPayload) {
         res.status(202).send('missing draft');
         return;
       }
 
       const { draft, draftId } = draftPayload;
-      const providerPaymentId = typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : draft.paymentSummary.providerPaymentId;
+      const providerPaymentId = paymentIntent.id ?? draft.paymentSummary.providerPaymentId;
 
       const paymentStatus = (
-        event.type === 'checkout.session.async_payment_failed'
-        || event.type === 'checkout.session.expired'
+        event.type === 'payment_intent.payment_failed'
+        || event.type === 'payment_intent.canceled'
       )
         ? 'failed'
-        : session.payment_status === 'paid'
+        : paymentIntent.status === 'succeeded'
           ? 'paid'
           : 'awaiting_payment';
 

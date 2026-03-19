@@ -362,6 +362,13 @@ const clearDraftIdFromUrl = () => {
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${window.location.hash}`);
 };
 
+const buildStripeReturnUrl = (draftId: string) => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('draftId', draftId);
+  url.hash = '/enviado';
+  return url.toString();
+};
+
 const setStoredOrderId = (token: string, nextOrderId: string) => {
   try {
     localStorage.setItem(getOrderSessionStorageKey(token), nextOrderId);
@@ -1396,11 +1403,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         }}
       >
         {checkoutSession?.clientSecret ? (
-          <div className="overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-[12px] shadow-[0_20px_40px_rgba(0,0,0,0.22)]">
+          <div className="max-h-[min(78vh,720px)] overflow-hidden pt-[2px]">
             <EmbeddedStripeCheckout
               clientSecret={checkoutSession.clientSecret}
               initialEmail={customerEmail}
               onEmailChange={setCustomerEmail}
+              returnUrl={buildStripeReturnUrl(checkoutSession.draftId)}
               onComplete={() => openSubmittedPaymentState(checkoutSession.draftId)}
             />
           </div>
