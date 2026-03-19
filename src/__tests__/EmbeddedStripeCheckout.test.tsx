@@ -83,7 +83,7 @@ describe('EmbeddedStripeCheckout', () => {
     vi.useRealTimers();
   });
 
-  it('renders Link email and payment element together', async () => {
+  it('renders a simplified checkout with email and payment sections', async () => {
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
 
     render(
@@ -95,7 +95,7 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    expect(screen.getByText('Finalizar pagamento')).toBeInTheDocument();
+    expect(screen.getByText('Pagamento')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('voce@empresa.com')).toHaveValue('teste@empresa.com');
     expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
   });

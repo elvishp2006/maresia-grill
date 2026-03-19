@@ -83,40 +83,23 @@ function CheckoutForm({
   };
 
   return (
-    <div className="space-y-[14px]">
-      <form onSubmit={handleSubmit} className="stripe-payment-shell stripe-payment-frame space-y-[14px] p-[14px]">
-        <div className="space-y-[4px]">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            Finalizar pagamento
-          </p>
-          <p className="text-[13px] leading-[1.55] text-[var(--text-dim)]">
-            Informe seu e-mail e escolha a forma de pagamento abaixo.
-          </p>
+    <form onSubmit={handleSubmit} className="w-full min-w-0 space-y-[16px]">
+      <section className="min-w-0 space-y-[8px]">
+        <div className="stripe-payment-element stripe-payment-element--ready min-w-0">
+          <LinkAuthenticationElement
+            options={{
+              defaultValues: initialEmail ? { email: initialEmail } : undefined,
+            }}
+            onChange={handleLinkChange}
+          />
         </div>
+      </section>
 
-        <div className="space-y-[10px] rounded-[18px] border border-[var(--border)] bg-[rgba(255,248,232,0.03)] p-[12px]">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            Seu e-mail
-          </p>
-          <div className="stripe-payment-element stripe-payment-element--ready">
-            <LinkAuthenticationElement
-              options={{
-                defaultValues: initialEmail ? { email: initialEmail } : undefined,
-              }}
-              onChange={handleLinkChange}
-            />
-          </div>
-        </div>
-
-        <div className="border-t border-[var(--border)]/80 pt-[2px]" />
-
-        <div>
-          <p className="mb-[10px] text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-            Dados do pagamento
-          </p>
-        </div>
-
-        <div className="stripe-payment-shell stripe-payment-frame">
+      <section className="min-w-0 space-y-[8px]">
+        <p className="text-[12px] font-semibold text-[var(--text)]">
+          Pagamento
+        </p>
+        <div className="stripe-payment-shell">
           {!elementReady ? (
             <div className="stripe-payment-loading" aria-hidden="true">
               <div className="stripe-payment-skeleton">
@@ -129,7 +112,7 @@ function CheckoutForm({
               </div>
             </div>
           ) : null}
-          <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
+          <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready min-w-0' : 'stripe-payment-element min-w-0'}>
             <PaymentElement
               options={{ layout: 'accordion' }}
               onReady={() => {
@@ -141,18 +124,18 @@ function CheckoutForm({
             />
           </div>
         </div>
+      </section>
 
-        <div className="public-inline-panel px-[12px] py-[12px]">
-          <button
-            type="submit"
-            disabled={submitting || !elementReady || !stripe || !elements}
-            className="neon-gold-fill min-h-[52px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? 'Processando pagamento...' : 'Pagar'}
-          </button>
-        </div>
-      </form>
-    </div>
+      <div className="px-[8px] pb-[12px] pt-[6px]">
+        <button
+          type="submit"
+          disabled={submitting || !elementReady || !stripe || !elements}
+          className="neon-gold-fill min-h-[54px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {submitting ? 'Processando pagamento...' : 'Pagar'}
+        </button>
+      </div>
+    </form>
   );
 }
 
