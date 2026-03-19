@@ -169,10 +169,11 @@ Segredos e variaveis esperados:
 - `vars.GCP_PROJECT_ID_PRODUCTION`
 - `vars.GCP_PROJECT_NUMBER_PRODUCTION`
 - `vars.APP_DEPLOYER_MEMBER_PRODUCTION`
+- `FIREBASE_SERVICE_ACCOUNT`
 - `secrets.GCP_TERRAFORM_CREDENTIALS_STAGING`
 - `secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION`
 
-Os workflows de deploy e de IaC usam credenciais distintas por ambiente. Isso evita que um unico secret de service account tente publicar em staging e production com IAM desalinhado.
+Os workflows de deploy usam `FIREBASE_SERVICE_ACCOUNT` com valores separados por GitHub Environment, enquanto o IaC usa credenciais proprias de Terraform. Nao reutilize as credenciais de Terraform para `firebase deploy`, porque as permissoes necessarias nao sao equivalentes.
 
 ## Autenticacao
 
