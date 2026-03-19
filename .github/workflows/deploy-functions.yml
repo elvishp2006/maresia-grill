@@ -9,6 +9,7 @@ on:
 
 jobs:
   deploy:
+    if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'staging')
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:
