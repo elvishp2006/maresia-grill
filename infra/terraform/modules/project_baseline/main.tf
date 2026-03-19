@@ -76,6 +76,14 @@ resource "google_project_iam_member" "app_deployer_firestore_rules_admin" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_project_iam_member" "app_deployer_firebase_extensions_viewer" {
+  project = var.project_id
+  role    = "roles/firebaseextensions.viewer"
+  member  = var.app_deployer_member
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_project_service_identity" "cloudfunctions_service_agent" {
   provider = google-beta
   project  = var.project_id
