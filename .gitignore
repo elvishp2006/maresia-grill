@@ -17,6 +17,7 @@ dist
 dist-ssr
 apps/functions/lib
 apps/web/dist
+apps/web/coverage/
 functions/lib
 *.local
 
