@@ -1259,13 +1259,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                           blockingViolation && quantity === 0 ? 'opacity-80' : ''
                         }`}
                       >
-                        <span className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[14px] border text-[16px] font-bold transition-colors ${
-                          active
-                            ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
-                            : 'border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] text-transparent'
-                        }`} aria-hidden="true">
-                          ✓
-                        </span>
                         <span className="min-w-0 flex-1">
                           <span className={`block text-[16px] leading-[1.35] ${
                             active ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--text-muted)]'

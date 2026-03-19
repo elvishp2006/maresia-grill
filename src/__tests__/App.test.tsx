@@ -174,6 +174,7 @@ vi.mock('../hooks/useMenuState', () => ({
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe('App', () => {
@@ -184,6 +185,7 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_123');
     window.history.pushState({}, '', '/');
     localStorage.clear();
     window.scrollTo = vi.fn();
@@ -1012,6 +1014,38 @@ describe('App', () => {
     const linguicaButton = screen.getByRole('button', { name: 'Adicionar Linguica do menu do dia' });
     expect(linguicaButton).toBeDisabled();
     expect(screen.getAllByText('Limite atingido').length).toBeGreaterThan(0);
+  });
+
+  it('renders repeated items without a redundant left-side indicator', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Sobremesas'],
+        items: [
+          { id: '1', nome: 'Brownie', categoria: 'Sobremesas' },
+        ],
+        categorySelectionRules: [{ category: 'Sobremesas', allowRepeatedItems: true }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Brownie')).toBeInTheDocument();
+    expect(screen.getByText('Use + e - para ajustar')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adicionar Brownie do menu do dia' })).not.toBeInTheDocument();
+    expect(screen.queryByText('0x')).not.toBeInTheDocument();
   });
 
   it('allows cancelling the public order while intake is open and shows a cancellation confirmation state', async () => {
