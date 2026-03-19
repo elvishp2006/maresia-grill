@@ -13,8 +13,8 @@ import type {
   PublishedMenuItem,
   SelectionEntry,
   SelectionPolicy,
-} from '../domain/menu';
-import { DEFAULT_CATEGORY_NAMES } from '../domain/menu';
+} from '@maresia-grill/domain/menu';
+import { DEFAULT_CATEGORY_NAMES } from '@maresia-grill/domain/menu';
 
 export type {
   CatalogCategory,

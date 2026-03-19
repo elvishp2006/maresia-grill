@@ -10,8 +10,8 @@ projects:
             name: web-production
             branch: main
             runtime: static
-            buildCommand: npm install && npm run build
-            staticPublishPath: dist
+            buildCommand: corepack enable && pnpm install && pnpm run build
+            staticPublishPath: apps/web/dist
             domains:
               - maresiagrill.com
             routes:
@@ -31,8 +31,8 @@ projects:
             name: web-staging
             branch: staging
             runtime: static
-            buildCommand: npm install && npm run build
-            staticPublishPath: dist
+            buildCommand: corepack enable && pnpm install && pnpm run build
+            staticPublishPath: apps/web/dist
             routes:
               - type: rewrite
                 source: /s/*

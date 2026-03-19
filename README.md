@@ -9,8 +9,8 @@ PWA de cardápio do restaurante Maresia Grill — gerencia categorias, complemen
 ## Início rápido
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Comandos
@@ -28,20 +28,20 @@ npm run dev
 | `stripe:test:emulators` | Alias para `dev:emulators` |
 | `stripe:test:dev` | Alias para `dev` |
 | `stripe:test:webhook` | Legado: sobe `stripe listen` manualmente |
-| `build` | `tsc` + Vite build |
+| `build` | Build dos workspaces via Turbo (`apps/web` + `apps/functions`) |
 | `lint` | ESLint (deve passar antes do commit) |
 | `lint:fix` | ESLint com correção automática |
 | `test` | Vitest (todos os testes, uma vez) |
 | `test:watch` | Vitest em modo watch |
 | `test:coverage` | Vitest com cobertura v8 |
 | `ci` | `lint` + `test` + `build` |
-| `preview` | Serve o build de `dist/` |
+| `preview` | Serve o build de `apps/web/dist/` |
 
 ## Ambiente de desenvolvimento
 
-`npm run dev` virou o fluxo canônico. Ele:
+`pnpm run dev` virou o fluxo canônico. Ele:
 
-- cria `.env.local` e `functions/.env.local` quando estiverem ausentes
+- cria `.env.local` e `apps/functions/.env.local` quando estiverem ausentes
 - injeta defaults locais para o projeto `maresia-grill-local`
 - compila as Functions
 - sobe os emuladores Firebase
@@ -58,16 +58,16 @@ Processos e endpoints locais:
 | Functions | 5001 |
 | UI dos emuladores | http://localhost:4000 |
 
-`src/firebase.ts` detecta `import.meta.env.DEV` e conecta automaticamente aos emuladores — nenhuma configuração manual é necessária. O Google Sign-In no dev funciona via popup contra o emulador de Auth.
+`apps/web/src/lib/firebase.ts` detecta `import.meta.env.DEV` e conecta automaticamente aos emuladores — nenhuma configuração manual é necessária. O Google Sign-In no dev funciona via popup contra o emulador de Auth.
 
 Os fluxos locais usam sempre o projeto de emulador `maresia-grill-local`. Desenvolvimento e testes locais não devem apontar para `staging` nem para `production`.
 
-Para ativar o checkout Stripe local dentro do `npm run dev`, preencha:
+Para ativar o checkout Stripe local dentro do `pnpm run dev`, preencha:
 
 - `.env.local` com `VITE_STRIPE_PUBLISHABLE_KEY`
-- `functions/.env.local` com `STRIPE_SECRET_KEY`
+- `apps/functions/.env.local` com `STRIPE_SECRET_KEY`
 
-Se a Stripe CLI estiver instalada e autenticada, o próprio `npm run dev` sobe o listener e grava `STRIPE_WEBHOOK_SECRET` automaticamente no arquivo local das Functions.
+Se a Stripe CLI estiver instalada e autenticada, o próprio `pnpm run dev` sobe o listener e grava `STRIPE_WEBHOOK_SECRET` automaticamente no arquivo local das Functions.
 
 URL fixa de teste do fluxo público:
 
@@ -183,7 +183,7 @@ Com isso, o modelo operacional fica:
 Para subir rapidamente o estado atual para a branch remota `staging` sem trocar de branch local:
 
 ```bash
-npm run push:staging
+pnpm run push:staging
 ```
 
 Esse comando faz `git push origin HEAD:staging` e falha se houver mudanças locais não commitadas.
@@ -276,13 +276,13 @@ Se esse erro voltar:
 
 Hospedado no Render como static site:
 
-- **Build command:** `npm run build`
-- **Publish directory:** `dist`
+- **Build command:** `pnpm run build`
+- **Publish directory:** `apps/web/dist`
 - **Rewrite:** todas as rotas → `/index.html` (SPA)
 
 ### GitHub Actions
 
-- `CI`: instala dependencias do app e de `functions/`, roda `lint`, `test`, `build` do app e `build` das Functions em `main`, `staging` e PRs
+- `CI`: instala os workspaces via `pnpm`, roda `lint`, `test` e `build` via Turbo em `main`, `staging` e PRs
 - `Infra Plan`: valida a infraestrutura GCP/Firebase declarada em Terraform/OpenTofu
 - `Infra Apply`: aplica APIs, IAM e grants estruturais manualmente por ambiente
 - `Deploy Functions`: publica automaticamente as Functions na `main` e na `staging`

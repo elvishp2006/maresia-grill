@@ -8,7 +8,7 @@ import {
   mapPaymentMethods,
   normalizeCustomerName,
   validateSelection,
-} from '../../functions/src/core';
+} from '../../../functions/src/core';
 
 describe('functions payment core', () => {
   it('creates a payment summary from selected items', () => {

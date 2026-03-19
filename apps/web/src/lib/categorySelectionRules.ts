@@ -1,4 +1,4 @@
-import { validateSelection as validateDomainSelection } from '../../domain/menu';
+import { validateSelection as validateDomainSelection } from '@maresia-grill/domain/menu';
 import type { CategorySelectionRule, Item, SelectedPublicItem } from '../types';
 
 export interface CategorySelectionRuleInput {

@@ -17,7 +17,7 @@ import {
   expandSelectionEntriesToIds,
   normalizePriceCents,
   parseDateKeyFromVersionId,
-} from '../../domain/menu';
+} from '@maresia-grill/domain/menu';
 import { db } from './firebase';
 import type {
   CategorySelectionRule,

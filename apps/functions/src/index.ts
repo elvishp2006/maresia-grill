@@ -9,13 +9,13 @@ import {
   normalizeSelectionEntries,
   parseDateKeyFromVersionId,
   resolveOrderLines,
-} from '../../domain/menu.js';
+} from '../../../packages/domain/src/menu.js';
 import type {
   OrderLine,
   OrderPaymentSummary,
   PublishedMenuVersion,
   SelectionEntry,
-} from '../../domain/menu.js';
+} from '../../../packages/domain/src/menu.js';
 import {
   buildReturnUrl,
   canReplaceExistingOrderWithPaidDraft,

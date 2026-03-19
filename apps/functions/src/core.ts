@@ -4,7 +4,7 @@ import {
   normalizeSelectionEntries,
   resolveOrderLines,
   validateSelection as validateDomainSelection,
-} from '../../domain/menu.js';
+} from '../../../packages/domain/src/menu.js';
 import type {
   OrderPaymentSummary,
   PaymentMethodType,
@@ -12,7 +12,7 @@ import type {
   PublicOrderPaymentStatus,
   PublishedMenuVersion,
   SelectionEntry,
-} from '../../domain/menu.js';
+} from '../../../packages/domain/src/menu.js';
 
 export type PaymentStatus = PublicOrderPaymentStatus;
 export type PaymentProviderName = Extract<PaymentProvider, 'stripe'>;

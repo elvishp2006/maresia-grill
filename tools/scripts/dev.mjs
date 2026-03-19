@@ -4,19 +4,22 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 
-const cwd = process.cwd();
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, '..', '..');
 const projectId = 'maresia-grill-local';
 const appOrigin = 'http://127.0.0.1:5173';
 const functionsBaseUrl = `http://127.0.0.1:5001/${projectId}/us-central1`;
 const webhookForwardUrl = `${functionsBaseUrl}/paymentWebhook`;
 
-const rootEnvPath = path.join(cwd, '.env.local');
-const functionsEnvPath = path.join(cwd, 'functions', '.env.local');
+const rootEnvPath = path.join(repoRoot, '.env.local');
+const functionsEnvPath = path.join(repoRoot, 'apps', 'functions', '.env.local');
 
 const processes = [];
 let shuttingDown = false;
 const firebaseCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const requiredPorts = [
   { port: 4000, label: 'Emulator UI' },
   { port: 5001, label: 'Functions emulator' },
@@ -85,7 +88,7 @@ const prefixOutput = (label, stream, printer) => {
 
 const spawnManaged = (label, command, args, options = {}) => {
   const child = spawn(command, args, {
-    cwd,
+    cwd: repoRoot,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
     ...options,
@@ -108,7 +111,7 @@ const spawnManaged = (label, command, args, options = {}) => {
 
 const spawnManagedWithParsers = (label, command, args, { onStdoutLine, onStderrLine, ...options } = {}) => {
   const child = spawn(command, args, {
-    cwd,
+    cwd: repoRoot,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
     ...options,
@@ -200,7 +203,7 @@ const setupLocalEnv = () => {
     STRIPE_WEBHOOK_SECRET: '',
   });
 
-  log('dev', `env local preparado em ${path.relative(cwd, rootEnvPath)} e ${path.relative(cwd, functionsEnvPath)}`);
+  log('dev', `env local preparado em ${path.relative(repoRoot, rootEnvPath)} e ${path.relative(repoRoot, functionsEnvPath)}`);
   return { rootEnv, functionsEnv };
 };
 
@@ -210,7 +213,7 @@ const resolveStripeState = async (rootEnv, functionsEnv) => {
   if (!publishableKey || !secretKey) {
     return {
       enabled: false,
-      reason: 'configure VITE_STRIPE_PUBLISHABLE_KEY em .env.local e STRIPE_SECRET_KEY em functions/.env.local para ativar o checkout Stripe',
+      reason: 'configure VITE_STRIPE_PUBLISHABLE_KEY em .env.local e STRIPE_SECRET_KEY em apps/functions/.env.local para ativar o checkout Stripe',
     };
   }
 
@@ -249,7 +252,7 @@ const startStripeListener = async () => {
       const match = line.match(/(whsec_[A-Za-z0-9]+)/);
       if (!match) return;
       updateEnvValue(functionsEnvPath, 'STRIPE_WEBHOOK_SECRET', match[1]);
-      log('dev', 'webhook secret local capturado e salvo em functions/.env.local');
+      log('dev', 'webhook secret local capturado e salvo em apps/functions/.env.local');
       finish({
         enabled: true,
         secret: match[1],
@@ -272,7 +275,7 @@ const startStripeListener = async () => {
 };
 
 const seedLocalData = async (scriptName) => {
-  await runCommand('seed', 'node', [path.join('scripts', scriptName)]);
+  await runCommand('seed', 'node', [path.join('tools', 'scripts', scriptName)]);
 };
 
 const shutdown = (signal, exitCode = 0) => {
@@ -298,6 +301,10 @@ async function main() {
   if (!hasNpx) {
     throw new Error('npx nao encontrado neste ambiente.');
   }
+  const hasPnpm = await commandExists(pnpmCommand);
+  if (!hasPnpm) {
+    throw new Error('pnpm nao encontrado neste ambiente.');
+  }
 
   const { rootEnv, functionsEnv } = setupLocalEnv();
   const stripeState = await resolveStripeState(rootEnv, functionsEnv);
@@ -313,7 +320,7 @@ async function main() {
     log('dev', `checkout Stripe opcional desativado: ${stripeState.reason}`);
   }
 
-  await runCommand('functions:build', 'npm', ['--prefix', 'functions', 'run', 'build']);
+  await runCommand('functions:build', pnpmCommand, ['--filter', '@maresia-grill/functions', 'build']);
 
   spawnManaged('emulators', firebaseCommand, ['firebase-tools', 'emulators:start', '--project', projectId], {
     env: {
@@ -326,7 +333,7 @@ async function main() {
 
   await seedLocalData('seed.js');
 
-  spawnManaged('vite', 'npm', ['run', 'dev:web']);
+  spawnManaged('vite', pnpmCommand, ['run', 'dev:web']);
   await waitForPort(5173, 'Vite');
 
   log('dev', 'ambiente local pronto');

@@ -2,7 +2,7 @@ import {
   calculateOrderPaymentSummaryFromLines,
   normalizePriceCents as normalizePriceCentsValue,
   resolveOrderLines,
-} from '../../domain/menu';
+} from '@maresia-grill/domain/menu';
 import type { Item, OrderPaymentSummary, PaymentMethodType, PaymentProvider, SelectedPublicItem } from '../types';
 
 export const normalizePriceCents = (value: unknown): number | null => {
