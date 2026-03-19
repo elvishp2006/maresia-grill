@@ -1401,6 +1401,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               clientSecret={checkoutSession.clientSecret}
               initialEmail={customerEmail}
               onEmailChange={setCustomerEmail}
+              returnUrl={`${window.location.origin}${window.location.pathname}${window.location.search}#/enviado?draftId=${checkoutSession.draftId}`}
               onComplete={() => openSubmittedPaymentState(checkoutSession.draftId)}
             />
           </div>

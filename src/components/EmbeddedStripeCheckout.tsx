@@ -1,36 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
-  CheckoutProvider,
-  ExpressCheckoutElement,
+  Elements,
+  LinkAuthenticationElement,
   PaymentElement,
-  useCheckout,
-} from '@stripe/react-stripe-js/checkout';
-import type {
-  AvailablePaymentMethods,
-  ExpressPaymentType,
-  StripeExpressCheckoutElementConfirmEvent,
-} from '@stripe/stripe-js';
+  useElements,
+  useStripe,
+} from '@stripe/react-stripe-js';
+import type { StripeLinkAuthenticationElementChangeEvent } from '@stripe/stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { useToast } from '../contexts/ToastContext';
-import { isValidCustomerEmail, normalizeCustomerEmail } from '../lib/customerEmail';
 
 const getPublishableKey = () => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   return typeof key === 'string' && key.trim() ? key.trim() : '';
-};
-
-const getStripePublishableMode = () => {
-  const key = getPublishableKey();
-  if (key.startsWith('pk_test_')) return 'test';
-  if (key.startsWith('pk_live_')) return 'live';
-  return 'unknown';
-};
-
-const getClientSecretMode = (clientSecret: string) => {
-  if (clientSecret.startsWith('cs_test_')) return 'test';
-  if (clientSecret.startsWith('cs_live_')) return 'live';
-  return 'unknown';
 };
 
 interface EmbeddedStripeCheckoutProps {
@@ -38,150 +21,54 @@ interface EmbeddedStripeCheckoutProps {
   initialEmail?: string;
   onEmailChange?: (email: string) => void;
   onComplete: () => void;
+  returnUrl: string;
 }
 
-const EXPRESS_METHOD_ORDER: Array<keyof AvailablePaymentMethods> = [
-  'applePay',
-  'googlePay',
-  'link',
-  'paypal',
-  'amazonPay',
-  'klarna',
-];
-
-const EXPRESS_METHOD_LABELS: Record<keyof AvailablePaymentMethods, string> = {
-  applePay: 'Apple Pay',
-  googlePay: 'Google Pay',
-  link: 'Link',
-  paypal: 'PayPal',
-  amazonPay: 'Amazon Pay',
-  klarna: 'Klarna',
-};
-
-const EXPRESS_SUBMIT_LABELS: Partial<Record<ExpressPaymentType, string>> = {
-  apple_pay: 'Processando Apple Pay...',
-  google_pay: 'Processando Google Pay...',
-  link: 'Processando Link...',
-  paypal: 'Processando PayPal...',
-  amazon_pay: 'Processando Amazon Pay...',
-  klarna: 'Processando Klarna...',
-};
-
-const EXPRESS_AVAILABILITY_TIMEOUT_MS = 1200;
-
 function CheckoutForm({
+  clientSecret,
   initialEmail = '',
   onEmailChange,
   onComplete,
-}: Omit<EmbeddedStripeCheckoutProps, 'clientSecret'>) {
-  const checkoutState = useCheckout();
+  returnUrl,
+}: EmbeddedStripeCheckoutProps) {
+  const stripe = useStripe();
+  const elements = useElements();
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [elementReady, setElementReady] = useState(false);
-  const [email, setEmail] = useState(initialEmail);
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [expressReady, setExpressReady] = useState(false);
-  const [availableExpressMethods, setAvailableExpressMethods] = useState<Array<keyof AvailablePaymentMethods>>([]);
-  const [expressSubmitting, setExpressSubmitting] = useState<ExpressPaymentType | null>(null);
-  const isLoading = checkoutState.type === 'loading';
-  const normalizedEmail = normalizeCustomerEmail(email);
-  const emailError = emailTouched && email.length > 0 && !isValidCustomerEmail(email)
-    ? 'Informe um e-mail válido para continuar com o pagamento.'
-    : '';
-  const expressMethodLabels = availableExpressMethods.map((method) => EXPRESS_METHOD_LABELS[method]);
-  const showExpressElement = !expressReady || availableExpressMethods.length > 0;
-
-  useEffect(() => {
-    if (expressReady) return undefined;
-
-    const timeout = window.setTimeout(() => {
-      setExpressReady(true);
-      setAvailableExpressMethods([]);
-    }, EXPRESS_AVAILABILITY_TIMEOUT_MS);
-
-    return () => window.clearTimeout(timeout);
-  }, [expressReady]);
 
   const handleEmailChange = (nextEmail: string) => {
-    setEmail(nextEmail);
     onEmailChange?.(nextEmail);
   };
 
-  const handleExpressReady = (methods: AvailablePaymentMethods | undefined) => {
-    setExpressReady(true);
-    setAvailableExpressMethods(
-      EXPRESS_METHOD_ORDER.filter((method) => methods?.[method]),
-    );
-  };
-
-  const handleExpressConfirm = async (event: StripeExpressCheckoutElementConfirmEvent) => {
-    if (checkoutState.type !== 'success') {
-      event.paymentFailed({ reason: 'fail' });
-      return;
-    }
-
-    const pendingLabelTimer = window.setTimeout(() => {
-      setExpressSubmitting(event.expressPaymentType);
-    }, 180);
-
-    try {
-      const result = await checkoutState.checkout.confirm({
-        redirect: 'if_required',
-        expressCheckoutConfirmEvent: event,
-      });
-
-      if (result.type === 'error') {
-        showToast('Confira os dados do pagamento e tente novamente.', 'error');
-        event.paymentFailed({ reason: 'fail', message: 'Confira os dados do pagamento e tente novamente.' });
-        return;
-      }
-
-      onComplete();
-    } catch {
-      showToast('Não foi possível iniciar o pagamento. Tente novamente.', 'error');
-      event.paymentFailed({ reason: 'fail', message: 'Não foi possível iniciar o pagamento. Tente novamente.' });
-    } finally {
-      window.clearTimeout(pendingLabelTimer);
-      setExpressSubmitting(null);
-    }
+  const handleLinkChange = (event: StripeLinkAuthenticationElementChangeEvent) => {
+    handleEmailChange(event.value.email ?? '');
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (checkoutState.type !== 'success') return;
+    if (!stripe || !elements) return;
 
     const pendingLabelTimer = window.setTimeout(() => {
       setSubmitting(true);
     }, 180);
 
-    const trimmedEmail = normalizedEmail;
-    if (!trimmedEmail) {
-      setEmailTouched(true);
-      window.clearTimeout(pendingLabelTimer);
-      showToast('Preencha os dados necessários para continuar.', 'info');
-      return;
-    }
-    if (!isValidCustomerEmail(trimmedEmail)) {
-      setEmailTouched(true);
-      window.clearTimeout(pendingLabelTimer);
-      showToast('Informe um e-mail válido para continuar com o pagamento.', 'info');
-      return;
-    }
-
     try {
-      const emailResult = await checkoutState.checkout.updateEmail(trimmedEmail);
-      if (emailResult.type === 'error') {
-        showToast('Confira os dados do pagamento e tente novamente.', 'error');
+      const submitResult = await elements.submit();
+      if (submitResult.error) {
+        showToast(submitResult.error.message || 'Confira os dados do pagamento e tente novamente.', 'error');
         return;
       }
 
-      const result = await checkoutState.checkout.confirm({
+      const result = await stripe.confirmPayment({
+        elements,
+        clientSecret,
+        confirmParams: { return_url: returnUrl },
         redirect: 'if_required',
-        email: trimmedEmail,
       });
 
-      if (result.type === 'error') {
+      if (result.error) {
         showToast('Confira os dados do pagamento e tente novamente.', 'error');
         return;
       }
@@ -195,96 +82,42 @@ function CheckoutForm({
     }
   };
 
-  if (checkoutState.type === 'error') {
-    return (
-      <div className="stripe-payment-shell flex min-h-[220px] items-center justify-center px-[18px] text-center text-[14px] text-[var(--danger)]">
-        {checkoutState.error.message || 'Não foi possível carregar o pagamento.'}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-[14px]">
-      {showExpressElement ? (
-        <div className="stripe-payment-shell stripe-payment-frame space-y-[12px] p-[12px]">
-          {expressMethodLabels.length > 0 ? (
-            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-              Pagamento rápido
-            </p>
-          ) : null}
+      <form onSubmit={handleSubmit} className="stripe-payment-shell stripe-payment-frame space-y-[14px] p-[14px]">
+        <div className="space-y-[4px]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+            Finalizar pagamento
+          </p>
+          <p className="text-[13px] leading-[1.55] text-[var(--text-dim)]">
+            Informe seu e-mail e escolha a forma de pagamento abaixo.
+          </p>
+        </div>
+
+        <div className="space-y-[10px] rounded-[18px] border border-[var(--border)] bg-[rgba(255,248,232,0.03)] p-[12px]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+            Seu e-mail
+          </p>
           <div className="stripe-payment-element stripe-payment-element--ready">
-            <ExpressCheckoutElement
+            <LinkAuthenticationElement
               options={{
-                buttonHeight: 50,
-                buttonTheme: {
-                  applePay: 'black',
-                  googlePay: 'black',
-                  paypal: 'gold',
-                },
-                buttonType: {
-                  applePay: 'buy',
-                  googlePay: 'pay',
-                  paypal: 'pay',
-                },
-                layout: {
-                  maxColumns: 1,
-                  maxRows: 6,
-                  overflow: 'never',
-                },
-                paymentMethodOrder: ['applePay', 'googlePay', 'link', 'paypal', 'amazonPay', 'klarna'],
-                paymentMethods: {
-                  applePay: 'auto',
-                  googlePay: 'auto',
-                  link: 'auto',
-                  paypal: 'auto',
-                  amazonPay: 'auto',
-                  klarna: 'auto',
-                },
+                defaultValues: initialEmail ? { email: initialEmail } : undefined,
               }}
-              onReady={(event) => {
-                handleExpressReady(event.availablePaymentMethods);
-              }}
-              onConfirm={handleExpressConfirm}
-              onLoadError={() => {
-                setExpressReady(true);
-                setAvailableExpressMethods([]);
-              }}
+              onChange={handleLinkChange}
             />
           </div>
         </div>
-      ) : null}
 
-      {expressSubmitting ? (
-        <div className="public-inline-panel px-[12px] py-[12px] text-center text-[14px] text-[var(--text-dim)]">
-          {EXPRESS_SUBMIT_LABELS[expressSubmitting] ?? 'Processando pagamento...'}
+        <div className="border-t border-[var(--border)]/80 pt-[2px]" />
+
+        <div>
+          <p className="mb-[10px] text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+            Dados do pagamento
+          </p>
         </div>
-      ) : null}
-
-      <form onSubmit={handleSubmit} className="space-y-[14px]">
-        <label className="block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          Seu e-mail
-          <input
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => handleEmailChange(event.target.value)}
-            onBlur={() => setEmailTouched(true)}
-            placeholder="voce@empresa.com"
-            aria-invalid={emailError ? 'true' : 'false'}
-            className="neon-gold-focus mt-[8px] w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
-          />
-          {emailError ? (
-            <p className="mt-[8px] text-[13px] leading-[1.5] normal-case tracking-normal text-[var(--accent-red)]">
-              {emailError}
-            </p>
-          ) : null}
-        </label>
 
         <div className="stripe-payment-shell stripe-payment-frame">
-          {!elementReady || isLoading ? (
+          {!elementReady ? (
             <div className="stripe-payment-loading" aria-hidden="true">
               <div className="stripe-payment-skeleton">
                 <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
@@ -296,27 +129,23 @@ function CheckoutForm({
               </div>
             </div>
           ) : null}
-          {isLoading ? (
-            <div className="stripe-payment-element" aria-hidden="true" />
-          ) : (
-            <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
-              <PaymentElement
-                options={{ layout: 'accordion' }}
-                onReady={() => {
-                  setElementReady(true);
-                }}
-                onLoadError={() => {
-                  // O estado de erro do checkout cobre falhas fatais de carregamento.
-                }}
-              />
-            </div>
-          )}
+          <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready' : 'stripe-payment-element'}>
+            <PaymentElement
+              options={{ layout: 'accordion' }}
+              onReady={() => {
+                setElementReady(true);
+              }}
+              onLoadError={() => {
+                // O estado de erro do confirmPayment cobre falhas fatais de carregamento.
+              }}
+            />
+          </div>
         </div>
 
         <div className="public-inline-panel px-[12px] py-[12px]">
           <button
             type="submit"
-            disabled={submitting || isLoading || !elementReady}
+            disabled={submitting || !elementReady || !stripe || !elements}
             className="neon-gold-fill min-h-[52px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? 'Processando pagamento...' : 'Pagar'}
@@ -327,62 +156,54 @@ function CheckoutForm({
   );
 }
 
-export default function EmbeddedStripeCheckout({
-  clientSecret,
-  initialEmail,
-  onEmailChange,
-  onComplete,
-}: EmbeddedStripeCheckoutProps) {
+export default function EmbeddedStripeCheckout(props: EmbeddedStripeCheckoutProps) {
   const publishableKey = getPublishableKey();
-  const publishableMode = getStripePublishableMode();
-  const clientSecretMode = getClientSecretMode(clientSecret);
   const stripePromise = useMemo(() => (
     publishableKey ? loadStripe(publishableKey) : null
   ), [publishableKey]);
   const options = useMemo(() => ({
-    clientSecret,
-    elementsOptions: {
-      appearance: {
-        variables: {
-          colorPrimary: '#d7b05c',
-          colorBackground: '#24271d',
-          colorText: '#f5efdf',
-          colorTextSecondary: 'rgba(245, 239, 223, 0.58)',
-          colorDanger: '#f97373',
-          borderRadius: '18px',
-          spacingUnit: '5px',
-          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    clientSecret: props.clientSecret,
+    loader: 'auto' as const,
+    appearance: {
+      variables: {
+        colorPrimary: '#d7b05c',
+        colorBackground: '#24271d',
+        colorText: '#f5efdf',
+        colorTextSecondary: 'rgba(245, 239, 223, 0.58)',
+        colorDanger: '#f97373',
+        borderRadius: '18px',
+        spacingUnit: '5px',
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      },
+      rules: {
+        '.Block': {
+          backgroundColor: 'rgba(17, 18, 13, 0.72)',
+          border: '1px solid rgba(215, 176, 92, 0.16)',
+          boxShadow: 'none',
         },
-        rules: {
-          '.Block': {
-            backgroundColor: 'rgba(17, 18, 13, 0.72)',
-            border: '1px solid rgba(215, 176, 92, 0.16)',
-            boxShadow: 'none',
-          },
-          '.Input': {
-            backgroundColor: 'rgba(13, 14, 10, 0.76)',
-            border: '1px solid rgba(215, 176, 92, 0.16)',
-            boxShadow: 'none',
-          },
-          '.Input:focus': {
-            borderColor: 'rgba(215, 176, 92, 0.42)',
-            boxShadow: '0 0 0 1px rgba(215, 176, 92, 0.2)',
-          },
-          '.Label': {
-            color: '#f5efdf',
-          },
-          '.Tab': {
-            backgroundColor: 'rgba(17, 18, 13, 0.7)',
-            border: '1px solid rgba(215, 176, 92, 0.16)',
-          },
-          '.Tab--selected': {
-            backgroundColor: 'rgba(215, 176, 92, 0.12)',
-            borderColor: 'rgba(215, 176, 92, 0.36)',
-          },
+        '.Input': {
+          backgroundColor: 'rgba(13, 14, 10, 0.76)',
+          border: '1px solid rgba(215, 176, 92, 0.16)',
+          boxShadow: 'none',
+        },
+        '.Input:focus': {
+          borderColor: 'rgba(215, 176, 92, 0.42)',
+          boxShadow: '0 0 0 1px rgba(215, 176, 92, 0.2)',
+        },
+        '.Label': {
+          color: '#f5efdf',
+        },
+        '.Tab': {
+          backgroundColor: 'rgba(17, 18, 13, 0.7)',
+          border: '1px solid rgba(215, 176, 92, 0.16)',
+        },
+        '.Tab--selected': {
+          backgroundColor: 'rgba(215, 176, 92, 0.12)',
+          borderColor: 'rgba(215, 176, 92, 0.36)',
         },
       },
     },
-  }), [clientSecret]);
+  }), [props.clientSecret]);
 
   if (!publishableKey || !stripePromise) {
     return (
@@ -392,25 +213,9 @@ export default function EmbeddedStripeCheckout({
     );
   }
 
-  if (
-    publishableMode !== 'unknown'
-    && clientSecretMode !== 'unknown'
-    && publishableMode !== clientSecretMode
-  ) {
-    return (
-      <div className="stripe-payment-shell flex min-h-[220px] items-center justify-center px-[18px] text-center text-[14px] text-[var(--danger)]">
-        Não foi possível carregar o pagamento agora. Tente novamente em instantes.
-      </div>
-    );
-  }
-
   return (
-    <CheckoutProvider stripe={stripePromise} options={options} key={clientSecret}>
-      <CheckoutForm
-        initialEmail={initialEmail}
-        onEmailChange={onEmailChange}
-        onComplete={onComplete}
-      />
-    </CheckoutProvider>
+    <Elements stripe={stripePromise} options={options} key={props.clientSecret}>
+      <CheckoutForm {...props} />
+    </Elements>
   );
 }

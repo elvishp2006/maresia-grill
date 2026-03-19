@@ -1,21 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockConfirm = vi.fn();
-const mockUpdateEmail = vi.fn();
-const mockUseCheckout = vi.fn();
+const mockConfirmPayment = vi.fn();
+const mockElementsSubmit = vi.fn();
 const mockShowToast = vi.fn();
-let mockAvailablePaymentMethods = {
-  applePay: true,
-  googlePay: false,
-  link: true,
-  paypal: false,
-  amazonPay: false,
-  klarna: false,
-};
-let mockExpressBehavior: 'methods' | 'undefined' | 'silent' | 'load_error' = 'methods';
-let mockExpressConfirmEvent: { paymentFailed: ReturnType<typeof vi.fn>; expressPaymentType: 'apple_pay' } | null = null;
 
 vi.mock('@stripe/stripe-js', () => ({
   loadStripe: vi.fn(async () => ({})),
@@ -27,48 +16,29 @@ vi.mock('../contexts/ToastContext', () => ({
   }),
 }));
 
-vi.mock('@stripe/react-stripe-js/checkout', async () => {
+vi.mock('@stripe/react-stripe-js', async () => {
   const React = await import('react');
 
   return {
-    CheckoutProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-    ExpressCheckoutElement: ({
-      onReady,
-      onConfirm,
-      onLoadError,
+    Elements: ({ children }: { children: ReactNode }) => <>{children}</>,
+    LinkAuthenticationElement: ({
+      options,
+      onChange,
     }: {
-      onReady?: (event: { availablePaymentMethods?: typeof mockAvailablePaymentMethods }) => void;
-      onConfirm?: (event: { paymentFailed: ReturnType<typeof vi.fn>; expressPaymentType: 'apple_pay' }) => void;
-      onLoadError?: (event: { error: { message: string } }) => void;
+      options?: { defaultValues?: { email?: string } };
+      onChange?: (event: { value: { email: string } }) => void;
     }) => {
-      React.useEffect(() => {
-        if (mockExpressBehavior === 'methods') {
-          onReady?.({ availablePaymentMethods: mockAvailablePaymentMethods });
-          return;
-        }
-        if (mockExpressBehavior === 'undefined') {
-          onReady?.({ availablePaymentMethods: undefined });
-          return;
-        }
-        if (mockExpressBehavior === 'load_error') {
-          onLoadError?.({ error: { message: 'falha express checkout' } });
-        }
-      }, []);
+      const [value, setValue] = React.useState(options?.defaultValues?.email ?? '');
 
       return (
-        <div>
-          <div data-testid="express-checkout-element">express-checkout-element</div>
-          <button
-            type="button"
-            onClick={() => {
-              const event = { paymentFailed: vi.fn(), expressPaymentType: 'apple_pay' as const };
-              mockExpressConfirmEvent = event;
-              onConfirm?.(event);
-            }}
-          >
-            disparar-express-confirm
-          </button>
-        </div>
+        <input
+          placeholder="voce@empresa.com"
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            onChange?.({ value: { email: event.target.value } });
+          }}
+        />
       );
     },
     PaymentElement: ({
@@ -76,7 +46,7 @@ vi.mock('@stripe/react-stripe-js/checkout', async () => {
       onLoadError,
     }: {
       onReady?: () => void;
-      onLoadError?: (event: { error: { message: string } }) => void;
+      onLoadError?: () => void;
     }) => {
       React.useEffect(() => {
         onReady?.();
@@ -85,13 +55,18 @@ vi.mock('@stripe/react-stripe-js/checkout', async () => {
       return (
         <div>
           <div data-testid="payment-element">payment-element</div>
-          <button type="button" onClick={() => onLoadError?.({ error: { message: 'falha de load' } })}>
+          <button type="button" onClick={() => onLoadError?.()}>
             disparar-load-error
           </button>
         </div>
       );
     },
-    useCheckout: () => mockUseCheckout(),
+    useStripe: () => ({
+      confirmPayment: mockConfirmPayment,
+    }),
+    useElements: () => ({
+      submit: mockElementsSubmit,
+    }),
   };
 });
 
@@ -99,31 +74,8 @@ describe('EmbeddedStripeCheckout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_123');
-    mockAvailablePaymentMethods = {
-      applePay: true,
-      googlePay: false,
-      link: true,
-      paypal: false,
-      amazonPay: false,
-      klarna: false,
-    };
-    mockExpressBehavior = 'methods';
-    mockExpressConfirmEvent = null;
-    mockUseCheckout.mockReturnValue({
-      type: 'success',
-      checkout: {
-        confirm: mockConfirm,
-        updateEmail: mockUpdateEmail,
-      },
-    });
-    mockUpdateEmail.mockResolvedValue({
-      type: 'success',
-      session: {},
-    });
-    mockConfirm.mockResolvedValue({
-      type: 'success',
-      session: {},
-    });
+    mockElementsSubmit.mockResolvedValue({});
+    mockConfirmPayment.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -131,22 +83,21 @@ describe('EmbeddedStripeCheckout', () => {
     vi.useRealTimers();
   });
 
-  it('renders express checkout and card form together', async () => {
+  it('renders Link email and payment element together', async () => {
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-    const onComplete = vi.fn();
 
     render(
       <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
+        clientSecret="pi_123_secret_456"
         initialEmail="teste@empresa.com"
-        onComplete={onComplete}
+        onComplete={vi.fn()}
+        returnUrl="https://example.com/return"
       />,
     );
 
-    expect(await screen.findByText('Pagamento rápido')).toBeInTheDocument();
-    expect(screen.getByTestId('express-checkout-element')).toBeInTheDocument();
-    expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
+    expect(screen.getByText('Finalizar pagamento')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('voce@empresa.com')).toHaveValue('teste@empresa.com');
+    expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
   });
 
   it('confirms payment from the card flow', async () => {
@@ -155,148 +106,57 @@ describe('EmbeddedStripeCheckout', () => {
 
     render(
       <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
+        clientSecret="pi_123_secret_456"
         initialEmail="teste@empresa.com"
         onComplete={onComplete}
+        returnUrl="https://example.com/return"
       />,
     );
 
-    expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Pagar' }));
 
     await waitFor(() => {
-      expect(mockUpdateEmail).toHaveBeenCalledWith('teste@empresa.com');
-      expect(mockConfirm).toHaveBeenCalledWith({
+      expect(mockElementsSubmit).toHaveBeenCalled();
+      expect(mockConfirmPayment).toHaveBeenCalledWith({
+        elements: expect.any(Object),
+        clientSecret: 'pi_123_secret_456',
+        confirmParams: { return_url: 'https://example.com/return' },
         redirect: 'if_required',
-        email: 'teste@empresa.com',
       });
     });
     expect(onComplete).toHaveBeenCalled();
-  });
-
-  it('confirms payment from the express checkout flow', async () => {
-    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-    const onComplete = vi.fn();
-
-    render(
-      <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
-        initialEmail="teste@empresa.com"
-        onComplete={onComplete}
-      />,
-    );
-
-    fireEvent.click(await screen.findByRole('button', { name: 'disparar-express-confirm' }));
-
-    await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith({
-        redirect: 'if_required',
-        expressCheckoutConfirmEvent: expect.objectContaining({
-          expressPaymentType: 'apple_pay',
-        }),
-      });
-    });
-    expect(mockUpdateEmail).not.toHaveBeenCalled();
-    expect(mockExpressConfirmEvent?.paymentFailed).not.toHaveBeenCalled();
-    expect(onComplete).toHaveBeenCalled();
-  });
-
-  it('shows the unavailable-wallet message when Stripe reports no compatible wallets', async () => {
-    mockExpressBehavior = 'undefined';
-
-    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-
-    render(
-      <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
-        initialEmail="teste@empresa.com"
-        onComplete={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.queryByText('Pagamento rápido')).not.toBeInTheDocument();
-    });
-    expect(screen.queryByTestId('express-checkout-element')).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText('voce@empresa.com')).toBeInTheDocument();
-  });
-
-  it('falls back to the unavailable-wallet message when express checkout fails to load', async () => {
-    mockExpressBehavior = 'load_error';
-
-    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-
-    render(
-      <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
-        initialEmail="teste@empresa.com"
-        onComplete={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.queryByText('Pagamento rápido')).not.toBeInTheDocument();
-    });
-    expect(screen.queryByTestId('express-checkout-element')).not.toBeInTheDocument();
-  });
-
-  it('falls back after a timeout when express checkout never reports availability', async () => {
-    vi.useFakeTimers();
-    mockExpressBehavior = 'silent';
-
-    const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
-
-    render(
-      <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
-        initialEmail="teste@empresa.com"
-        onComplete={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByTestId('express-checkout-element')).toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(1200);
-    });
-
-    expect(screen.queryByText('Pagamento rápido')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('express-checkout-element')).not.toBeInTheDocument();
   });
 
   it('shows a stable skeleton area before the payment element becomes ready', async () => {
     vi.resetModules();
-    vi.doMock('@stripe/react-stripe-js/checkout', async () => {
+    vi.doMock('@stripe/react-stripe-js', async () => {
       const React = await import('react');
-
       return {
-        CheckoutProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-        ExpressCheckoutElement: ({
-          onReady,
+        Elements: ({ children }: { children: ReactNode }) => <>{children}</>,
+        LinkAuthenticationElement: ({
+          options,
+          onChange,
         }: {
-          onReady?: (event: { availablePaymentMethods?: typeof mockAvailablePaymentMethods }) => void;
-        }) => {
-          React.useEffect(() => {
-            onReady?.({ availablePaymentMethods: mockAvailablePaymentMethods });
-          }, []);
-
-          return <div data-testid="express-checkout-element">express-checkout-element</div>;
-        },
-        PaymentElement: ({
-          onReady,
-        }: {
-          onReady?: () => void;
-        }) => {
+          options?: { defaultValues?: { email?: string } };
+          onChange?: (event: { value: { email: string } }) => void;
+        }) => (
+          <input
+            placeholder="voce@empresa.com"
+            defaultValue={options?.defaultValues?.email ?? ''}
+            onChange={(event) => onChange?.({ value: { email: event.target.value } })}
+          />
+        ),
+        PaymentElement: ({ onReady }: { onReady?: () => void }) => {
           React.useEffect(() => {
             const timer = window.setTimeout(() => {
               onReady?.();
             }, 0);
             return () => window.clearTimeout(timer);
           }, [onReady]);
-
           return <div data-testid="payment-element">payment-element</div>;
         },
-        useCheckout: () => mockUseCheckout(),
+        useStripe: () => ({ confirmPayment: mockConfirmPayment }),
+        useElements: () => ({ submit: mockElementsSubmit }),
       };
     });
 
@@ -304,9 +164,10 @@ describe('EmbeddedStripeCheckout', () => {
 
     render(
       <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
+        clientSecret="pi_123_secret_456"
         initialEmail="teste@empresa.com"
         onComplete={vi.fn()}
+        returnUrl="https://example.com/return"
       />,
     );
 
@@ -318,8 +179,7 @@ describe('EmbeddedStripeCheckout', () => {
   });
 
   it('keeps the checkout mounted when confirm returns an error', async () => {
-    mockConfirm.mockResolvedValue({
-      type: 'error',
+    mockConfirmPayment.mockResolvedValue({
       error: { message: 'Pagamento recusado.' },
     });
 
@@ -327,9 +187,10 @@ describe('EmbeddedStripeCheckout', () => {
 
     render(
       <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
+        clientSecret="pi_123_secret_456"
         initialEmail="teste@empresa.com"
         onComplete={vi.fn()}
+        returnUrl="https://example.com/return"
       />,
     );
 
@@ -340,24 +201,25 @@ describe('EmbeddedStripeCheckout', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockUpdateEmail).toHaveBeenCalledWith('teste@empresa.com');
-      expect(mockConfirm).toHaveBeenCalledWith({
-        redirect: 'if_required',
-        email: 'teste@empresa.com',
-      });
+      expect(mockConfirmPayment).toHaveBeenCalled();
     });
     expect(screen.getByTestId('payment-element')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pagar' })).toBeInTheDocument();
   });
 
-  it('shows a generic toast when the e-mail is missing', async () => {
+  it('surfaces submit errors from Stripe when the e-mail is missing', async () => {
+    mockElementsSubmit.mockResolvedValue({
+      error: { message: 'Preencha os dados necessários para continuar.' },
+    });
+
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
 
     render(
       <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
+        clientSecret="pi_123_secret_456"
         initialEmail=""
         onComplete={vi.fn()}
+        returnUrl="https://example.com/return"
       />,
     );
 
@@ -365,21 +227,30 @@ describe('EmbeddedStripeCheckout', () => {
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();
     });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
-    expect(mockUpdateEmail).not.toHaveBeenCalled();
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockShowToast).toHaveBeenCalledWith('Preencha os dados necessários para continuar.', 'info');
+    await waitFor(() => {
+      expect(mockElementsSubmit).toHaveBeenCalled();
+      expect(mockConfirmPayment).not.toHaveBeenCalled();
+      expect(mockShowToast).toHaveBeenCalledWith('Preencha os dados necessários para continuar.', 'error');
+    });
   });
 
-  it('blocks payment submission when the e-mail format is invalid', async () => {
+  it('surfaces submit errors from Stripe when the e-mail format is invalid', async () => {
+    mockElementsSubmit.mockResolvedValue({
+      error: { message: 'Informe um e-mail válido para continuar com o pagamento.' },
+    });
+
     const { default: EmbeddedStripeCheckout } = await import('../components/EmbeddedStripeCheckout');
 
     render(
       <EmbeddedStripeCheckout
-        clientSecret="cs_test_123"
+        clientSecret="pi_123_secret_456"
         initialEmail="teste@empresa"
         onComplete={vi.fn()}
+        returnUrl="https://example.com/return"
       />,
     );
 
@@ -387,10 +258,14 @@ describe('EmbeddedStripeCheckout', () => {
     await waitFor(() => {
       expect(submitButton).not.toBeDisabled();
     });
-    fireEvent.click(submitButton);
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
 
-    expect(mockUpdateEmail).not.toHaveBeenCalled();
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockShowToast).toHaveBeenCalledWith('Informe um e-mail válido para continuar com o pagamento.', 'info');
+    await waitFor(() => {
+      expect(mockElementsSubmit).toHaveBeenCalled();
+      expect(mockConfirmPayment).not.toHaveBeenCalled();
+      expect(mockShowToast).toHaveBeenCalledWith('Informe um e-mail válido para continuar com o pagamento.', 'error');
+    });
   });
 });

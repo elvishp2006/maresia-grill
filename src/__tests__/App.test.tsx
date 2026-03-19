@@ -172,6 +172,18 @@ vi.mock('../hooks/useMenuState', () => ({
   useMenuState: () => useMenuStateMock(),
 }));
 
+vi.mock('../components/EmbeddedStripeCheckout', () => ({
+  default: ({ initialEmail, onEmailChange }: { initialEmail?: string; onEmailChange?: (email: string) => void }) => (
+    <div data-testid="embedded-stripe-checkout">
+      <input
+        placeholder="stripe-email-element"
+        value={initialEmail ?? ''}
+        onChange={(event) => onEmailChange?.(event.target.value)}
+      />
+    </div>
+  ),
+}));
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -912,7 +924,8 @@ describe('App', () => {
       }));
     });
     expect(await screen.findByRole('heading', { name: 'Finalize seu pedido' })).toBeInTheDocument();
-    expect(await screen.findByPlaceholderText('voce@empresa.com')).toBeInTheDocument();
+    expect(screen.getByTestId('embedded-stripe-checkout')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('stripe-email-element')).toBeInTheDocument();
   });
 
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {
