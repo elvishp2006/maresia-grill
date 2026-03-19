@@ -1,32 +1,34 @@
 # Terraform Infra
 
-Infraestrutura GCP/Firebase gerenciada via Terraform/OpenTofu.
+Infraestrutura GCP/Firebase gerenciada via OpenTofu para os ambientes de `staging` e `production`.
 
-O repositório fixa a versão de OpenTofu em [`.opentofu-version`](/Users/elvishenriquepereira/projects/menu/.opentofu-version) para alinhar ambiente local e GitHub Actions.
+O repositorio fixa a versao de OpenTofu em [`.opentofu-version`](/Users/elvishenriquepereira/projects/menu/.opentofu-version), e os workflows usam esse mesmo arquivo para manter consistencia entre ambiente local e GitHub Actions.
 
 ## Estrutura
 
-- `bootstrap/`: cria o bucket remoto de state em GCS
-- `modules/project_baseline/`: APIs e IAM base do projeto
-- `modules/functions_runtime/`: grants do runtime das Functions e do deployer do app
-- `environments/staging/`: stack do ambiente de staging
-- `environments/production/`: stack do ambiente de produção
+```text
+bootstrap/                 cria o bucket remoto de state
+modules/project_baseline/  APIs e IAM base do projeto
+modules/functions_runtime/ grants para runtime das Functions e deploy do app
+environments/staging/      stack de staging
+environments/production/   stack de production
+```
 
 ## Backend remoto
 
-O state fica em um bucket GCS dedicado, com versionamento habilitado.
+O state deve ficar em um bucket GCS dedicado, com versionamento habilitado.
 
-Sugestão:
+Sugestao de layout:
 
 - bucket: `maresia-grill-terraform-state`
 - prefixo `staging`
 - prefixo `production`
 
-Os arquivos `backend.hcl.example` mostram a configuração esperada para uso local. Nos workflows de CI/CD o backend é passado por parâmetro para evitar duplicação.
+Os exemplos `backend.hcl.example` mostram a configuracao esperada para uso local. Nos workflows, o backend e informado por parametro com `bucket` e `prefix`.
 
 ## Bootstrap inicial
 
-Crie o bucket de state uma vez antes de usar os ambientes:
+Execute uma vez para criar o bucket remoto de state:
 
 ```bash
 tofu -chdir=infra/terraform/bootstrap init
@@ -36,9 +38,9 @@ tofu -chdir=infra/terraform/bootstrap apply \
   -var="state_bucket_name=maresia-grill-terraform-state"
 ```
 
-## Uso local por ambiente
+## Uso local
 
-Exemplo para staging:
+Exemplo para `staging`:
 
 ```bash
 tofu -chdir=infra/terraform/environments/staging init \
@@ -51,8 +53,30 @@ tofu -chdir=infra/terraform/environments/staging plan \
   -var="app_deployer_member=serviceAccount:<sa-email>"
 ```
 
-## Importante
+Para `production`, troque apenas o diretório do ambiente e os valores das variaveis.
 
-- O pipeline de infra é a única camada autorizada a alterar IAM estrutural.
-- O pipeline de deploy do app não deve chamar `setIamPolicy`.
-- `render.yaml` continua sendo a fonte declarativa do frontend/Render.
+## GitHub Actions
+
+Workflows relacionados:
+
+- `Infra Plan`: roda em PRs com mudancas em `infra/terraform/**`
+- `Infra Apply`: apply manual via `workflow_dispatch`
+
+Variaveis e segredos esperados:
+
+- `vars.TF_STATE_BUCKET`
+- `vars.GCP_PROJECT_ID_STAGING`
+- `vars.GCP_PROJECT_NUMBER_STAGING`
+- `vars.APP_DEPLOYER_MEMBER_STAGING`
+- `vars.GCP_PROJECT_ID_PRODUCTION`
+- `vars.GCP_PROJECT_NUMBER_PRODUCTION`
+- `vars.APP_DEPLOYER_MEMBER_PRODUCTION`
+- `secrets.GCP_TERRAFORM_CREDENTIALS_STAGING`
+- `secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION`
+
+## Limites de responsabilidade
+
+- O pipeline de infra e a camada autorizada a alterar IAM estrutural.
+- O pipeline de deploy do app nao deve fazer mudancas estruturais de IAM.
+- `render.yaml` continua sendo a fonte declarativa do frontend no Render.
+- `firebase.json` e os workflows de deploy do app cuidam apenas de Functions e Firestore Rules.
