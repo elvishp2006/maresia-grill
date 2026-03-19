@@ -158,14 +158,10 @@ Workflows atuais:
 
 Segredos e variaveis esperados:
 
-- `FIREBASE_SERVICE_ACCOUNT`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `vars.GCP_PROJECT_ID`
 - `vars.PUBLIC_WEB_ORIGIN`
-
-Para IaC, os workflows usam ainda:
-
 - `vars.TF_STATE_BUCKET`
 - `vars.GCP_PROJECT_ID_STAGING`
 - `vars.GCP_PROJECT_NUMBER_STAGING`
@@ -175,6 +171,8 @@ Para IaC, os workflows usam ainda:
 - `vars.APP_DEPLOYER_MEMBER_PRODUCTION`
 - `secrets.GCP_TERRAFORM_CREDENTIALS_STAGING`
 - `secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION`
+
+Os workflows de deploy e de IaC usam credenciais distintas por ambiente. Isso evita que um unico secret de service account tente publicar em staging e production com IAM desalinhado.
 
 ## Autenticacao
 

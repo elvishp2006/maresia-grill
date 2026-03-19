@@ -26,7 +26,7 @@ jobs:
 
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          credentials_json: ${{ github.ref_name == 'main' && secrets.GCP_TERRAFORM_CREDENTIALS_PRODUCTION || secrets.GCP_TERRAFORM_CREDENTIALS_STAGING }}
 
       - run: pnpm install --no-frozen-lockfile
 
