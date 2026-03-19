@@ -10,7 +10,8 @@ projects:
             name: web-production
             branch: main
             runtime: static
-            buildCommand: corepack enable && pnpm install && pnpm run build
+            rootDir: .
+            buildCommand: corepack enable && corepack prepare pnpm@9.0.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @maresia-grill/web build
             staticPublishPath: apps/web/dist
             domains:
               - maresiagrill.com
@@ -31,7 +32,8 @@ projects:
             name: web-staging
             branch: staging
             runtime: static
-            buildCommand: corepack enable && pnpm install && pnpm run build
+            rootDir: .
+            buildCommand: corepack enable && corepack prepare pnpm@9.0.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @maresia-grill/web build
             staticPublishPath: apps/web/dist
             routes:
               - type: rewrite
