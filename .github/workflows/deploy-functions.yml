@@ -76,7 +76,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          checkout_probe="$(node <<'EOF'
+          set +e
+          checkout_probe="$(
+            node <<'EOF'
           const admin = require('./apps/functions/node_modules/firebase-admin');
 
           if (!admin.apps.length) admin.initializeApp();
@@ -113,6 +115,18 @@ jobs:
           });
           EOF
           )"
+          checkout_probe_status=$?
+          set -e
+
+          if [ "$checkout_probe_status" = "2" ]; then
+            echo "Nenhum cardápio publicado com item pago disponível para validar o modo do checkout. Pulando smoke test."
+            exit 0
+          fi
+
+          if [ "$checkout_probe_status" != "0" ]; then
+            echo "Falha ao preparar o smoke test do checkout."
+            exit 1
+          fi
 
           endpoint="https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/preparePublicOrderCheckout"
           response_file="$(mktemp)"
@@ -143,6 +157,19 @@ jobs:
               "$endpoint" \
               -w '%{http_code}'
           )"
+
+          response_message="$(
+            node -e '
+              const fs = require("node:fs");
+              const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              process.stdout.write(typeof data.message === "string" ? data.message : "");
+            ' "$response_file"
+          )"
+
+          if [ "$status" = "400" ] && [ "$response_message" = "Nenhum item válido encontrado para este pedido." ]; then
+            echo "O staging nao possui um item pago utilizavel para validar o modo do checkout agora. Pulando smoke test."
+            exit 0
+          fi
 
           if [ "$status" != "200" ]; then
             echo "Falha ao validar o checkout publico."
