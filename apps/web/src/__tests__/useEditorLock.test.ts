@@ -103,4 +103,137 @@ describe('useEditorLock', () => {
       deviceLabel: 'Mac',
     }, { force: true });
   });
+
+  it('does not auto-acquire when offline or without a user', async () => {
+    renderHook(() => useEditorLock('chef@maresia.com', false));
+    renderHook(() => useEditorLock(null, true));
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(acquireEditorLockMock).not.toHaveBeenCalled();
+  });
+
+  it('derives session and device labels when storage is empty', async () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    vi.stubGlobal('crypto', undefined);
+    vi.spyOn(Date, 'now').mockReturnValue(123456);
+    vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
+    Object.defineProperty(window.navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      configurable: true,
+    });
+
+    renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(sessionStorage.getItem('menu-editor-session-id')).toBe('session-4fzzzxjylrx-123456');
+    expect(localStorage.getItem('menu-editor-device-label')).toBe('Windows');
+    expect(acquireEditorLockMock).toHaveBeenCalledWith({
+      sessionId: 'session-4fzzzxjylrx-123456',
+      userEmail: 'chef@maresia.com',
+      deviceLabel: 'Windows',
+    });
+  });
+
+  it('surfaces request and takeover errors using admin feedback messages', async () => {
+    acquireEditorLockMock.mockRejectedValueOnce(new Error('falha-request')).mockRejectedValueOnce(new Error('falha-takeover'));
+
+    const { result } = renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    await act(async () => {
+      expect(await result.current.requestEditAccess()).toBe(false);
+    });
+    expect(result.current.error).toBe('falha-request');
+
+    await act(async () => {
+      expect(await result.current.takeControl()).toBe(false);
+    });
+    expect(result.current.error).toBe('falha-takeover');
+  });
+
+  it('surfaces subscription errors and clears them after a successful request', async () => {
+    subscribeEditorLockMock.mockImplementation((_onValue: (lock: EditorLock | null) => void, onError?: (error: Error) => void) => {
+      onError?.(new Error('falha-subscribe'));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    expect(result.current.error).toBe('falha-subscribe');
+
+    await act(async () => {
+      expect(await result.current.requestEditAccess()).toBe(true);
+    });
+
+    expect(result.current.error).toBeNull();
+  });
+
+  it('clears the owned lock and exposes renew errors when heartbeat fails', async () => {
+    subscribeEditorLockMock.mockImplementation((onValue: (lock: EditorLock | null) => void) => {
+      onValue(makeLock());
+      return vi.fn();
+    });
+    renewEditorLockMock.mockRejectedValueOnce(new Error('falha-renew'));
+
+    const { result } = renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.error).toBe('falha-renew');
+    expect(result.current.lock).toBeNull();
+  });
+
+  it('clears the owned lock when the heartbeat can no longer renew it', async () => {
+    subscribeEditorLockMock.mockImplementation((onValue: (lock: EditorLock | null) => void) => {
+      onValue(makeLock());
+      return vi.fn();
+    });
+    renewEditorLockMock.mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.lock).toBeNull();
+    expect(result.current.canEdit).toBe(false);
+  });
+
+  it('releases edit access on beforeunload and ignores release failures', async () => {
+    releaseEditorLockMock.mockRejectedValueOnce(new Error('ignored'));
+
+    renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    await act(async () => {
+      window.dispatchEvent(new Event('beforeunload'));
+      await Promise.resolve();
+    });
+
+    expect(releaseEditorLockMock).toHaveBeenCalledWith('session-1');
+  });
+
+  it('releases edit access when the hook unmounts', () => {
+    const view = renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    view.unmount();
+
+    expect(releaseEditorLockMock).toHaveBeenCalledWith('session-1');
+  });
 });

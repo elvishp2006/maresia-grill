@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint . --config ../../eslint.config.js",
     "lint:fix": "eslint . --config ../../eslint.config.js --fix"
   },
@@ -18,8 +20,10 @@
     "stripe": "^20.4.1"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
     "@types/node": "^24.12.0",
     "eslint": "^9.39.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
   }
 }

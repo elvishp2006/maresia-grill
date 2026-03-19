@@ -79,6 +79,65 @@ describe('useAuthSession', () => {
     expect(signInWithPopupMock).toHaveBeenCalledTimes(1);
   });
 
+  it('surfaces a friendly message when popup login is canceled', async () => {
+    onAuthStateChangedMock.mockImplementation((_auth, callback) => {
+      void callback(null);
+      return vi.fn();
+    });
+    signInWithPopupMock.mockRejectedValue({ code: 'auth/popup-closed-by-user' });
+
+    const { useAuthSession } = await importUseAuthSession();
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.signIn();
+    });
+
+    expect(result.current.authError).toBe('Login cancelado.');
+    expect(result.current.signInPending).toBe(false);
+  });
+
+  it('surfaces a network error when popup login fails due to connectivity', async () => {
+    onAuthStateChangedMock.mockImplementation((_auth, callback) => {
+      void callback(null);
+      return vi.fn();
+    });
+    signInWithPopupMock.mockRejectedValue({ code: 'auth/network-request-failed' });
+
+    const { useAuthSession } = await importUseAuthSession();
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.signIn();
+    });
+
+    expect(result.current.authError).toBe('Nao foi possivel entrar. Verifique sua conexao.');
+    expect(result.current.signInPending).toBe(false);
+  });
+
+  it('signs out through Firebase Auth when a session exists', async () => {
+    onAuthStateChangedMock.mockImplementation((_auth, callback) => {
+      void callback({ uid: 'user-1', email: 'elvishp2006@gmail.com' });
+      return vi.fn();
+    });
+    signOutMock.mockResolvedValue(undefined);
+
+    const { useAuthSession } = await importUseAuthSession();
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes a controlled auth error when Firebase config is missing', async () => {
     const { useAuthSession } = await importUseAuthSession({
       auth: null,

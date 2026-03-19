@@ -143,6 +143,23 @@ describe('useMenuState', () => {
     expect(result.current.complements.find(i => i.id === '1')?.nome).toBe('Alface Americana');
   });
 
+  it('updateItem normalizes price and persists the edited item', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.updateItem('1', { nome: 'Alface premium', priceCents: 99.7 });
+      await Promise.resolve();
+    });
+
+    expect(result.current.complements.find(i => i.id === '1')).toEqual(
+      expect.objectContaining({ nome: 'Alface premium', priceCents: 100 }),
+    );
+    expect(saveComplements).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: '1', nome: 'Alface premium', priceCents: 100 }),
+    ]));
+  });
+
   it('toggleSortMode switches between alpha and usage', async () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
     await waitForReady(result);
@@ -203,6 +220,106 @@ describe('useMenuState', () => {
     expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
     expect(saveCategories).not.toHaveBeenCalled();
     expect(screen.getByText('Outro dispositivo esta editando o cardapio neste momento.')).toBeInTheDocument();
+  });
+
+  it('removes a category along with its items, day selection and linked rules', async () => {
+    subscribeCategorySelectionRules.mockImplementation((onValue: (value: unknown[]) => void) => {
+      queueMicrotask(() => onValue([{ category: 'Saladas', maxSelections: 1 }]));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.removeCategory('Saladas');
+      await Promise.resolve();
+    });
+
+    expect(result.current.categories).toEqual(['Carnes']);
+    expect(result.current.complements).toEqual([{ id: '2', nome: 'Frango', categoria: 'Carnes' }]);
+    expect(result.current.daySelection).toEqual([]);
+    expect(saveCategories).toHaveBeenCalledWith(['Carnes']);
+    expect(saveComplements).toHaveBeenCalledWith([{ id: '2', nome: 'Frango', categoria: 'Carnes' }]);
+    expect(saveDaySelection).toHaveBeenCalledWith(expect.any(String), []);
+    expect(saveCategorySelectionRules).toHaveBeenCalledWith([], ['Carnes']);
+  });
+
+  it('moves categories up and down but ignores invalid moves', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.moveCategory('Carnes', 'up');
+      await Promise.resolve();
+    });
+    expect(saveCategories).toHaveBeenCalledWith(['Carnes', 'Saladas']);
+
+    saveCategories.mockClear();
+
+    await act(async () => {
+      result.current.moveCategory('Carnes', 'up');
+      result.current.moveCategory('Inexistente', 'down');
+      await Promise.resolve();
+    });
+    expect(saveCategories).not.toHaveBeenCalled();
+  });
+
+  it('tracks pending writes and persisted revisions after successful saves', async () => {
+    let resolveWrite: (() => void) | null = null;
+    saveDaySelection.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveWrite = resolve;
+    }));
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    act(() => {
+      result.current.toggleItem('2');
+    });
+
+    expect(result.current.pendingWrites).toBe(1);
+    expect(result.current.dataRevision).toBe(1);
+    expect(result.current.persistedRevision).toBe(0);
+
+    await act(async () => {
+      resolveWrite?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.pendingWrites).toBe(0));
+    expect(result.current.persistedRevision).toBe(1);
+  });
+
+  it('keeps the current revision unpersisted when a save fails', async () => {
+    saveDaySelection.mockRejectedValueOnce(new Error('Falha ao salvar'));
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.toggleItem('2');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.pendingWrites).toBe(0));
+    expect(result.current.persistedRevision).toBe(0);
+    expect(screen.getByText('Falha ao salvar')).toBeInTheDocument();
+  });
+
+  it('falls back to default categories and surfaces recent selection load errors', async () => {
+    subscribeCategories.mockImplementation((onValue: (value: string[]) => void) => {
+      queueMicrotask(() => onValue([]));
+      return vi.fn();
+    });
+    loadRecentSelections.mockRejectedValueOnce(new Error('Falha em histórico'));
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.categories).toEqual(['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco']);
+    expect(screen.getByText('Não foi possível carregar os dados do admin.')).toBeInTheDocument();
   });
 
   it('switches to the new day and clears the selection after midnight', async () => {

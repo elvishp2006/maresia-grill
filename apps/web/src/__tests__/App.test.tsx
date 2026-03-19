@@ -86,6 +86,9 @@ const useEditorLockMock = vi.fn(() => ({
   releaseEditAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
+let signOutActionMock = vi.fn();
+let releaseEditAccessActionMock = vi.fn();
+
 vi.mock('../hooks/useEditorLock', () => ({
   useEditorLock: () => useEditorLockMock(),
 }));
@@ -209,6 +212,8 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    signOutActionMock = vi.fn().mockResolvedValue(undefined);
+    releaseEditAccessActionMock = vi.fn().mockResolvedValue(undefined);
     vi.stubEnv('VITE_STRIPE_PUBLISHABLE_KEY', 'pk_test_123');
     window.history.pushState({}, '', '/');
     localStorage.clear();
@@ -221,7 +226,7 @@ describe('App', () => {
       authError: null,
       signInPending: false,
       signIn: vi.fn(),
-      signOut: vi.fn(),
+      signOut: signOutActionMock,
     });
     useOnlineStatusMock.mockReturnValue({ isOnline: true });
     useUpdateNotificationMock.mockReturnValue({
@@ -240,7 +245,7 @@ describe('App', () => {
       error: null,
       requestEditAccess: vi.fn().mockResolvedValue(true),
       takeControl: vi.fn().mockResolvedValue(true),
-      releaseEditAccess: vi.fn().mockResolvedValue(undefined),
+      releaseEditAccess: releaseEditAccessActionMock,
     });
     vi.stubGlobal('alert', vi.fn());
     Object.assign(navigator, {
@@ -342,6 +347,52 @@ describe('App', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled();
     });
     expect(await screen.findByText('Menu copiado!')).toBeInTheDocument();
+  });
+
+  it('uses the native share api when sharing menu text is available', async () => {
+    Object.assign(navigator, {
+      share: vi.fn().mockResolvedValue(undefined),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar texto' }));
+
+    await waitFor(() => {
+      expect(navigator.share).toHaveBeenCalledWith({
+        title: 'Menu do Maresia Grill',
+        text: expect.stringContaining('Alface'),
+      });
+    });
+  });
+
+  it('falls back to alert when clipboard copy fails', async () => {
+    Object.assign(navigator, {
+      share: undefined,
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error('copy failed')) },
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar texto' }));
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Alface'));
+    });
   });
 
   it('shares the daily link when the link option is chosen', async () => {
@@ -676,6 +727,44 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Assumir controle' })).toBeInTheDocument();
   });
 
+  it('releases editor access and signs out only after confirmation', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair da conta' }));
+    await act(async () => {
+      fireEvent.click(await screen.findByText('Confirmar'));
+    });
+
+    await waitFor(() => {
+      expect(releaseEditAccessActionMock).toHaveBeenCalledTimes(1);
+      expect(signOutActionMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not sign out when the confirmation is cancelled', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair da conta' }));
+    await act(async () => {
+      fireEvent.click(await screen.findByText('Cancelar'));
+    });
+
+    expect(releaseEditAccessActionMock).not.toHaveBeenCalled();
+    expect(signOutActionMock).not.toHaveBeenCalled();
+  });
+
   it('shows a Firestore rules hint when the editor lock read is denied', () => {
     useEditorLockMock.mockReturnValue({
       canEdit: false,
@@ -725,6 +814,28 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Marésia Grill' })).not.toBeInTheDocument();
   });
 
+  it('renders the loading spinner while auth state is loading', () => {
+    useAuthSessionMock.mockReturnValue({
+      user: null,
+      loading: true,
+      authError: null,
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Entrar com Google' })).not.toBeInTheDocument();
+    expect(document.querySelector('.neon-gold-spinner')).not.toBeNull();
+  });
+
   it('keeps auth errors visible on the sign-in screen', () => {
     useAuthSessionMock.mockReturnValue({
       user: null,
@@ -744,6 +855,30 @@ describe('App', () => {
     );
 
     expect(screen.getByText('Login cancelado.')).toBeInTheDocument();
+  });
+
+  it('starts the sign-in flow from the auth screen', () => {
+    const signIn = vi.fn();
+    useAuthSessionMock.mockReturnValue({
+      user: null,
+      loading: false,
+      authError: null,
+      signInPending: false,
+      signIn,
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar com Google' }));
+
+    expect(signIn).toHaveBeenCalledTimes(1);
   });
 
   it('renders the public menu route without login', async () => {
@@ -789,6 +924,25 @@ describe('App', () => {
     expect(screen.queryByPlaceholderText('Digite seu nome')).not.toBeInTheDocument();
   });
 
+  it('renders the expired public link state when the menu can no longer be loaded', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, _onValue: (menu: unknown) => void, onError?: () => void) => {
+      onError?.();
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Este cardápio não está mais disponível')).toBeInTheDocument();
+    expect(screen.getByText('Link expirado')).toBeInTheDocument();
+  });
+
   it('syncs the public menu snapshot while the authenticated menu changes', async () => {
     vi.useFakeTimers();
     let menuState = { ...defaultMenuState, dataRevision: 0, persistedRevision: 0 };
@@ -824,6 +978,44 @@ describe('App', () => {
     expect(screen.queryByText('Sincronizando público')).not.toBeInTheDocument();
 
     useMenuStateMock.mockImplementation(() => defaultMenuState);
+  });
+
+  it('shows an orders history error toast when version loading fails', async () => {
+    subscribeOrdersMock.mockImplementation((_dateKey: string, onValue: (orders: unknown[]) => void) => {
+      onValue([{
+        id: 'order-1',
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Ana',
+        menuVersionId: '2026-03-17__v1',
+        paymentSummary: {
+          freeTotalCents: 0,
+          paidTotalCents: 0,
+          currency: 'BRL',
+          paymentStatus: 'not_required',
+          provider: null,
+          paymentMethod: null,
+          providerPaymentId: null,
+          refundedAt: null,
+        },
+        submittedAt: Date.now(),
+      }]);
+      return vi.fn();
+    });
+    loadPublicMenuVersionsMock.mockRejectedValueOnce(new Error('Falha ao carregar histórico'));
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Falha ao carregar histórico')).toBeInTheDocument();
+    });
   });
 
   it('shows success state after sending a public order and allows editing again', async () => {
@@ -944,6 +1136,139 @@ describe('App', () => {
     }));
   });
 
+  it('closes the share sheet without triggering a share action', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar menu' }));
+    expect(screen.getByRole('heading', { name: 'Compartilhar cardápio' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar painel' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Compartilhar cardápio' })).not.toBeInTheDocument();
+    });
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    expect(getOrCreateDailyShareLinkMock).not.toHaveBeenCalled();
+  });
+
+  it('closes the embedded checkout sheet and returns to the public form', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    preparePublicOrderCheckoutMock.mockResolvedValue({
+      kind: 'payment_required',
+      draftId: 'draft-1',
+      checkoutSession: {
+        clientSecret: 'cs_test_123',
+        draftId: 'draft-1',
+        provider: 'stripe',
+      },
+    });
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Carnes'],
+        items: [
+          { id: '2', nome: 'Frango', categoria: 'Carnes', priceCents: 1500 },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Frango do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar e finalizar pedido' }));
+
+    expect(await screen.findByRole('heading', { name: 'Finalize seu pedido' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar painel' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Finalize seu pedido' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Pagar e finalizar pedido' })).toBeInTheDocument();
+    });
+  });
+
+  it('opens the submitted payment state when embedded checkout completes', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
+    preparePublicOrderCheckoutMock.mockResolvedValue({
+      kind: 'payment_required',
+      draftId: 'draft-1',
+      checkoutSession: {
+        clientSecret: 'cs_test_123',
+        draftId: 'draft-1',
+        provider: 'stripe',
+      },
+    });
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Carnes'],
+        items: [
+          { id: '2', nome: 'Frango', categoria: 'Carnes', priceCents: 1500 },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+    fetchPublicOrderStatusMock.mockResolvedValue({
+      draftId: 'draft-1',
+      paymentStatus: 'awaiting_payment',
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Frango do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar e finalizar pedido' }));
+
+    await waitFor(() => {
+      expect(embeddedStripeCheckoutPropsMock).toHaveBeenCalled();
+    });
+
+    const checkoutProps = embeddedStripeCheckoutPropsMock.mock.calls.at(-1)?.[0] as { onComplete: () => void };
+    act(() => {
+      checkoutProps.onComplete();
+    });
+
+    expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument();
+    expect(window.location.search).toBe('?draftId=draft-1');
+    expect(window.location.hash).toBe('#/enviado');
+  });
+
   it('opens the limit sheet in the manage tab and saves linked categories', async () => {
     const saveCategoryRule = vi.fn();
     useMenuStateMock.mockReturnValue({
@@ -969,6 +1294,40 @@ describe('App', () => {
       maxSelections: 2,
       sharedLimitGroupId: null,
       linkedCategories: ['Carnes'],
+    });
+  });
+
+  it('quick-adds a searched item from the empty manage state and clears the search', async () => {
+    const addItem = vi.fn();
+    useMenuStateMock.mockReturnValue({
+      ...defaultMenuState,
+      complements: [],
+      addItem,
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    fireEvent.change(screen.getByPlaceholderText('Buscar item ou categoria'), {
+      target: { value: 'Abacaxi' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: '+ Cadastrar "Abacaxi" no catálogo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Saladas' }));
+    expect(screen.getByPlaceholderText('Nome do item...')).toHaveValue('Abacaxi');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    expect(addItem).toHaveBeenCalledWith('Abacaxi', 'Saladas');
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('Abacaxi')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Limpar busca' })).not.toBeInTheDocument();
     });
   });
 
@@ -1076,6 +1435,44 @@ describe('App', () => {
     expect(screen.getByText('Use + e - para ajustar')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Adicionar Brownie do menu do dia' })).not.toBeInTheDocument();
     expect(screen.queryByText('0x')).not.toBeInTheDocument();
+  });
+
+  it('updates repeated item quantities with increment and decrement controls', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Sobremesas'],
+        items: [
+          { id: '1', nome: 'Brownie', categoria: 'Sobremesas', priceCents: 800 },
+        ],
+        categorySelectionRules: [{ category: 'Sobremesas', allowRepeatedItems: true }],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Brownie')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar Brownie' }));
+    expect(screen.getByText('Selecionado no pedido')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar Brownie' }));
+    expect(screen.getByText('2 selecionados no pedido')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Diminuir Brownie' }));
+    expect(screen.getByText('Selecionado no pedido')).toBeInTheDocument();
   });
 
   it('allows cancelling the public order while intake is open and shows a cancellation confirmation state', async () => {
@@ -1403,6 +1800,133 @@ describe('App', () => {
     expect(screen.getByText('Molho da casa')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ver itens selecionados' })).not.toBeInTheDocument();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
+  });
+
+  it('finalizes the pending payment when polling returns the confirmed order', async () => {
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Carnes'],
+        items: [
+          { id: '2', nome: 'Frango', categoria: 'Carnes', priceCents: 1500 },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+    localStorage.setItem('public-menu-pending-order:token-1', JSON.stringify({
+      customerName: 'Ana',
+      selectedItems: [{ itemId: '2', quantity: 1 }],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 1500,
+        currency: 'BRL',
+        paymentStatus: 'awaiting_payment',
+        provider: 'stripe',
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
+    }));
+    window.history.pushState({}, '', '/s/token-1?draftId=draft-1#/enviado');
+    fetchPublicOrderStatusMock.mockResolvedValue({
+      draftId: 'draft-1',
+      paymentStatus: 'paid',
+      order: {
+        orderId: 'order-1',
+        customerName: 'Ana',
+        lines: [buildOrderLine('2', 'Frango', 'Carnes', 1, 1500)],
+        paymentSummary: {
+          freeTotalCents: 0,
+          paidTotalCents: 1500,
+          currency: 'BRL',
+          paymentStatus: 'paid',
+          provider: 'stripe',
+          paymentMethod: 'card',
+          providerPaymentId: 'pi_1',
+          refundedAt: null,
+        },
+      },
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(window.location.search).toBe('');
+    expect(localStorage.getItem('public-menu-pending-order:token-1')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('public-menu-last-order:token-1') ?? 'null')).toEqual(
+      expect.objectContaining({
+        orderId: 'order-1',
+        customerName: 'Ana',
+      }),
+    );
+  });
+
+  it('returns to the public form after a failed payment attempt', async () => {
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-1',
+        categories: ['Carnes'],
+        items: [
+          { id: '2', nome: 'Frango', categoria: 'Carnes', priceCents: 1500 },
+        ],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+    localStorage.setItem('public-menu-customer-name', 'Ana');
+    localStorage.setItem('public-menu-pending-order:token-1', JSON.stringify({
+      customerName: 'Ana',
+      selectedItems: [{ itemId: '2', quantity: 1 }],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 1500,
+        currency: 'BRL',
+        paymentStatus: 'awaiting_payment',
+        provider: 'stripe',
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
+    }));
+    window.history.pushState({}, '', '/s/token-1?draftId=draft-1#/enviado');
+    fetchPublicOrderStatusMock.mockResolvedValue({
+      draftId: 'draft-1',
+      paymentStatus: 'failed',
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Pagamento não concluído')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar ao pedido' }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+      expect(window.location.hash).toBe('#/pedido');
+      expect(window.location.search).toBe('');
+    });
+    expect(localStorage.getItem('public-menu-pending-order:token-1')).toBeNull();
   });
 
   it('keeps the cancelled state after reload when the hash and customer name are present', async () => {

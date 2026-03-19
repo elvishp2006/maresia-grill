@@ -119,11 +119,127 @@ describe('CategoryCard', () => {
     expect(screen.getByLabelText('Remover categoria Saladas')).toBeInTheDocument();
   });
 
+  it('calls move callbacks in manage mode', () => {
+    const onMoveUp = vi.fn();
+    const onMoveDown = vi.fn();
+
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Mover Saladas para cima'));
+    fireEvent.click(screen.getByLabelText('Mover Saladas para baixo'));
+
+    expect(onMoveUp).toHaveBeenCalledTimes(1);
+    expect(onMoveDown).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the limit configuration sheet in manage mode', () => {
     renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
     fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
     expect(screen.getByRole('dialog', { name: 'Limite de Saladas' })).toBeInTheDocument();
     expect(screen.getByText('Compartilhar com outras categorias')).toBeInTheDocument();
+  });
+
+  it('saves the configured limit, linked categories and repeated items flag', () => {
+    const onSaveCategoryRule = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        onSaveCategoryRule={onSaveCategoryRule}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: '1' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Permitir repetir itens em Saladas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carnes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
+
+    expect(onSaveCategoryRule).toHaveBeenCalledWith({
+      maxSelections: 1,
+      sharedLimitGroupId: null,
+      linkedCategories: ['Carnes'],
+      allowRepeatedItems: true,
+    });
+  });
+
+  it('adjusts the configured limit with increment and decrement controls', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar limite de Saladas' }));
+    expect(screen.getByText('3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Diminuir limite de Saladas' }));
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('keeps the shared limit group id when saving an existing rule', () => {
+    const onSaveCategoryRule = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        categoryRule={{ category: 'Saladas', maxSelections: 2, sharedLimitGroupId: 'proteinas' }}
+        allCategoryRules={[
+          { category: 'Saladas', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+          { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas' },
+        ]}
+        onSaveCategoryRule={onSaveCategoryRule}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
+
+    expect(onSaveCategoryRule).toHaveBeenCalledWith({
+      maxSelections: 2,
+      sharedLimitGroupId: 'proteinas',
+      linkedCategories: ['Carnes'],
+      allowRepeatedItems: undefined,
+    });
+  });
+
+  it('clears the category rule from the manage sheet', () => {
+    const onSaveCategoryRule = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        categoryRule={{ category: 'Saladas', maxSelections: 2, sharedLimitGroupId: 'grupo' }}
+        allCategoryRules={[
+          { category: 'Saladas', maxSelections: 2, sharedLimitGroupId: 'grupo' },
+          { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'grupo' },
+        ]}
+        onSaveCategoryRule={onSaveCategoryRule}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar regra' }));
+
+    expect(onSaveCategoryRule).toHaveBeenCalledWith({
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      linkedCategories: [],
+      allowRepeatedItems: false,
+    });
+  });
+
+  it('disables save limit when there is no limit and repeated items are off', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sem limite' }));
+
+    expect(screen.getByRole('button', { name: 'Salvar limite' })).toBeDisabled();
   });
 
   it('calls onRemoveCategory after confirmation', async () => {
@@ -146,6 +262,55 @@ describe('CategoryCard', () => {
     renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
     fireEvent.click(screen.getByLabelText('Adicionar item em Saladas'));
     expect(screen.getByRole('dialog', { name: 'Novo item em Saladas' })).toBeInTheDocument();
+  });
+
+  it('adds an item from the manage sheet and closes it', () => {
+    const onAdd = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        onAdd={onAdd}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Adicionar item em Saladas'));
+    fireEvent.change(screen.getByPlaceholderText('Nome do item'), {
+      target: { value: 'Tomate' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('0,00'), {
+      target: { value: '450' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    expect(onAdd).toHaveBeenCalledWith('Tomate', 'Saladas', 450);
+    expect(screen.queryByRole('dialog', { name: 'Novo item em Saladas' })).not.toBeInTheDocument();
+  });
+
+  it('shows repeated-items copy when the category allows repetition without a limit', () => {
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        categoryRule={{ category: 'Saladas', maxSelections: null, sharedLimitGroupId: null, allowRepeatedItems: true }}
+      />,
+    );
+
+    expect(screen.getByText('Sem limite e permite repetir item')).toBeInTheDocument();
+    expect(screen.getByText('Sem limite de selecao e com repeticao do mesmo item liberada.')).toBeInTheDocument();
+  });
+
+  it('shows the selection rule summary in select mode', () => {
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        categoryRule={{ category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null }}
+        allCategoryRules={[{ category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null }]}
+      />,
+    );
+
+    expect(screen.getByText('Escolha ate 1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Configurar limite' })).not.toBeInTheDocument();
   });
 
   it('disables management actions when offline', () => {

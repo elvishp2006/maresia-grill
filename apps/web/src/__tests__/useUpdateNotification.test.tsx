@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { ToastProvider } from '../contexts/ToastContext';
@@ -36,6 +36,13 @@ describe('useUpdateNotification', () => {
     updateServiceWorkerMock.mockClear();
     setNeedRefreshMock.mockClear();
     registrationUpdateMock.mockClear();
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
   });
 
   it('applies the pending update through the service worker helper', async () => {
@@ -78,6 +85,29 @@ describe('useUpdateNotification', () => {
     expect(updateServiceWorkerMock).not.toHaveBeenCalled();
   });
 
+  it('checks for updates again when the document becomes visible', () => {
+    renderHook(() => useUpdateNotification(), { wrapper });
+
+    act(() => {
+      registerOptions.onRegisteredSW?.('/sw.js', {
+        update: registrationUpdateMock,
+      } as unknown as ServiceWorkerRegistration);
+    });
+
+    expect(registrationUpdateMock).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(registrationUpdateMock).toHaveBeenCalledTimes(2);
+  });
+
   it('exposes the plugin state for refresh prompts', () => {
     currentNeedRefresh = true;
 
@@ -95,5 +125,21 @@ describe('useUpdateNotification', () => {
       expect(setNeedRefreshMock).toHaveBeenCalledWith(false);
       expect(updateServiceWorkerMock).toHaveBeenCalledWith(true);
     });
+  });
+
+  it('shows an updated toast on controller change when auto reload is disabled', () => {
+    const addEventListenerSpy = vi.spyOn(navigator.serviceWorker, 'addEventListener');
+    let handler: EventListener | null = null;
+    addEventListenerSpy.mockImplementation((event, listener) => {
+      if (event === 'controllerchange') handler = listener as EventListener;
+    });
+
+    renderHook(() => useUpdateNotification(), { wrapper });
+
+    act(() => {
+      handler?.(new Event('controllerchange'));
+    });
+
+    expect(screen.getByText('✓ App atualizado')).toBeInTheDocument();
   });
 });

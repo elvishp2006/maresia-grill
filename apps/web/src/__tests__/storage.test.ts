@@ -241,6 +241,113 @@ describe('storage', () => {
         selectedItems: [{ itemId: '1', quantity: 1 }],
       })).rejects.toThrow('Falha remota.');
     });
+
+    it('uses a generic message when the api returns malformed json', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        json: async () => {
+          throw new Error('bad json');
+        },
+      });
+
+      const { preparePublicOrderCheckout } = await import('../lib/storage');
+      await expect(preparePublicOrderCheckout({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Teste',
+        selectedItems: [{ itemId: '1', quantity: 1 }],
+      })).rejects.toThrow('Não foi possível concluir a operação.');
+    });
+
+    it('rejects checkout calls when the public api base url is missing', async () => {
+      vi.stubEnv('VITE_PUBLIC_ORDER_API_URL', '');
+
+      const { preparePublicOrderCheckout } = await import('../lib/storage');
+      await expect(preparePublicOrderCheckout({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Teste',
+        selectedItems: [{ itemId: '1', quantity: 1 }],
+      })).rejects.toThrow('Configuração do checkout indisponível.');
+    });
+
+    it('rejects submitPublicOrder when checkout is still required', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          kind: 'payment_required',
+          draftId: 'draft-1',
+        }),
+      });
+
+      const { submitPublicOrder } = await import('../lib/storage');
+      await expect(submitPublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        customerName: 'Teste',
+        selectedItems: [{ itemId: '1', quantity: 1 }],
+      })).rejects.toThrow('Este pedido exige checkout antes da finalização.');
+    });
+
+    it('fetches public order status through the functions endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          draftId: 'draft-1',
+          paymentStatus: 'paid',
+        }),
+      });
+
+      const { fetchPublicOrderStatus } = await import('../lib/storage');
+      await expect(fetchPublicOrderStatus({
+        shareToken: 'token-1',
+        draftId: 'draft-1',
+      })).resolves.toEqual({
+        draftId: 'draft-1',
+        paymentStatus: 'paid',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:5001/maresia-grill-local/us-central1/publicOrderStatus',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('cancels public orders through the functions endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          refunded: true,
+          paymentSummary: {
+            freeTotalCents: 0,
+            paidTotalCents: 1500,
+            currency: 'BRL',
+            paymentStatus: 'refunded',
+            provider: 'stripe',
+            paymentMethod: 'card',
+            providerPaymentId: 'pi_1',
+            refundedAt: 123,
+          },
+        }),
+      });
+
+      const { cancelPublicOrder } = await import('../lib/storage');
+      await expect(cancelPublicOrder({
+        orderId: 'order-1',
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+      })).resolves.toEqual(expect.objectContaining({
+        refunded: true,
+      }));
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:5001/maresia-grill-local/us-central1/cancelPublicOrder',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
   });
 
   describe('catalog', () => {
@@ -332,6 +439,15 @@ describe('storage', () => {
       );
     });
 
+    it('falls back to default categories when the subscription snapshot is empty', async () => {
+      const { subscribeCategories } = await import('../lib/storage');
+      const onValue = vi.fn();
+
+      subscribeCategories(onValue);
+
+      expect(onValue).toHaveBeenCalledWith(['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco']);
+    });
+
     it('saves category rules using the current admin categories when the persisted snapshot is stale', async () => {
       seed('catalog/root/categories/saladas', {
         name: 'Saladas',
@@ -370,6 +486,88 @@ describe('storage', () => {
           selectionPolicy: { maxSelections: 2, sharedLimitGroupId: null, allowRepeatedItems: false },
         }),
       );
+    });
+
+    it('fails when trying to save category rules without any resolved categories', async () => {
+      const { saveCategorySelectionRules } = await import('../lib/storage');
+
+      await expect(saveCategorySelectionRules([], [])).rejects.toMatchObject({
+        message: 'Nenhuma categoria carregada para salvar os limites.',
+        code: 'not-found',
+      });
+    });
+
+    it('maps permission-denied errors while saving category rules', async () => {
+      seed('catalog/root/categories/saladas', {
+        name: 'Saladas',
+        sortOrder: 0,
+        selectionPolicy: { maxSelections: null, sharedLimitGroupId: null, allowRepeatedItems: false },
+      });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockBatchCommit.mockImplementationOnce(() => {
+        throw { code: 'permission-denied' };
+      });
+
+      const { saveCategorySelectionRules } = await import('../lib/storage');
+
+      await expect(saveCategorySelectionRules([
+        { category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null },
+      ])).rejects.toSatisfy((error: unknown) => (
+        typeof error === 'object'
+        && error !== null
+        && 'code' in error
+        && error.code === 'permission-denied'
+        && 'message' in error
+        && typeof error.message === 'string'
+        && error.message.startsWith('Não foi possível salvar os limites da categoria. Recarregue a tela e tente novamente.')
+      ));
+    });
+
+    it('maps failed-precondition errors while saving category rules', async () => {
+      seed('catalog/root/categories/saladas', {
+        name: 'Saladas',
+        sortOrder: 0,
+        selectionPolicy: { maxSelections: null, sharedLimitGroupId: null, allowRepeatedItems: false },
+      });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockBatchCommit.mockImplementationOnce(() => {
+        throw { code: 'failed-precondition' };
+      });
+
+      const { saveCategorySelectionRules } = await import('../lib/storage');
+
+      await expect(saveCategorySelectionRules([
+        { category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null },
+      ])).rejects.toSatisfy((error: unknown) => (
+        typeof error === 'object'
+        && error !== null
+        && 'code' in error
+        && error.code === 'failed-precondition'
+        && 'message' in error
+        && typeof error.message === 'string'
+        && error.message.startsWith('Os limites da categoria ficaram desatualizados. Recarregue a tela e tente novamente.')
+      ));
+    });
+
+    it('normalizes unexpected saveCategorySelectionRules failures', async () => {
+      seed('catalog/root/categories/saladas', {
+        name: 'Saladas',
+        sortOrder: 0,
+        selectionPolicy: { maxSelections: null, sharedLimitGroupId: null, allowRepeatedItems: false },
+      });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockBatchCommit.mockImplementationOnce(() => {
+        throw 'boom';
+      });
+
+      const { saveCategorySelectionRules } = await import('../lib/storage');
+
+      await expect(saveCategorySelectionRules([
+        { category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null },
+      ])).rejects.toMatchObject({
+        message: 'Não foi possível salvar os limites da categoria.',
+        code: 'unknown',
+      });
     });
   });
 
@@ -423,6 +621,33 @@ describe('storage', () => {
       vi.useRealTimers();
     });
 
+    it('aggregates recent selection counts across days', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-03-18T12:00:00Z'));
+      seed('dailyMenus/2026-03-18/orders/order-1', {
+        dateKey: '2026-03-18',
+        shareToken: 'token-1',
+        menuVersionId: '2026-03-18__v1',
+        customerName: 'Ana',
+        lines: [buildOrderLine('1', 'Alface', 'Saladas', 2)],
+      });
+      seed('dailyMenus/2026-03-17/orders/order-2', {
+        dateKey: '2026-03-17',
+        shareToken: 'token-1',
+        menuVersionId: '2026-03-17__v1',
+        customerName: 'Bia',
+        lines: [buildOrderLine('2', 'Frango', 'Carnes', 1)],
+      });
+
+      const { loadRecentSelections } = await import('../lib/storage');
+      await expect(loadRecentSelections(2)).resolves.toEqual({
+        '1': 2,
+        '2': 1,
+      });
+
+      vi.useRealTimers();
+    });
+
     it('publishes a daily menu version and reuses the same token', async () => {
       seed('dailyMenus/2026-03-17', {
         dateKey: '2026-03-17',
@@ -453,6 +678,67 @@ describe('storage', () => {
           activeVersionId: expect.stringMatching(/^2026-03-17__/),
           status: 'published',
         }),
+      );
+    });
+
+    it('updates the order intake status to closed by publishing a closed snapshot', async () => {
+      const { setOrderIntakeStatus } = await import('../lib/storage');
+
+      await setOrderIntakeStatus({
+        dateKey: '2026-03-17',
+        categories: ['Saladas'],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        daySelection: ['1'],
+        categorySelectionRules: [],
+        acceptingOrders: false,
+      });
+
+      expect(setDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'dailyMenus/2026-03-17' }),
+        expect.objectContaining({ status: 'closed' }),
+      );
+    });
+
+    it('skips public snapshot sync when the day does not have a public token yet', async () => {
+      const { syncPublicMenuSnapshotForDate } = await import('../lib/storage');
+
+      await syncPublicMenuSnapshotForDate({
+        dateKey: '2026-03-17',
+        categories: ['Saladas'],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        daySelection: ['1'],
+        categorySelectionRules: [],
+      });
+
+      expect(setDoc).not.toHaveBeenCalledWith(
+        expect.objectContaining({ path: expect.stringContaining('/versions/') }),
+        expect.anything(),
+      );
+    });
+
+    it('republishes the public snapshot when a public token already exists', async () => {
+      seed('dailyMenus/2026-03-17', {
+        dateKey: '2026-03-17',
+        status: 'published',
+        shareToken: 'token-1',
+        activeVersionId: '2026-03-17__old',
+        itemIds: ['1'],
+        updatedAt: Date.now(),
+      });
+
+      const { syncPublicMenuSnapshotForDate } = await import('../lib/storage');
+
+      await syncPublicMenuSnapshotForDate({
+        dateKey: '2026-03-17',
+        categories: ['Saladas'],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        daySelection: ['1'],
+        categorySelectionRules: [],
+      });
+
+      expect(setDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: expect.stringMatching(/^dailyMenus\/2026-03-17\/versions\//) }),
+        expect.objectContaining({ shareToken: 'token-1' }),
       );
     });
   });
@@ -506,6 +792,39 @@ describe('storage', () => {
       await releaseEditorLock('session-1');
       expect(runTransaction).toHaveBeenCalled();
       expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'config/editorLock' }));
+    });
+
+    it('lets another session forcefully take the lock and ignores renewals for expired locks', async () => {
+      seed('config/editorLock', {
+        sessionId: 'session-2',
+        userEmail: 'other@maresia.com',
+        deviceLabel: 'iPhone',
+        status: 'active',
+        acquiredAt: Date.now() - 10_000,
+        lastHeartbeatAt: Date.now() - 10_000,
+        expiresAt: Date.now() + 30_000,
+      });
+
+      const { acquireEditorLock, renewEditorLock } = await import('../lib/storage');
+      const forced = await acquireEditorLock({
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      }, { force: true });
+
+      expect(forced?.sessionId).toBe('session-1');
+
+      seed('config/editorLock', {
+        sessionId: 'session-1',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+        status: 'active',
+        acquiredAt: Date.now() - 120_000,
+        lastHeartbeatAt: Date.now() - 120_000,
+        expiresAt: Date.now() - 1,
+      });
+
+      await expect(renewEditorLock('session-1')).resolves.toBeNull();
     });
   });
 
@@ -561,6 +880,118 @@ describe('storage', () => {
         token: 'token-1',
         currentVersionId: '2099-03-17__v1',
       }));
+    });
+
+    it('returns null from subscribePublicMenu when the token document is malformed', async () => {
+      seed('dailyMenuTokens/token-bad', {
+        shareToken: 123,
+        dateKey: '2099-03-17',
+        activeVersionId: '2099-03-17__v1',
+      } as unknown as StoredValue);
+
+      const { subscribePublicMenu } = await import('../lib/storage');
+      const onValue = vi.fn();
+
+      subscribePublicMenu('token-bad', onValue);
+
+      expect(onValue).toHaveBeenCalledWith(null);
+    });
+
+    it('returns null from subscribePublicMenu when the active version document is missing', async () => {
+      seed('dailyMenuTokens/token-missing-version', {
+        shareToken: 'token-missing-version',
+        dateKey: '2099-03-17',
+        activeVersionId: '2099-03-17__missing',
+      });
+      seed('dailyMenus/2099-03-17', {
+        dateKey: '2099-03-17',
+        status: 'published',
+        shareToken: 'token-missing-version',
+        activeVersionId: '2099-03-17__missing',
+        itemIds: ['1'],
+      });
+
+      const { subscribePublicMenu } = await import('../lib/storage');
+      const onValue = vi.fn();
+
+      subscribePublicMenu('token-missing-version', onValue);
+
+      expect(onValue).toHaveBeenCalledWith(null);
+    });
+
+    it('returns null when the public menu is expired or the token points to a stale version', async () => {
+      seed('dailyMenuTokens/token-expired', {
+        shareToken: 'token-expired',
+        dateKey: '2020-03-17',
+        activeVersionId: '2020-03-17__v1',
+      });
+      seed('dailyMenus/2020-03-17', {
+        dateKey: '2020-03-17',
+        status: 'published',
+        shareToken: 'token-expired',
+        activeVersionId: '2020-03-17__v1',
+        itemIds: ['1'],
+      });
+      seed('dailyMenus/2020-03-17/versions/2020-03-17__v1', {
+        id: '2020-03-17__v1',
+        dateKey: '2020-03-17',
+        shareToken: 'token-expired',
+        createdAt: Date.now(),
+        categories: [],
+        items: [],
+      });
+      seed('dailyMenuTokens/token-stale', {
+        shareToken: 'token-stale',
+        dateKey: '2099-03-17',
+        activeVersionId: '2099-03-17__old',
+      });
+
+      const { loadPublicMenu } = await import('../lib/storage');
+      await expect(loadPublicMenu('token-expired')).resolves.toBeNull();
+      await expect(loadPublicMenu('token-stale')).resolves.toBeNull();
+    });
+
+    it('loads published versions by id and skips invalid references', async () => {
+      const { loadPublicMenuVersions } = await import('../lib/storage');
+
+      await expect(loadPublicMenuVersions([
+        '2099-03-17__v1',
+        '2099-03-17__v1',
+        'invalid',
+      ])).resolves.toEqual({
+        '2099-03-17__v1': expect.objectContaining({
+          id: '2099-03-17__v1',
+          dateKey: '2099-03-17',
+        }),
+      });
+    });
+
+    it('subscribes to orders and filters malformed documents', async () => {
+      seed('dailyMenus/2099-03-17/orders/order-1', {
+        dateKey: '2099-03-17',
+        shareToken: 'token-1',
+        menuVersionId: '2099-03-17__v1',
+        customerName: 'Ana',
+        lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+        submittedAt: 123,
+      });
+      seed('dailyMenus/2099-03-17/orders/order-invalid', {
+        dateKey: '2099-03-17',
+        shareToken: 'token-1',
+      });
+
+      const { subscribeOrders } = await import('../lib/storage');
+      const onValue = vi.fn();
+
+      subscribeOrders('2099-03-17', onValue);
+
+      expect(onValue).toHaveBeenCalledWith([
+        expect.objectContaining({
+          orderId: 'order-1',
+          customerName: 'Ana',
+          selectedItems: [{ itemId: '1', quantity: 1 }],
+        }),
+      ]);
     });
 
     it('submits and deletes a public order against the active menu', async () => {
