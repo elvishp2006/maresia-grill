@@ -6,7 +6,13 @@ on:
     paths:
       - apps/functions/**
       - packages/domain/**
+      - packages/tsconfig/**
       - .github/workflows/deploy-functions.yml
+      - .npmrc
+      - firebase.json
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
 
 jobs:
   deploy:
