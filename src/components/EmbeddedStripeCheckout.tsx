@@ -83,8 +83,8 @@ function CheckoutForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex h-full min-h-0 w-full min-w-0 flex-col">
-      <div className="stripe-checkout-scroll flex-1 min-h-0 space-y-[16px] overflow-y-auto pb-[18px] pr-[10px]">
+    <form onSubmit={handleSubmit} className="w-full min-w-0">
+      <div className="stripe-checkout-scroll max-h-[min(52vh,460px)] space-y-[16px] overflow-y-auto pb-[18px] pr-[10px]">
         <section className="min-w-0 space-y-[8px]">
           <div className="stripe-payment-element stripe-payment-element--ready min-w-0">
             <LinkAuthenticationElement
@@ -96,26 +96,24 @@ function CheckoutForm({
           </div>
         </section>
 
-        <section className="min-w-0 space-y-[8px] pb-[6px]">
-          <p className="text-[12px] font-semibold text-[var(--text)]">
-            Pagamento
-          </p>
+        <section className="min-w-0 pb-[6px]">
           <div className="stripe-payment-shell">
             {!elementReady ? (
-              <div className="stripe-payment-loading" aria-hidden="true">
-                <div className="stripe-payment-skeleton">
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--medium" />
-                  <div className="stripe-payment-skeleton__block" />
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--full" />
-                  <div className="stripe-payment-skeleton__line stripe-payment-skeleton__line--short" />
-                  <div className="stripe-payment-skeleton__button" />
+              <div className="stripe-payment-loading">
+                <div className="stripe-payment-loading__content" role="status" aria-live="polite">
+                  <div className="stripe-payment-loading__spinner" aria-hidden="true" />
+                  <span>Carregando pagamento...</span>
                 </div>
               </div>
             ) : null}
             <div className={elementReady ? 'stripe-payment-element stripe-payment-element--ready min-w-0' : 'stripe-payment-element min-w-0'}>
               <PaymentElement
-                options={{ layout: 'accordion' }}
+                options={{
+                  layout: {
+                    type: 'accordion',
+                    defaultCollapsed: true,
+                  },
+                }}
                 onReady={() => {
                   setElementReady(true);
                 }}

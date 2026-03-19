@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockConfirmPayment = vi.fn();
 const mockElementsSubmit = vi.fn();
 const mockShowToast = vi.fn();
+const mockPaymentElement = vi.fn();
 
 vi.mock('@stripe/stripe-js', () => ({
   loadStripe: vi.fn(async () => ({})),
@@ -42,12 +43,15 @@ vi.mock('@stripe/react-stripe-js', async () => {
       );
     },
     PaymentElement: ({
+      options,
       onReady,
       onLoadError,
     }: {
+      options?: unknown;
       onReady?: () => void;
       onLoadError?: () => void;
     }) => {
+      mockPaymentElement(options);
       React.useEffect(() => {
         onReady?.();
       }, [onReady]);
@@ -95,9 +99,14 @@ describe('EmbeddedStripeCheckout', () => {
       />,
     );
 
-    expect(screen.getByText('Pagamento')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('voce@empresa.com')).toHaveValue('teste@empresa.com');
     expect(await screen.findByTestId('payment-element')).toBeInTheDocument();
+    expect(mockPaymentElement).toHaveBeenCalledWith({
+      layout: {
+        type: 'accordion',
+        defaultCollapsed: true,
+      },
+    });
   });
 
   it('confirms payment from the card flow', async () => {
@@ -127,7 +136,7 @@ describe('EmbeddedStripeCheckout', () => {
     expect(onComplete).toHaveBeenCalled();
   });
 
-  it('shows a stable skeleton area before the payment element becomes ready', async () => {
+  it('shows a simple loading state before the payment element becomes ready', async () => {
     vi.resetModules();
     vi.doMock('@stripe/react-stripe-js', async () => {
       const React = await import('react');
@@ -172,6 +181,7 @@ describe('EmbeddedStripeCheckout', () => {
     );
 
     expect(document.querySelector('.stripe-payment-loading')).toBeInTheDocument();
+    expect(screen.getByText('Carregando pagamento...')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(document.querySelector('.stripe-payment-loading')).not.toBeInTheDocument();
