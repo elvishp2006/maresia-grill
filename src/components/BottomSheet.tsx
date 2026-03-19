@@ -34,13 +34,6 @@ export default function BottomSheet({
     const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const dialogEl = dialogRef.current;
 
-    if (dialogEl) {
-      const target = dialogEl.contains(document.activeElement)
-        ? (document.activeElement as HTMLElement)
-        : dialogEl.querySelector<HTMLElement>(FOCUSABLE);
-      target?.focus();
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         handleClose();
@@ -51,6 +44,13 @@ export default function BottomSheet({
         if (focusable.length === 0) { event.preventDefault(); return; }
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
+        const activeInsideDialog = dialogEl.contains(document.activeElement);
+
+        if (!activeInsideDialog) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+          return;
+        }
         if (event.shiftKey) {
           if (document.activeElement === first) {
             event.preventDefault();

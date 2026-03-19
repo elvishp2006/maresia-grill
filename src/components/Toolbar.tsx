@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface ToolbarProps {
@@ -19,7 +18,6 @@ export default function Toolbar({
   stickyTop,
 }: ToolbarProps) {
   const { lightTap } = useHapticFeedback();
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const handleToggleSort = () => {
     lightTap();
@@ -29,7 +27,6 @@ export default function Toolbar({
   const handleClearSearch = () => {
     lightTap();
     onSearchChange('');
-    searchInputRef.current?.focus();
   };
 
   return (
@@ -55,13 +52,11 @@ export default function Toolbar({
             <path d="m21 21-4.35-4.35"/>
           </svg>
           <input
-            ref={searchInputRef}
             type="search"
             className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] py-[10px] pl-[40px] pr-[52px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
             placeholder={viewMode === 'menu' ? 'Buscar item para o menu...' : 'Buscar item ou categoria'}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') searchInputRef.current?.blur(); }}
           />
           {search.trim().length > 0 ? (
             <button

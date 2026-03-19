@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { formatPriceInputFromCents, normalizePriceInputDigits, parsePriceInputToCents } from '../lib/billing';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
@@ -24,7 +24,6 @@ export default function ItemEditorForm({
   const [nome, setNome] = useState(initialName);
   const [priceInput, setPriceInput] = useState(() => formatPriceInputFromCents(initialPriceCents ?? 0));
   const [priceError, setPriceError] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
   const nameId = useId();
   const priceId = useId();
   const { lightTap, success } = useHapticFeedback();
@@ -64,11 +63,8 @@ export default function ItemEditorForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]">
       <label htmlFor={nameId} className="sr-only">Nome do item</label>
       <input
-        ref={inputRef}
         id={nameId}
         type="text"
-        autoFocus
-        onFocus={() => inputRef.current?.select()}
         className="neon-gold-focus w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
         placeholder="Nome do item"
         value={nome}

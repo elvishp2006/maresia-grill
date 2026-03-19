@@ -52,17 +52,16 @@ describe('Toolbar', () => {
     expect(onSearchChange).toHaveBeenCalledWith('arroz');
   });
 
-  it('clears search and keeps focus on input when clear button clicked', () => {
+  it('clears search without forcing focus on input when clear button clicked', () => {
     const onSearchChange = vi.fn();
     render(<Toolbar {...defaultProps} search="arroz" onSearchChange={onSearchChange} />);
 
     const input = screen.getByPlaceholderText('Buscar item para o menu...');
-    input.focus();
     fireEvent.click(screen.getByRole('button', { name: 'Limpar busca' }));
 
     expect(lightTapMock).toHaveBeenCalledTimes(1);
     expect(onSearchChange).toHaveBeenCalledWith('');
-    expect(input).toHaveFocus();
+    expect(input).not.toHaveFocus();
   });
 
   it('calls onToggleSort when sort button clicked', () => {

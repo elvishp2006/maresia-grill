@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useId } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 
 interface AddFormProps {
@@ -21,20 +21,12 @@ export default function AddForm({
   disabledMessage = 'Esta ação requer conexão com a internet.',
 }: AddFormProps) {
   const [nome, setNome] = useState(initialValue);
-  const inputRef = useRef<HTMLInputElement>(null);
   const { lightTap, success } = useHapticFeedback();
   const inputId = useId();
 
   useEffect(() => {
     setNome(initialValue);
   }, [initialValue]);
-
-  useEffect(() => {
-    if (!initialValue) return;
-    const id = setTimeout(() => inputRef.current?.select(), 0);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
@@ -56,11 +48,8 @@ export default function AddForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]">
       <label htmlFor={inputId} className="sr-only">{placeholder}</label>
       <input
-        ref={inputRef}
         id={inputId}
         type="text"
-        autoFocus
-        onFocus={() => inputRef.current?.select()}
         className="neon-gold-focus w-full rounded-[18px] border border-[var(--border)] bg-[var(--input-bg)] px-[16px] py-[14px] text-[16px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
         placeholder={placeholder}
         value={nome}
