@@ -6,6 +6,7 @@ interface HeaderProps {
   dateShort: string;
   isOnline: boolean;
   showUpdateIndicator?: boolean;
+  showPublicSyncPendingIndicator?: boolean;
   onApplyUpdate?: () => void;
   onSignOut?: () => void;
   userEmail?: string | null;
@@ -19,6 +20,7 @@ export default function Header({
   dateShort,
   isOnline,
   showUpdateIndicator = false,
+  showPublicSyncPendingIndicator = false,
   onApplyUpdate,
   onSignOut,
   userEmail,
@@ -74,6 +76,21 @@ export default function Header({
           ) : (
             <span className="text-[12px] text-[var(--text-dim)]">{dateShort}</span>
           )}
+          {showPublicSyncPendingIndicator ? (
+            <span
+              aria-label="Sincronização pública pendente"
+              title="Sincronização pública pendente"
+              className="relative flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full border border-[rgba(255,106,122,0.72)] bg-[rgba(255,106,122,0.12)] text-[#FF7A88] shadow-[0_0_0_1px_rgba(255,106,122,0.18),0_0_12px_rgba(255,86,104,0.42),0_0_24px_rgba(255,86,104,0.18)]"
+            >
+              <span className="absolute inset-[6px] rounded-full border border-[rgba(255,170,178,0.34)]" aria-hidden="true" />
+              <span className="absolute right-[6px] top-[6px] h-[5px] w-[5px] rounded-full bg-[#FFD6DA]" aria-hidden="true" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 8v5" />
+                <path d="M12 16h.01" />
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+              </svg>
+            </span>
+          ) : null}
           {showUpdateIndicator && onApplyUpdate ? (
             <button
               type="button"

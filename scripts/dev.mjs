@@ -325,7 +325,6 @@ async function main() {
   await waitForPort(5001, 'Functions emulator');
 
   await seedLocalData('seed.js');
-  await seedLocalData('seed-stripe-test.js');
 
   spawnManaged('vite', 'npm', ['run', 'dev:web']);
   await waitForPort(5173, 'Vite');

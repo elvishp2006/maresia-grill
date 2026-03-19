@@ -1,12 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import type { FinalizedPublicOrder, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession, SelectedPublicItem } from './types';
+import type { FinalizedPublicOrder, OrderLine, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession, SelectedPublicItem } from './types';
 import EmbeddedStripeCheckout from './components/EmbeddedStripeCheckout';
 import BottomSheet from './components/BottomSheet';
 import LoadingSpinner from './components/LoadingSpinner';
 import {
   cancelPublicOrder,
-  deletePublicOrder,
   fetchPublicOrderStatus,
   preparePublicOrderCheckout,
   submitPublicOrder,
@@ -27,7 +26,7 @@ const CUSTOMER_EMAIL_STORAGE_KEY = 'public-menu-customer-email';
 interface CachedPublicOrder {
   orderId: string;
   customerName: string;
-  selectedItems: SelectedPublicItem[];
+  lines: OrderLine[];
   paymentSummary: OrderPaymentSummary;
 }
 
@@ -133,11 +132,12 @@ const setSelectedQuantity = (selectedItems: SelectedPublicItem[], itemId: string
     : remaining;
 };
 
-const expandSelectedItemsToIds = (selectedItems: SelectedPublicItem[]) => selectedItems.map(item => item.itemId);
-const hasRepeatedQuantities = (selectedItems: SelectedPublicItem[]) => selectedItems.some(item => item.quantity > 1);
-
 const countSelectedUnits = (selectedItems: SelectedPublicItem[]) => (
   selectedItems.reduce((sum, item) => sum + item.quantity, 0)
+);
+
+const selectionFromLines = (lines: OrderLine[]) => (
+  lines.map(line => ({ itemId: line.itemId, quantity: line.quantity }))
 );
 
 const getOrderSessionStorageKey = (token: string) => `public-menu-order-session:${token}`;
@@ -211,12 +211,18 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
     if (
       typeof parsed.orderId === 'string'
       && typeof parsed.customerName === 'string'
+      && Array.isArray(parsed.lines)
     ) {
-      const selectedItems = normalizeSelectedItems(
-        (parsed as Partial<{ selectedItems: SelectedPublicItem[] }>).selectedItems,
-        (parsed as Partial<{ selectedItemIds: string[] }>).selectedItemIds,
-      );
-      if (selectedItems.length === 0) return null;
+      const lines = parsed.lines.filter((line): line is OrderLine => (
+        Boolean(line)
+        && typeof (line as OrderLine).itemId === 'string'
+        && typeof (line as OrderLine).quantity === 'number'
+        && typeof (line as OrderLine).unitPriceCents === 'number'
+        && typeof (line as OrderLine).name === 'string'
+        && typeof (line as OrderLine).categoryId === 'string'
+        && typeof (line as OrderLine).categoryName === 'string'
+      ));
+      if (lines.length === 0) return null;
       const paymentSummary = parsed.paymentSummary
         && typeof parsed.paymentSummary === 'object'
         && typeof parsed.paymentSummary.freeTotalCents === 'number'
@@ -237,7 +243,7 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
       return {
         orderId: parsed.orderId,
         customerName: parsed.customerName,
-        selectedItems,
+        lines,
         paymentSummary,
       };
     }
@@ -249,23 +255,7 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
 
 const setCachedOrder = (token: string, order: CachedPublicOrder) => {
   try {
-    const basePayload = order.paymentSummary.paidTotalCents > 0
-      ? order
-      : {
-        orderId: order.orderId,
-        customerName: order.customerName,
-      };
-    const payload = hasRepeatedQuantities(order.selectedItems)
-      ? {
-        ...basePayload,
-        selectedItems: order.selectedItems,
-        selectedItemIds: expandSelectedItemsToIds(order.selectedItems),
-      }
-      : {
-        ...basePayload,
-        selectedItemIds: expandSelectedItemsToIds(order.selectedItems),
-      };
-    localStorage.setItem(getCachedOrderStorageKey(token), JSON.stringify(payload));
+    localStorage.setItem(getCachedOrderStorageKey(token), JSON.stringify(order));
   } catch {
     // Ignore local storage failures on unsupported browsers.
   }
@@ -325,7 +315,6 @@ const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null 
     ) {
       const selectedItems = normalizeSelectedItems(
         (parsed as Partial<{ selectedItems: SelectedPublicItem[] }>).selectedItems,
-        (parsed as Partial<{ selectedItemIds: string[] }>).selectedItemIds,
       );
       if (selectedItems.length === 0) return null;
       return {
@@ -342,17 +331,10 @@ const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null 
 
 const setStoredPendingOrder = (token: string, pendingOrder: PendingPublicOrderSummary) => {
   try {
-    const payload = hasRepeatedQuantities(pendingOrder.selectedItems)
-      ? {
-        ...pendingOrder,
-        selectedItems: pendingOrder.selectedItems,
-        selectedItemIds: expandSelectedItemsToIds(pendingOrder.selectedItems),
-      }
-      : {
-        customerName: pendingOrder.customerName,
-        paymentSummary: pendingOrder.paymentSummary,
-        selectedItemIds: expandSelectedItemsToIds(pendingOrder.selectedItems),
-      };
+    const payload = {
+      ...pendingOrder,
+      selectedItems: pendingOrder.selectedItems,
+    };
     localStorage.setItem(getPendingOrderStorageKey(token), JSON.stringify(payload));
   } catch {
     // Ignore local storage failures on unsupported browsers.
@@ -393,7 +375,7 @@ const setStoredOrderId = (token: string, nextOrderId: string) => {
 const toCachedOrder = (order: FinalizedPublicOrder): CachedPublicOrder => ({
   orderId: order.orderId,
   customerName: order.customerName,
-  selectedItems: normalizeSelectedItems(order.selectedItems, order.selectedItemIds),
+  lines: order.lines,
   paymentSummary: order.paymentSummary,
 });
 
@@ -593,7 +575,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     if (cachedOrder) {
       setCustomerName(cachedOrder.customerName);
-      setSelection(cachedOrder.selectedItems);
+      setSelection(selectionFromLines(cachedOrder.lines));
       if (storedView === 'submitted') {
         setSuccessState(cachedOrder);
         setCancelledState(null);
@@ -663,7 +645,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         clearStoredCancelledState(token);
         setSuccessState(cachedOrder);
         setCancelledState(null);
-        setSelection(cachedOrder.selectedItems);
+        setSelection(selectionFromLines(cachedOrder.lines));
         setCustomerName(cachedOrder.customerName);
         return;
       }
@@ -698,23 +680,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const validIds = new Set(menu.items.map(item => item.id));
 
     setSelection(prev => prev.filter(item => validIds.has(item.itemId)));
-    setSuccessState(prev => {
-      if (!prev) return null;
-      const nextSelectedItems = prev.selectedItems.filter(item => validIds.has(item.itemId));
-      if (nextSelectedItems.length === prev.selectedItems.length) return prev;
-
-      const nextState = { ...prev, selectedItems: nextSelectedItems };
-      setCachedOrder(token, nextState);
-      return nextState;
-    });
-
-    const cachedOrder = getCachedOrder(token);
-    if (!cachedOrder) return;
-
-    const nextSelectedItems = cachedOrder.selectedItems.filter(item => validIds.has(item.itemId));
-    if (nextSelectedItems.length === cachedOrder.selectedItems.length) return;
-
-    setCachedOrder(token, { ...cachedOrder, selectedItems: nextSelectedItems });
   }, [menu, token]);
 
   useEffect(() => {
@@ -737,7 +702,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           clearStoredPendingOrder(menu.token);
           setSuccessState(nextOrder);
           setCancelledState(null);
-          setSelection(nextOrder.selectedItems);
+          setSelection(selectionFromLines(nextOrder.lines));
           setCustomerName(nextOrder.customerName);
           setPendingPayment(null);
           setPendingOrderSummary(null);
@@ -936,7 +901,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           shareToken: menu.token,
           customerName: trimmedName,
           selectedItems: selection,
-          selectedItemIds: expandSelectedItemsToIds(selection),
           successUrl: url.toString(),
           pendingUrl: url.toString(),
           failureUrl: `${window.location.origin}${window.location.pathname}#/pedido`,
@@ -953,7 +917,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           setCheckoutSession(null);
           setSuccessState(nextOrder);
           setCancelledState(null);
-          setSelection(nextOrder.selectedItems);
+          setSelection(selectionFromLines(nextOrder.lines));
           setCurrentView('submitted');
           return;
         }
@@ -992,24 +956,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         shareToken: menu.token,
         customerName: trimmedName,
         selectedItems: selection,
-        selectedItemIds: expandSelectedItemsToIds(selection),
       });
-      const persistedSelection = normalizeSelectedItems(submission?.selectedItems, submission?.selectedItemIds) ?? selection;
-      const nextOrder = {
-        orderId,
-        customerName: trimmedName,
-        selectedItems: persistedSelection,
-        paymentSummary: submission.paymentSummary ?? currentPaymentSummary ?? {
-          freeTotalCents: 0,
-          paidTotalCents: 0,
-          currency: 'BRL',
-          paymentStatus: 'not_required',
-          provider: null,
-          paymentMethod: null,
-          providerPaymentId: null,
-          refundedAt: null,
-        },
-      };
+      const nextOrder = toCachedOrder(submission);
       setCachedOrder(menu.token, nextOrder);
       clearStoredCancelledState(menu.token);
       clearStoredPendingOrder(menu.token);
@@ -1019,7 +967,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setCheckoutSession(null);
       setSuccessState(nextOrder);
       setCancelledState(null);
-      setSelection(persistedSelection);
+      setSelection(selectionFromLines(nextOrder.lines));
       setCurrentView('submitted');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível enviar o pedido.', 'error');
@@ -1043,19 +991,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     setSubmitting(true);
     try {
-      if (isPaidOrder) {
-        await cancelPublicOrder({
-          orderId: successState.orderId,
-          dateKey: menu.dateKey,
-          shareToken: menu.token,
-        });
-      } else {
-        await deletePublicOrder({
-          orderId: successState.orderId,
-          dateKey: menu.dateKey,
-          shareToken: menu.token,
-        });
-      }
+      await cancelPublicOrder({
+        orderId: successState.orderId,
+        dateKey: menu.dateKey,
+        shareToken: menu.token,
+      });
       clearCachedOrder(menu.token);
       clearStoredPendingOrder(menu.token);
       clearDraftIdFromUrl();
@@ -1143,15 +1083,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               customerName={successState.customerName}
               paidTotalCents={successState.paymentSummary.paidTotalCents}
               categories={menu?.categories ?? []}
-              selectedItems={successState.selectedItems.map(({ itemId, quantity }) => {
-                const item = menu?.items.find(candidate => candidate.id === itemId);
-                return {
-                  id: itemId,
-                  nome: item?.nome ?? itemId,
-                  categoria: item?.categoria ?? 'Outros',
-                  quantity,
-                };
-              })}
+              selectedItems={successState.lines.map(line => ({
+                id: line.itemId,
+                nome: line.name,
+                categoria: line.categoryName,
+                quantity: line.quantity,
+              }))}
             />
           )}
         />

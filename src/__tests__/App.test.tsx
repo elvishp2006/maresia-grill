@@ -1,9 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '../App';
 import { ModalProvider } from '../contexts/ModalContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import type { EditorLock } from '../types';
+
+const buildOrderLine = (
+  itemId: string,
+  name: string,
+  categoryName: string,
+  quantity = 1,
+  unitPriceCents = 0,
+) => ({
+  itemId,
+  quantity,
+  unitPriceCents,
+  name,
+  categoryId: categoryName.toLowerCase(),
+  categoryName,
+});
 
 vi.mock('../hooks/useMenuInsights', () => ({
   useMenuInsights: vi.fn(() => ({
@@ -82,7 +97,21 @@ const getOrCreateDailyShareLinkMock = vi.fn().mockResolvedValue({
   url: 'https://maresia.example/s/token-1',
 });
 const subscribePublicMenuMock = vi.fn();
-const submitPublicOrderMock = vi.fn().mockResolvedValue({ selectedItemIds: ['1'] });
+const submitPublicOrderMock = vi.fn().mockResolvedValue({
+  orderId: 'public-order-1',
+  customerName: 'Ana',
+  lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+  paymentSummary: {
+    freeTotalCents: 0,
+    paidTotalCents: 0,
+    currency: 'BRL',
+    paymentStatus: 'not_required',
+    provider: null,
+    paymentMethod: null,
+    providerPaymentId: null,
+    refundedAt: null,
+  },
+});
 const deletePublicOrderMock = vi.fn().mockResolvedValue(undefined);
 const preparePublicOrderCheckoutMock = vi.fn();
 const fetchPublicOrderStatusMock = vi.fn();
@@ -121,11 +150,15 @@ const defaultMenuState = {
   usageCounts: {} as Record<string, number>,
   sortMode: 'alpha' as const,
   loading: false,
+  pendingWrites: 0,
+  dataRevision: 0,
+  persistedRevision: 0,
   currentDateKey: '2026-03-17',
   toggleSortMode: vi.fn(),
   toggleItem,
   addItem: vi.fn(),
   removeItem: vi.fn(),
+  updateItem: vi.fn(),
   renameItem: vi.fn(),
   addCategory: vi.fn(),
   removeCategory: vi.fn(),
@@ -138,6 +171,10 @@ const useMenuStateMock = vi.fn(() => defaultMenuState);
 vi.mock('../hooks/useMenuState', () => ({
   useMenuState: () => useMenuStateMock(),
 }));
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('App', () => {
   const todayShort = new Date().toLocaleDateString('pt-BR', {
@@ -194,7 +231,25 @@ describe('App', () => {
     loadPublicMenuVersionsMock.mockResolvedValue({});
     setOrderIntakeStatusMock.mockResolvedValue(undefined);
     syncPublicMenuSnapshotForDateMock.mockResolvedValue(undefined);
-    submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1'] });
+    submitPublicOrderMock.mockResolvedValue({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      lines: [
+        buildOrderLine('1', 'Alface', 'Saladas'),
+        buildOrderLine('3', 'Molho da casa', 'Molhos'),
+        buildOrderLine('2', 'Frango', 'Carnes'),
+      ],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
+    });
     deletePublicOrderMock.mockResolvedValue(undefined);
     preparePublicOrderCheckoutMock.mockReset();
     fetchPublicOrderStatusMock.mockReset();
@@ -467,7 +522,21 @@ describe('App', () => {
         orderId: 'order-1',
         customerName: 'Ana',
         menuVersionId: 'version-1',
-        selectedItemIds: ['1', '2', '3'],
+        lines: [
+          { itemId: '1', quantity: 1, unitPriceCents: 0, name: 'Alface', categoryId: 'saladas', categoryName: 'Saladas' },
+          { itemId: '2', quantity: 1, unitPriceCents: 0, name: 'Frango', categoryId: 'carnes', categoryName: 'Carnes' },
+          { itemId: '3', quantity: 1, unitPriceCents: 0, name: 'Molho da casa', categoryId: 'molhos', categoryName: 'Molhos' },
+        ],
+        paymentSummary: {
+          freeTotalCents: 0,
+          paidTotalCents: 0,
+          currency: 'BRL',
+          paymentStatus: 'not_required',
+          provider: null,
+          paymentMethod: null,
+          providerPaymentId: null,
+          refundedAt: null,
+        },
         submittedAt: Date.now(),
       }]);
       return vi.fn();
@@ -694,7 +763,11 @@ describe('App', () => {
   });
 
   it('syncs the public menu snapshot while the authenticated menu changes', async () => {
-    render(
+    vi.useFakeTimers();
+    let menuState = { ...defaultMenuState, dataRevision: 0, persistedRevision: 0 };
+    useMenuStateMock.mockImplementation(() => menuState);
+
+    const view = render(
       <ToastProvider>
         <ModalProvider>
           <App />
@@ -702,13 +775,27 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    await waitFor(() => {
-      expect(syncPublicMenuSnapshotForDateMock).toHaveBeenCalledWith(expect.objectContaining({
-        dateKey: '2026-03-17',
-        categories: ['Saladas', 'Carnes'],
-        daySelection: ['1'],
-      }));
+    menuState = { ...defaultMenuState, dataRevision: 1, persistedRevision: 1 };
+    view.rerender(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(750);
+      await Promise.resolve();
     });
+
+    expect(syncPublicMenuSnapshotForDateMock).toHaveBeenCalledWith(expect.objectContaining({
+      dateKey: '2026-03-17',
+      categories: ['Saladas', 'Carnes'],
+      daySelection: ['1'],
+    }));
+
+    useMenuStateMock.mockImplementation(() => defaultMenuState);
   });
 
   it('shows success state after sending a public order and allows editing again', async () => {
@@ -731,8 +818,6 @@ describe('App', () => {
       });
       return vi.fn();
     });
-    submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1', '3', '2'] });
-
     render(
       <ToastProvider>
         <ModalProvider>
@@ -756,7 +841,11 @@ describe('App', () => {
       expect(submitPublicOrderMock).toHaveBeenCalledWith(expect.objectContaining({
         orderId: 'public-order-1',
         customerName: 'Ana',
-        selectedItemIds: ['1', '2', '3'],
+        selectedItems: [
+          { itemId: '1', quantity: 1 },
+          { itemId: '2', quantity: 1 },
+          { itemId: '3', quantity: 1 },
+        ],
       }));
     });
 
@@ -904,7 +993,7 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
 
     await waitFor(() => {
-      expect(deletePublicOrderMock).toHaveBeenCalledWith({
+      expect(cancelPublicOrderMock).toHaveBeenCalledWith({
         orderId: 'public-order-1',
         dateKey: '2026-03-17',
         shareToken: 'token-1',
@@ -927,12 +1016,36 @@ describe('App', () => {
 
   it('persists only the validated public selection after submit', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
-    submitPublicOrderMock.mockResolvedValue({ selectedItemIds: ['1'] });
+    submitPublicOrderMock.mockResolvedValue({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
+    });
     localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
     localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
       orderId: 'public-order-1',
       customerName: 'Ana',
-      selectedItemIds: ['1', '999'],
+      lines: [buildOrderLine('1', 'Alface', 'Saladas'), buildOrderLine('999', 'Fantasma', 'Outros')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
     }));
     window.history.pushState({}, '', '/s/token-1');
 
@@ -955,7 +1068,17 @@ describe('App', () => {
     expect(JSON.parse(localStorage.getItem('public-menu-last-order:token-1') ?? 'null')).toEqual({
       orderId: 'public-order-1',
       customerName: 'Ana',
-      selectedItemIds: ['1'],
+      lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
     });
   });
 
@@ -964,7 +1087,17 @@ describe('App', () => {
     localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
       orderId: 'public-order-1',
       customerName: 'Ana',
-      selectedItemIds: ['1'],
+      lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
     }));
     window.history.pushState({}, '', '/s/token-1');
 
@@ -985,7 +1118,17 @@ describe('App', () => {
     localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
       orderId: 'public-order-1',
       customerName: 'Ana',
-      selectedItemIds: ['1'],
+      lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
     }));
     localStorage.setItem('public-menu-view:token-1', 'submitted');
     window.history.pushState({}, '', '/s/token-1/#/enviado');
@@ -1007,7 +1150,17 @@ describe('App', () => {
     localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
       orderId: 'public-order-1',
       customerName: 'Ana',
-      selectedItemIds: ['1'],
+      lines: [buildOrderLine('1', 'Alface', 'Saladas')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
     }));
     localStorage.setItem('public-menu-view:token-1', 'submitted');
     window.history.pushState({}, '', '/s/token-1/#/enviado');
@@ -1038,6 +1191,52 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
   });
 
+  it('preserves submitted order lines after reload even when the item no longer exists in the current menu', async () => {
+    localStorage.setItem('public-menu-order-session:token-1', 'public-order-1');
+    localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
+      orderId: 'public-order-1',
+      customerName: 'Ana',
+      lines: [buildOrderLine('2', 'Prato executivo', 'Pratos')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
+    }));
+    localStorage.setItem('public-menu-view:token-1', 'submitted');
+    window.history.pushState({}, '', '/s/token-1/#/enviado');
+    subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
+      onValue({
+        token: 'token-1',
+        dateKey: '2026-03-17',
+        expiresAt: Date.now() + 60_000,
+        acceptingOrders: true,
+        currentVersionId: 'version-2',
+        categories: ['Bebidas'],
+        items: [{ id: '9', nome: 'Água', categoria: 'Bebidas' }],
+        categorySelectionRules: [],
+      });
+      return vi.fn();
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+    expect(screen.getByText('Prato executivo')).toBeInTheDocument();
+    expect(screen.getByText('1 selecionados')).toBeInTheDocument();
+  });
+
   it('shows the pending paid order summary without a reveal button', async () => {
     subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
       onValue({
@@ -1058,7 +1257,11 @@ describe('App', () => {
     });
     localStorage.setItem('public-menu-pending-order:token-1', JSON.stringify({
       customerName: 'Ana',
-      selectedItemIds: ['3', '1', '2'],
+      selectedItems: [
+        { itemId: '3', quantity: 1 },
+        { itemId: '1', quantity: 1 },
+        { itemId: '2', quantity: 1 },
+      ],
       paymentSummary: {
         freeTotalCents: 0,
         paidTotalCents: 1500,
@@ -1220,7 +1423,17 @@ describe('App', () => {
     localStorage.setItem('public-menu-last-order:token-1', JSON.stringify({
       orderId: 'public-order-1',
       customerName: 'Ana',
-      selectedItemIds: ['1', '999'],
+      lines: [buildOrderLine('1', 'Alface', 'Saladas'), buildOrderLine('999', 'Fantasma', 'Outros')],
+      paymentSummary: {
+        freeTotalCents: 0,
+        paidTotalCents: 0,
+        currency: 'BRL',
+        paymentStatus: 'not_required',
+        provider: null,
+        paymentMethod: null,
+        providerPaymentId: null,
+        refundedAt: null,
+      },
     }));
     window.history.pushState({}, '', '/s/token-1');
 

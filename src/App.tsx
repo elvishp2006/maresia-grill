@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { formatMenuText, normalize } from './lib/utils';
 import { useMenuState } from './hooks/useMenuState';
@@ -25,6 +25,7 @@ import {
   subscribeOrders,
   syncPublicMenuSnapshotForDate,
 } from './lib/storage';
+import { showAdminError, showAdminInfo, showAdminSuccess } from './lib/adminFeedback';
 import type { OrderEntry, PublicMenuVersion } from './types';
 import PublicMenuPage from './PublicMenuPage';
 import NotFoundPage from './NotFoundPage';
@@ -53,6 +54,8 @@ interface AuthenticatedAppProps {
 }
 
 function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: AuthenticatedAppProps) {
+  const AUTO_SYNC_DEBOUNCE_MS = 750;
+  const AUTO_SYNC_RETRY_MS = 2_000;
   const { isOnline } = useOnlineStatus();
   const { showToast } = useToast();
   const { confirm } = useModal();
@@ -73,6 +76,9 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     usageCounts,
     sortMode,
     loading,
+    pendingWrites,
+    dataRevision,
+    persistedRevision,
     currentDateKey,
     toggleSortMode,
     toggleItem,
@@ -99,6 +105,16 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
   const [ordersError, setOrdersError] = useState(false);
   const [acceptingOrders, setAcceptingOrders] = useState(true);
   const [orderIntakePending, setOrderIntakePending] = useState(false);
+  const [publicSyncState, setPublicSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
+  const [showPublicSyncIndicator, setShowPublicSyncIndicator] = useState(false);
+  const syncTimerRef = useRef<number | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
+  const syncIndicatorTimerRef = useRef<number | null>(null);
+  const syncInFlightRef = useRef(false);
+  const syncQueuedRef = useRef(false);
+  const lastSyncedRevisionRef = useRef<number | null>(null);
+  const syncBaselineInitializedRef = useRef(false);
+  const syncScopeKeyRef = useRef<string | null>(null);
 
   const visibleCategories = useMemo(() => {
     if (!search.trim()) return categories;
@@ -131,7 +147,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     } else {
       try {
         await navigator.clipboard.writeText(text);
-        showToast('Menu copiado!', 'success');
+        showAdminSuccess(showToast, 'Menu copiado!');
       } catch {
         alert(text);
       }
@@ -140,7 +156,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
 
   const shareDailyLink = async () => {
     if (!acceptingOrders) {
-      showToast('Os pedidos do dia estão encerrados.', 'info');
+      showAdminInfo(showToast, 'Os pedidos do dia estão encerrados.');
       return;
     }
 
@@ -158,10 +174,10 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
         await navigator.share({ title: 'Menu do Maresia Grill', text: 'Faça seu pedido do dia', url });
       } else {
         await navigator.clipboard.writeText(url);
-        showToast('Link copiado!', 'success');
+        showAdminSuccess(showToast, 'Link copiado!');
       }
-    } catch {
-      showToast('Não foi possível compartilhar o link.', 'error');
+    } catch (error) {
+      showAdminError(showToast, 'share_link', error);
     } finally {
       setShareLinkPending(false);
       setShowShareSheet(false);
@@ -220,9 +236,9 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
         if (!active) return;
         setOrderMenuVersions(versions);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!active) return;
-        showToast('Nao foi possivel carregar o historico confiavel dos pedidos.', 'error');
+        showAdminError(showToast, 'orders_history', error);
       });
 
     return () => {
@@ -231,18 +247,140 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
   }, [orders, showToast]);
 
   useEffect(() => {
-    if (loading || !isOnline || !canEdit) return;
+    const clearTimers = () => {
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
 
-    syncPublicMenuSnapshotForDate({
+    if (loading || !isOnline || !canEdit) {
+      clearTimers();
+      setPublicSyncState('idle');
+      return;
+    }
+
+    const syncScopeKey = `${userEmail ?? ''}:${currentDateKey}`;
+    if (syncScopeKeyRef.current !== syncScopeKey) {
+      syncScopeKeyRef.current = syncScopeKey;
+      syncBaselineInitializedRef.current = false;
+      lastSyncedRevisionRef.current = null;
+      setPublicSyncState('idle');
+    }
+
+    if (!syncBaselineInitializedRef.current) {
+      syncBaselineInitializedRef.current = true;
+      lastSyncedRevisionRef.current = persistedRevision;
+      setPublicSyncState('idle');
+      return clearTimers;
+    }
+
+    const nextPayload = {
       dateKey: currentDateKey,
       categories,
       complements,
       daySelection,
       categorySelectionRules,
-    }).catch(() => {
-      showToast('Não foi possível atualizar o link público do dia.', 'error');
-    });
-  }, [canEdit, categories, complements, currentDateKey, daySelection, categorySelectionRules, isOnline, loading, showToast]);
+    };
+
+    const queueSync = (delayMs: number) => {
+      if (syncTimerRef.current !== null) window.clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = window.setTimeout(() => {
+        syncTimerRef.current = null;
+
+        if (loading || !isOnline || !canEdit) {
+          setPublicSyncState('idle');
+          return;
+        }
+
+        if (pendingWrites > 0) {
+          queueSync(AUTO_SYNC_DEBOUNCE_MS);
+          return;
+        }
+
+        if (syncInFlightRef.current) {
+          syncQueuedRef.current = true;
+          return;
+        }
+
+        if (lastSyncedRevisionRef.current === persistedRevision) {
+          setPublicSyncState('idle');
+          return;
+        }
+
+        syncInFlightRef.current = true;
+        setPublicSyncState('syncing');
+
+        syncPublicMenuSnapshotForDate(nextPayload)
+          .then(() => {
+            lastSyncedRevisionRef.current = persistedRevision;
+            setPublicSyncState('idle');
+          })
+          .catch(() => {
+            setPublicSyncState('error');
+            if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = window.setTimeout(() => {
+              retryTimerRef.current = null;
+              queueSync(0);
+            }, AUTO_SYNC_RETRY_MS);
+          })
+          .finally(() => {
+            syncInFlightRef.current = false;
+            if (syncQueuedRef.current || lastSyncedRevisionRef.current !== persistedRevision) {
+              syncQueuedRef.current = false;
+              queueSync(AUTO_SYNC_DEBOUNCE_MS);
+            }
+          });
+      }, delayMs);
+    };
+
+    queueSync(AUTO_SYNC_DEBOUNCE_MS);
+
+    return clearTimers;
+  }, [
+    AUTO_SYNC_DEBOUNCE_MS,
+    AUTO_SYNC_RETRY_MS,
+    canEdit,
+    categories,
+    categorySelectionRules,
+    complements,
+    currentDateKey,
+    dataRevision,
+    daySelection,
+    isOnline,
+    loading,
+    pendingWrites,
+    persistedRevision,
+    userEmail,
+  ]);
+
+  useEffect(() => {
+    if (syncIndicatorTimerRef.current !== null) {
+      window.clearTimeout(syncIndicatorTimerRef.current);
+      syncIndicatorTimerRef.current = null;
+    }
+
+    if (publicSyncState === 'syncing') {
+      syncIndicatorTimerRef.current = window.setTimeout(() => {
+        setShowPublicSyncIndicator(true);
+        syncIndicatorTimerRef.current = null;
+      }, 900);
+      return;
+    }
+
+    setShowPublicSyncIndicator(false);
+
+    return () => {
+      if (syncIndicatorTimerRef.current !== null) {
+        window.clearTimeout(syncIndicatorTimerRef.current);
+        syncIndicatorTimerRef.current = null;
+      }
+    };
+  }, [publicSyncState]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -263,12 +401,12 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
         categorySelectionRules,
         acceptingOrders: !acceptingOrders,
       });
-      showToast(
-        acceptingOrders ? 'Recebimento de pedidos encerrado.' : 'Recebimento de pedidos reaberto.',
-        'success'
+      showAdminSuccess(
+        showToast,
+        acceptingOrders ? 'Recebimento de pedidos encerrado.' : 'Recebimento de pedidos reaberto.'
       );
-    } catch {
-      showToast('Não foi possível atualizar o recebimento de pedidos.', 'error');
+    } catch (error) {
+      showAdminError(showToast, 'order_intake', error);
     } finally {
       setOrderIntakePending(false);
     }
@@ -282,6 +420,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
         isOnline={isOnline}
         onSignOut={() => { void handleSignOut(); }}
         showUpdateIndicator={needRefresh}
+        showPublicSyncPendingIndicator={isOnline && canEdit && publicSyncState === 'error'}
         onApplyUpdate={() => { void applyUpdate(); }}
         userEmail={userEmail}
         viewMode={viewMode}
@@ -298,6 +437,15 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
             Edição, seleção do menu e estatísticas estão indisponíveis até a conexão voltar.
           </p>
         </section>
+      ) : null}
+
+      {isOnline && canEdit && showPublicSyncIndicator && publicSyncState === 'syncing' ? (
+        <div className="mb-[12px] flex justify-end">
+          <div className="inline-flex items-center gap-[8px] rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.72)] px-[10px] py-[6px] text-[12px] leading-none text-[var(--text-dim)] shadow-[0_6px_14px_rgba(0,0,0,0.06)]">
+            <span className="h-[7px] w-[7px] rounded-full bg-[var(--accent)] animate-pulse"/>
+            <span>Sincronizando público</span>
+          </div>
+        </div>
       ) : null}
 
       {isReadOnly ? (
@@ -322,7 +470,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
               onClick={() => {
                 mediumTap();
                 void takeControl().then((granted) => {
-                  if (!granted) showToast('Nao foi possivel assumir o controle.', 'error');
+                  if (!granted && !editorLockError) showAdminError(showToast, 'lock_takeover');
                 });
               }}
             >

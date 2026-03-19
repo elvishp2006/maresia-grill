@@ -1,152 +1,480 @@
-process.env['FIRESTORE_EMULATOR_HOST'] = '127.0.0.1:8180';
+process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8180';
 
 import admin from 'firebase-admin';
 
-admin.initializeApp({ projectId: 'maresia-grill-local' });
+const PROJECT_ID = 'maresia-grill-local';
+const PUBLIC_TOKEN = 'teste-pagamento';
+const HISTORY_DAYS = 90;
+const VERSION_SUFFIX = '__seed_public';
+const ORDER_STATUS = {
+  FREE: 'not_required',
+  AWAITING: 'awaiting_payment',
+  PAID: 'paid',
+};
+
+if (!admin.apps.length) {
+  admin.initializeApp({ projectId: PROJECT_ID });
+}
+
 const db = admin.firestore();
 
-const CATEGORIES = ['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco'];
-
-const ITEMS = [
-  { id: 'sal-1', nome: 'Salada Tropical', categoria: 'Saladas' },
-  { id: 'sal-2', nome: 'Salada Caesar', categoria: 'Saladas' },
-  { id: 'sal-3', nome: 'Salada Grega', categoria: 'Saladas' },
-  { id: 'sal-4', nome: 'Salada de Repolho', categoria: 'Saladas' },
-  { id: 'sal-5', nome: 'Salada Caprese', categoria: 'Saladas' },
-  { id: 'aco-1', nome: 'Arroz Branco', categoria: 'Acompanhamentos' },
-  { id: 'aco-2', nome: 'Feijão Tropeiro', categoria: 'Acompanhamentos' },
-  { id: 'aco-3', nome: 'Macarrão Alho e Óleo', categoria: 'Acompanhamentos' },
-  { id: 'aco-4', nome: 'Purê de Batata', categoria: 'Acompanhamentos' },
-  { id: 'aco-5', nome: 'Farofa', categoria: 'Acompanhamentos' },
-  { id: 'car-1', nome: 'Frango Assado', categoria: 'Carnes' },
-  { id: 'car-2', nome: 'Carne de Sol', categoria: 'Carnes' },
-  { id: 'car-3', nome: 'Costela de Porco', categoria: 'Carnes' },
-  { id: 'car-4', nome: 'Filé de Peixe', categoria: 'Carnes' },
-  { id: 'car-5', nome: 'Frango Grelhado', categoria: 'Carnes' },
-  { id: 'chu-1', nome: 'Picanha', categoria: 'Churrasco' },
-  { id: 'chu-2', nome: 'Alcatra', categoria: 'Churrasco' },
-  { id: 'chu-3', nome: 'Linguiça Toscana', categoria: 'Churrasco' },
-  { id: 'chu-4', nome: 'Fraldinha', categoria: 'Churrasco' },
-  { id: 'chu-5', nome: 'Cordeiro', categoria: 'Churrasco' },
+const CATALOG = [
+  {
+    id: 'pratos',
+    name: 'Pratos',
+    selectionPolicy: {
+      maxSelections: 1,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: false,
+    },
+    items: [
+      { id: 'prato-1', name: 'Prato executivo', priceCents: 0 },
+      { id: 'prato-2', name: 'Prato vegetariano', priceCents: 0 },
+    ],
+  },
+  {
+    id: 'bebidas',
+    name: 'Bebidas',
+    selectionPolicy: {
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: true,
+    },
+    items: [
+      { id: 'bebida-1', name: 'Agua com gas', priceCents: 450 },
+      { id: 'bebida-2', name: 'Refrigerante lata', priceCents: 700 },
+    ],
+  },
+  {
+    id: 'sobremesas',
+    name: 'Sobremesas',
+    selectionPolicy: {
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: true,
+    },
+    items: [
+      { id: 'sobremesa-1', name: 'Brownie', priceCents: 900 },
+    ],
+  },
+  {
+    id: 'saladas',
+    name: 'Saladas',
+    selectionPolicy: {
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: false,
+    },
+    items: [
+      { id: 'sal-1', name: 'Salada Tropical', priceCents: 0 },
+      { id: 'sal-2', name: 'Salada Caesar', priceCents: 0 },
+      { id: 'sal-3', name: 'Salada Grega', priceCents: 0 },
+      { id: 'sal-4', name: 'Salada de Repolho', priceCents: 0 },
+      { id: 'sal-5', name: 'Salada Caprese', priceCents: 0 },
+    ],
+  },
+  {
+    id: 'acompanhamentos',
+    name: 'Acompanhamentos',
+    selectionPolicy: {
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: false,
+    },
+    items: [
+      { id: 'aco-1', name: 'Arroz Branco', priceCents: 0 },
+      { id: 'aco-2', name: 'Feijao Tropeiro', priceCents: 0 },
+      { id: 'aco-3', name: 'Macarrao Alho e Oleo', priceCents: 0 },
+      { id: 'aco-4', name: 'Pure de Batata', priceCents: 0 },
+      { id: 'aco-5', name: 'Farofa', priceCents: 0 },
+    ],
+  },
+  {
+    id: 'carnes',
+    name: 'Carnes',
+    selectionPolicy: {
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: false,
+    },
+    items: [
+      { id: 'car-1', name: 'Frango Assado', priceCents: 0 },
+      { id: 'car-2', name: 'Carne de Sol', priceCents: 0 },
+      { id: 'car-3', name: 'Costela de Porco', priceCents: 0 },
+      { id: 'car-4', name: 'File de Peixe', priceCents: 0 },
+      { id: 'car-5', name: 'Frango Grelhado', priceCents: 0 },
+    ],
+  },
+  {
+    id: 'churrasco',
+    name: 'Churrasco',
+    selectionPolicy: {
+      maxSelections: null,
+      sharedLimitGroupId: null,
+      allowRepeatedItems: false,
+    },
+    items: [
+      { id: 'chu-1', name: 'Picanha', priceCents: 0 },
+      { id: 'chu-2', name: 'Alcatra', priceCents: 0 },
+      { id: 'chu-3', name: 'Linguica Toscana', priceCents: 0 },
+      { id: 'chu-4', name: 'Fraldinha', priceCents: 0 },
+      { id: 'chu-5', name: 'Cordeiro', priceCents: 0 },
+    ],
+  },
 ];
 
-function dateKey(daysAgo) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
-}
+const ITEM_BY_ID = new Map(
+  CATALOG.flatMap((category) => category.items.map((item) => [item.id, {
+    ...item,
+    categoryId: category.id,
+    categoryName: category.name,
+  }])),
+);
 
-function getWeekday(daysAgo) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - daysAgo);
-  return d.getUTCDay();
-}
+const chunk = (items, size) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
 
-function getIdsForDay(idx) {
-  const wd = getWeekday(idx);
-  const ids = [];
+const dateKey = (date = new Date()) => [
+  date.getFullYear(),
+  String(date.getMonth() + 1).padStart(2, '0'),
+  String(date.getDate()).padStart(2, '0'),
+].join('-');
 
-  // aco-1: every day
-  ids.push('aco-1');
+const dateKeyDaysAgo = (daysAgo) => {
+  const value = new Date();
+  value.setDate(value.getDate() - daysAgo);
+  return dateKey(value);
+};
 
-  // car-1: every day except idx 20 and 45
-  if (idx !== 20 && idx !== 45) ids.push('car-1');
+const weekdayDaysAgo = (daysAgo) => {
+  const value = new Date();
+  value.setDate(value.getDate() - daysAgo);
+  return value.getDay();
+};
 
-  // aco-2: all except multiples of 5
-  if (idx % 5 !== 0) ids.push('aco-2');
+const versionIdForDate = (key) => `${key}${VERSION_SUFFIX}`;
 
-  // chu-1: all except multiples of 3
-  if (idx % 3 !== 0) ids.push('chu-1');
+const listDocumentRefs = async (collectionPath) => {
+  const collectionRef = db.collection(collectionPath);
+  return collectionRef.listDocuments();
+};
 
-  // sal-1: Mon/Wed/Thu + idx % 8 === 0
-  if (wd === 1 || wd === 3 || wd === 4 || idx % 8 === 0) ids.push('sal-1');
-
-  // chu-3: Fri/Sat + idx % 10 === 0
-  if (wd === 5 || wd === 6 || idx % 10 === 0) ids.push('chu-3');
-
-  // sal-4: Tue/Thu
-  if (wd === 2 || wd === 4) ids.push('sal-4');
-
-  // chu-2: idx % 4 === 1
-  if (idx % 4 === 1) ids.push('chu-2');
-
-  // car-2: idx % 5 === 1
-  if (idx % 5 === 1) ids.push('car-2');
-
-  // aco-5: idx % 6 === 0
-  if (idx % 6 === 0) ids.push('aco-5');
-
-  // sal-2: idx % 9 === 0
-  if (idx % 9 === 0) ids.push('sal-2');
-
-  // aco-4: idx % 11 === 0
-  if (idx % 11 === 0) ids.push('aco-4');
-
-  // car-5: idx % 12 === 0
-  if (idx % 12 === 0) ids.push('car-5');
-
-  // aco-3: idx % 13 === 0
-  if (idx % 13 === 0) ids.push('aco-3');
-
-  // chu-4: idx % 15 === 0
-  if (idx % 15 === 0) ids.push('chu-4');
-
-  // car-3: idx % 20 === 0
-  if (idx % 20 === 0) ids.push('car-3');
-
-  // sal-3: idx % 30 === 0
-  if (idx % 30 === 0) ids.push('sal-3');
-
-  // car-4: only idx 25
-  if (idx === 25) ids.push('car-4');
-
-  // sal-5: only idx 50 and 70
-  if (idx === 50 || idx === 70) ids.push('sal-5');
-
-  // chu-5: only idx 80
-  if (idx === 80) ids.push('chu-5');
-
-  return ids;
-}
-
-async function seed() {
-  console.log('Clearing existing selections...');
-  const existing = await db.collection('selections').listDocuments();
-  await Promise.all(existing.map(ref => ref.delete()));
-  console.log(`  Deleted ${existing.length} documents`);
-
-  console.log('Writing config/categories...');
-  await db.doc('config/categories').set({ items: CATEGORIES });
-
-  console.log('Writing config/complements...');
-  await db.doc('config/complements').set({ items: ITEMS });
-
-  console.log('Writing 90 days of selections including today...');
-  const BATCH_SIZE = 500;
-  let batch = db.batch();
-  let count = 0;
-
-  for (let idx = 0; idx <= 89; idx++) {
-    const key = dateKey(idx);
-    const ids = getIdsForDay(idx);
-    batch.set(db.doc(`selections/${key}`), { ids });
-    count++;
-
-    if (count % BATCH_SIZE === 0) {
-      await batch.commit();
-      batch = db.batch();
+const deleteDocumentTree = async (docRef) => {
+  const subcollections = await docRef.listCollections();
+  for (const collectionRef of subcollections) {
+    const nestedDocs = await collectionRef.listDocuments();
+    for (const nestedDoc of nestedDocs) {
+      await deleteDocumentTree(nestedDoc);
     }
   }
+  await docRef.delete().catch((error) => {
+    if (error?.code === 5) return;
+    throw error;
+  });
+};
 
-  if (count % BATCH_SIZE !== 0) {
-    await batch.commit();
+const clearCollection = async (collectionPath) => {
+  const refs = await listDocumentRefs(collectionPath);
+  for (const refsChunk of chunk(refs, 25)) {
+    await Promise.all(refsChunk.map((ref) => deleteDocumentTree(ref)));
+  }
+};
+
+const deleteDocIfExists = async (docPath) => {
+  await db.doc(docPath).delete().catch((error) => {
+    if (error?.code === 5) return;
+    throw error;
+  });
+};
+
+const buildHistoricalItemIds = (daysAgo) => {
+  const weekday = weekdayDaysAgo(daysAgo);
+  const ids = new Set(['aco-1']);
+
+  if (daysAgo !== 20 && daysAgo !== 45) ids.add('car-1');
+  if (daysAgo % 5 !== 0) ids.add('aco-2');
+  if (daysAgo % 3 !== 0) ids.add('chu-1');
+  if (weekday === 1 || weekday === 3 || weekday === 4 || daysAgo % 8 === 0) ids.add('sal-1');
+  if (weekday === 5 || weekday === 6 || daysAgo % 10 === 0) ids.add('chu-3');
+  if (weekday === 2 || weekday === 4) ids.add('sal-4');
+  if (daysAgo % 4 === 1) ids.add('chu-2');
+  if (daysAgo % 5 === 1) ids.add('car-2');
+  if (daysAgo % 6 === 0) ids.add('aco-5');
+  if (daysAgo % 9 === 0) ids.add('sal-2');
+  if (daysAgo % 11 === 0) ids.add('aco-4');
+  if (daysAgo % 12 === 0) ids.add('car-5');
+  if (daysAgo % 13 === 0) ids.add('aco-3');
+  if (daysAgo % 15 === 0) ids.add('chu-4');
+  if (daysAgo % 20 === 0) ids.add('car-3');
+  if (daysAgo % 30 === 0) ids.add('sal-3');
+  if (daysAgo === 25) ids.add('car-4');
+  if (daysAgo === 50 || daysAgo === 70) ids.add('sal-5');
+  if (daysAgo === 80) ids.add('chu-5');
+
+  return Array.from(ids);
+};
+
+const buildSelectionEntries = (selectedItemIds) => {
+  const counts = new Map();
+  for (const itemId of selectedItemIds) {
+    counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
+};
+
+const buildOrderLines = (selectedItemIds) => buildSelectionEntries(selectedItemIds).map(({ itemId, quantity }) => {
+  const item = ITEM_BY_ID.get(itemId);
+  if (!item) {
+    throw new Error(`Item desconhecido no seed: ${itemId}`);
+  }
+  return {
+    itemId,
+    quantity,
+    unitPriceCents: item.priceCents,
+    name: item.name,
+    categoryId: item.categoryId,
+    categoryName: item.categoryName,
+  };
+});
+
+const buildPaymentSummary = (lines, paymentStatus, provider = null, paymentMethod = null, providerPaymentId = null) => {
+  const paidTotalCents = lines.reduce((total, line) => total + (line.unitPriceCents * line.quantity), 0);
+  return {
+    freeTotalCents: 0,
+    paidTotalCents,
+    currency: 'BRL',
+    paymentStatus,
+    provider,
+    paymentMethod,
+    providerPaymentId,
+    refundedAt: null,
+  };
+};
+
+const buildPublishedCategories = (itemIds) => {
+  const categoryIds = new Set(itemIds.map((itemId) => ITEM_BY_ID.get(itemId)?.categoryId).filter(Boolean));
+  return CATALOG
+    .map((category, index) => ({ ...category, sortOrder: index }))
+    .filter((category) => categoryIds.has(category.id))
+    .map((category) => ({
+      id: category.id,
+      name: category.name,
+      sortOrder: category.sortOrder,
+      selectionPolicy: category.selectionPolicy,
+    }));
+};
+
+const buildPublishedItems = (itemIds) => itemIds
+  .map((itemId) => ITEM_BY_ID.get(itemId))
+  .filter(Boolean)
+  .map((item, index) => ({
+    id: item.id,
+    categoryId: item.categoryId,
+    name: item.name,
+    priceCents: item.priceCents,
+    sortOrder: index,
+  }));
+
+const writeCatalog = async () => {
+  const batch = db.batch();
+
+  CATALOG.forEach((category, categoryIndex) => {
+    batch.set(db.doc(`catalog/root/categories/${category.id}`), {
+      name: category.name,
+      sortOrder: categoryIndex,
+      selectionPolicy: category.selectionPolicy,
+    });
+
+    category.items.forEach((item, itemIndex) => {
+      batch.set(db.doc(`catalog/root/items/${item.id}`), {
+        categoryId: category.id,
+        name: item.name,
+        priceCents: item.priceCents,
+        isActive: true,
+        sortOrder: itemIndex,
+      });
+    });
+  });
+
+  await batch.commit();
+};
+
+const writeMenuDay = async (daysAgo) => {
+  const currentDateKey = dateKeyDaysAgo(daysAgo);
+  const versionId = versionIdForDate(currentDateKey);
+  const defaultItemIds = buildHistoricalItemIds(daysAgo);
+  const itemIds = daysAgo === 0
+    ? ['prato-1', 'prato-2', 'bebida-1', 'bebida-2', 'sobremesa-1', ...defaultItemIds]
+    : defaultItemIds;
+  const uniqueItemIds = Array.from(new Set(itemIds));
+  const status = daysAgo === 0 ? 'published' : 'closed';
+  const shareToken = daysAgo === 0 ? PUBLIC_TOKEN : null;
+  const categories = buildPublishedCategories(uniqueItemIds);
+  const items = buildPublishedItems(uniqueItemIds);
+  const now = Date.now() - (daysAgo * 60_000);
+
+  await db.doc(`dailyMenus/${currentDateKey}`).set({
+    dateKey: currentDateKey,
+    status,
+    shareToken,
+    activeVersionId: versionId,
+    itemIds: uniqueItemIds,
+    updatedAt: now,
+  });
+
+  await db.doc(`dailyMenus/${currentDateKey}/versions/${versionId}`).set({
+    id: versionId,
+    dateKey: currentDateKey,
+    shareToken: shareToken ?? `seed-${currentDateKey}`,
+    createdAt: now,
+    categories,
+    items,
+  });
+
+  if (shareToken) {
+    await db.doc(`dailyMenuTokens/${shareToken}`).set({
+      shareToken,
+      dateKey: currentDateKey,
+      activeVersionId: versionId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+};
+
+const writeSeedOrders = async () => {
+  const today = dateKeyDaysAgo(0);
+  const todayVersionId = versionIdForDate(today);
+  const previousDay = dateKeyDaysAgo(1);
+  const previousVersionId = versionIdForDate(previousDay);
+
+  const orderSpecs = [
+    {
+      path: `dailyMenus/${today}/orders/seed-order-free`,
+      payload: {
+        id: 'seed-order-free',
+        dateKey: today,
+        shareToken: PUBLIC_TOKEN,
+        menuVersionId: todayVersionId,
+        customerName: 'Pedido Gratis',
+        lines: buildOrderLines(['prato-1']),
+        submittedAt: Date.now(),
+      },
+      paymentStatus: ORDER_STATUS.FREE,
+    },
+    {
+      path: `dailyMenus/${today}/orders/seed-order-paid`,
+      payload: {
+        id: 'seed-order-paid',
+        dateKey: today,
+        shareToken: PUBLIC_TOKEN,
+        menuVersionId: todayVersionId,
+        customerName: 'Pedido Pago',
+        lines: buildOrderLines(['prato-1', 'bebida-2']),
+        submittedAt: Date.now() - 1_000,
+      },
+      paymentStatus: ORDER_STATUS.PAID,
+      provider: 'stripe',
+      paymentMethod: 'card',
+      providerPaymentId: 'pi_seed_paid',
+    },
+    {
+      path: `dailyMenus/${previousDay}/orders/seed-order-history`,
+      payload: {
+        id: 'seed-order-history',
+        dateKey: previousDay,
+        shareToken: `seed-${previousDay}`,
+        menuVersionId: previousVersionId,
+        customerName: 'Pedido Historico',
+        lines: buildOrderLines(['aco-1', 'car-1', 'chu-1']),
+        submittedAt: Date.now() - 86_400_000,
+      },
+      paymentStatus: ORDER_STATUS.FREE,
+    },
+    {
+      path: `dailyMenus/${today}/orders/seed-order-awaiting`,
+      payload: {
+        id: 'seed-order-awaiting',
+        dateKey: today,
+        shareToken: PUBLIC_TOKEN,
+        menuVersionId: todayVersionId,
+        customerName: 'Pedido Aguardando Pagamento',
+        lines: buildOrderLines(['prato-2', 'sobremesa-1']),
+        submittedAt: Date.now() - 2_000,
+      },
+      paymentStatus: ORDER_STATUS.AWAITING,
+      provider: 'stripe',
+      paymentMethod: 'pix',
+    },
+  ];
+
+  for (const spec of orderSpecs) {
+    await db.doc(spec.path).set({
+      ...spec.payload,
+      paymentSummary: buildPaymentSummary(
+        spec.payload.lines,
+        spec.paymentStatus,
+        spec.provider ?? null,
+        spec.paymentMethod ?? null,
+        spec.providerPaymentId ?? null,
+      ),
+    });
+  }
+};
+
+const clearSeedTargets = async () => {
+  console.log('Limpando dados do schema novo...');
+  await clearCollection('catalog/root/categories');
+  await clearCollection('catalog/root/items');
+  await clearCollection('dailyMenus');
+  await clearCollection('dailyMenuTokens');
+  await clearCollection('publicOrderDrafts');
+  await deleteDocIfExists('config/editorLock');
+
+  console.log('Limpando residuos do schema legado...');
+  await Promise.all([
+    clearCollection('shareLinks'),
+    clearCollection('selections'),
+    clearCollection('publicMenus'),
+    clearCollection('publicMenuVersions'),
+    clearCollection('orders'),
+  ]);
+  await Promise.all([
+    deleteDocIfExists('config/categories'),
+    deleteDocIfExists('config/complements'),
+    deleteDocIfExists('config/categorySelectionRules'),
+  ]);
+};
+
+async function seed() {
+  await clearSeedTargets();
+
+  console.log('Gravando catalogo...');
+  await writeCatalog();
+
+  console.log(`Gravando ${HISTORY_DAYS} dias de menus diarios...`);
+  for (let index = HISTORY_DAYS - 1; index >= 0; index -= 1) {
+    await writeMenuDay(index);
   }
 
-  console.log(`  Written ${count} selection documents`);
-  console.log('Done. Open http://localhost:4000 to verify in Emulator UI.');
+  console.log('Gravando pedidos de exemplo...');
+  await writeSeedOrders();
+
+  const today = dateKeyDaysAgo(0);
+  console.log('');
+  console.log('Seed local concluido.');
+  console.log(`Projeto: ${PROJECT_ID}`);
+  console.log(`Cardapio publico: http://localhost:5173/s/${PUBLIC_TOKEN}#/pedido`);
+  console.log(`Menu do dia: dailyMenus/${today}`);
+  console.log(`Versao ativa: dailyMenus/${today}/versions/${versionIdForDate(today)}`);
 }
 
-seed().catch(err => {
-  console.error(err);
+seed().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

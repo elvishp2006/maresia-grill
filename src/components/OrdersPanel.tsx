@@ -120,29 +120,25 @@ export default function OrdersPanel({
       {!loading && !error ? orders.map((order) => {
         const paymentSummary = getPaymentSummary(order);
         const resolvedVersion = order.menuVersionId ? menuVersions[order.menuVersionId] : undefined;
-        const selectedQuantities = new Map(
-          (order.selectedItems ?? []).map(item => [item.itemId, item.quantity] as const),
-        );
-        const resolvedItems = order.submittedItems?.length
-          ? order.submittedItems
-          : order.selectedItems?.length
-            ? resolvedVersion
-              ? order.selectedItems
-                .map(({ itemId, quantity }) => {
-                  const item = resolvedVersion.items.find(candidate => candidate.id === itemId);
-                  return item ? { ...item, quantity } : null;
-                })
-                .filter((item): item is NonNullable<typeof item> => item !== null)
-              : []
-          : resolvedVersion
-            ? resolvedVersion.items
-              .filter(item => order.selectedItemIds.includes(item.id))
-              .map(item => ({
-                ...item,
-                quantity: selectedQuantities.get(item.id) ?? 1,
-              }))
+        const versionCategories = (resolvedVersion?.categories ?? []).map((category) => (
+          typeof category === 'string'
+            ? { id: category, name: category }
+            : { id: category.id, name: category.name }
+        ));
+        const resolvedItems = (order.submittedItems?.length ?? 0) > 0
+          ? order.submittedItems ?? []
+          : (order.lines?.length ?? 0) > 0
+          ? (order.lines ?? []).map(line => ({
+              id: line.itemId,
+              nome: line.name,
+              categoria: line.categoryName,
+              priceCents: line.unitPriceCents,
+              quantity: line.quantity,
+            }))
             : [];
-        const orderedCategories = resolvedVersion?.categories ?? categories;
+        const orderedCategories = versionCategories.map(category => category.name).length > 0
+          ? versionCategories.map(category => category.name)
+          : categories;
         const groupedItems = groupOrderItemsByCategory(resolvedItems, orderedCategories);
 
         return (

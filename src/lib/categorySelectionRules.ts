@@ -1,3 +1,4 @@
+import { validateSelection as validateDomainSelection } from '../../domain/menu';
 import type { CategorySelectionRule, Item, SelectedPublicItem } from '../types';
 
 export interface CategorySelectionRuleInput {
@@ -118,9 +119,6 @@ export const upsertCategorySelectionRule = (
     if (desiredCategories.length > 1) {
       const existingGroupId = normalizeGroupId(input.sharedLimitGroupId)
         ?? currentRule?.sharedLimitGroupId
-        ?? normalizedLinkedCategories
-          .map(linkedCategory => normalizedRules.find(rule => rule.category === linkedCategory)?.sharedLimitGroupId)
-          .find((groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0)
         ?? `shared:${desiredCategories
           .slice()
           .sort((left, right) => left.localeCompare(right, 'pt-BR', { sensitivity: 'base' }))
@@ -238,148 +236,28 @@ const normalizeSelectedItems = (selected: string[] | SelectedPublicItem[]) => {
     .map(item => ({ itemId: item.itemId, quantity: Math.trunc(item.quantity) }));
 };
 
-const getSelectionCounts = (items: Item[], selectedItemIds: string[] | SelectedPublicItem[]) => {
-  const counts = new Map<string, number>();
-  const selectedQuantities = new Map(normalizeSelectedItems(selectedItemIds).map(item => [item.itemId, item.quantity]));
-  for (const item of items) {
-    const quantity = selectedQuantities.get(item.id) ?? 0;
-    if (quantity <= 0) continue;
-    counts.set(item.categoria, (counts.get(item.categoria) ?? 0) + quantity);
-  }
-  return counts;
-};
-
 export const validateSelectionRules = (
   items: Item[],
   selectedItemIds: string[] | SelectedPublicItem[],
   rules: CategorySelectionRule[],
 ): SelectionViolation[] => {
   const normalizedRules = normalizeCategorySelectionRules(rules);
-  const counts = getSelectionCounts(items, selectedItemIds);
-  const violations: SelectionViolation[] = [];
-
-  for (const rule of normalizedRules) {
-    if (!rule.sharedLimitGroupId && typeof rule.maxSelections === 'number') {
-      const selectedCount = counts.get(rule.category) ?? 0;
-      if (selectedCount > rule.maxSelections) {
-        violations.push({
-          type: 'category',
-          category: rule.category,
-          categories: [rule.category],
-          maxSelections: rule.maxSelections,
-          selectedCount,
-          message: `Voce pode escolher ate ${rule.maxSelections} item(ns) em ${rule.category}.`,
-        });
-      }
-    }
-  }
-
-  const groupedRules = normalizedRules.reduce<Map<string, CategorySelectionRule[]>>((acc, rule) => {
-    if (!rule.sharedLimitGroupId) return acc;
-    acc.set(rule.sharedLimitGroupId, [...(acc.get(rule.sharedLimitGroupId) ?? []), rule]);
-    return acc;
-  }, new Map());
-
-  for (const [groupId, groupRules] of groupedRules.entries()) {
-    const groupMaxCandidates = groupRules
-      .map(rule => rule.maxSelections)
-      .filter((value): value is number => typeof value === 'number');
-    if (groupMaxCandidates.length === 0) continue;
-
-    const groupMax = Math.min(...groupMaxCandidates);
-    const categories = groupRules.map(rule => rule.category);
-    const selectedCount = categories.reduce((sum, category) => sum + (counts.get(category) ?? 0), 0);
-    if (selectedCount <= groupMax) continue;
-
-    violations.push({
-      type: 'group',
-      category: categories[0] ?? '',
-      categories,
-      groupId,
-      maxSelections: groupMax,
-      selectedCount,
-      message: `Voce pode escolher ate ${groupMax} item(ns) entre ${categories.join(' e ')}.`,
-    });
-  }
-
-  return violations;
-};
-
-export const canSelectItem = ({
-  items,
-  selectedItemIds,
-  itemId,
-  rules,
-}: {
-  items: Item[];
-  selectedItemIds: string[] | SelectedPublicItem[];
-  itemId: string;
-  rules: CategorySelectionRule[];
-}) => {
-  const normalizedRules = normalizeCategorySelectionRules(rules);
-  const item = items.find(candidate => candidate.id === itemId);
-  const currentSelectedItems = normalizeSelectedItems(selectedItemIds);
-  const currentQuantity = currentSelectedItems.find(candidate => candidate.itemId === itemId)?.quantity ?? 0;
-
-  if (currentQuantity > 0 && !normalizedRules.find(rule => rule.category === item?.categoria)?.allowRepeatedItems) {
-    return { allowed: true as const };
-  }
-
-  const nextSelectedItemIds = currentQuantity > 0
-    ? currentSelectedItems.map(candidate => (
-      candidate.itemId === itemId ? { ...candidate, quantity: candidate.quantity + 1 } : candidate
-    ))
-    : [...currentSelectedItems, { itemId, quantity: 1 }];
-  const violations = validateSelectionRules(items, nextSelectedItemIds, rules);
-  if (violations.length === 0) return { allowed: true as const };
-
-  return {
-    allowed: false as const,
-    violation: violations[0],
-  };
-};
-
-export const getItemSelectionAvailability = ({
-  items,
-  selectedItemIds,
-  item,
-  rules,
-}: {
-  items: Item[];
-  selectedItemIds: string[] | SelectedPublicItem[];
-  item: Item;
-  rules: CategorySelectionRule[];
-}) => {
-  const currentQuantity = normalizeSelectedItems(selectedItemIds)
-    .find(candidate => candidate.itemId === item.id)?.quantity ?? 0;
-  const active = currentQuantity > 0;
-  if (active) {
+  const categories = Array.from(new Set(items.map(item => item.categoria))).map(categoryName => {
+    const rule = normalizedRules.find(candidate => candidate.category === categoryName);
     return {
-      active: true,
-      disabled: false,
-      helperText: currentQuantity > 1 ? `${currentQuantity} selecionados no pedido` : 'Selecionado no pedido',
+      id: categoryName,
+      name: categoryName,
+      selectionPolicy: {
+        maxSelections: rule?.maxSelections ?? null,
+        sharedLimitGroupId: rule?.sharedLimitGroupId ?? null,
+        allowRepeatedItems: rule?.allowRepeatedItems === true,
+      },
     };
-  }
-
-  const result = canSelectItem({
-    items,
-    selectedItemIds,
-    itemId: item.id,
-    rules,
   });
 
-  if (result.allowed) {
-    return {
-      active: false,
-      disabled: false,
-      helperText: 'Disponivel para incluir',
-    };
-  }
-
-  return {
-    active: false,
-    disabled: true,
-    helperText: 'Limite atingido',
-    violation: result.violation,
-  };
+  return validateDomainSelection(
+    categories,
+    items.map(item => ({ id: item.id, categoryId: item.categoria })),
+    normalizeSelectedItems(selectedItemIds),
+  );
 };
