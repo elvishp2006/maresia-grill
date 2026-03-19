@@ -68,9 +68,25 @@ resource "google_project_iam_member" "app_deployer_cloudfunctions_admin" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_project_iam_member" "app_deployer_firebase_develop_admin" {
+  project = var.project_id
+  role    = "roles/firebase.developAdmin"
+  member  = var.app_deployer_member
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_project_iam_member" "app_deployer_firestore_rules_admin" {
   project = var.project_id
   role    = "roles/firebaserules.admin"
+  member  = var.app_deployer_member
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_project_iam_member" "app_deployer_firebase_extensions_viewer" {
+  project = var.project_id
+  role    = "roles/firebaseextensions.viewer"
   member  = var.app_deployer_member
 
   depends_on = [google_project_service.required]

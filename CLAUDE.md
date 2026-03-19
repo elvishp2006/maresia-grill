@@ -1,126 +1,187 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents working in this repository.
+
+## Monorepo layout
+
+```text
+apps/
+  web/         React + Vite + PWA
+  functions/   Firebase Functions
+packages/
+  domain/      shared models and helpers
+  eslint-config/
+  tsconfig/
+tools/
+  scripts/
+```
+
+Root orchestration lives in `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `firebase.json`, and `render.yaml`.
 
 ## Commands
 
 ```bash
-npm run dev          # dev server
-npm run build        # tsc + vite build
-npm run lint         # ESLint (must pass before commit)
-npm run lint:fix     # ESLint with auto-fix
-npm run test         # vitest run (all tests, once)
-npm run test:watch   # vitest watch mode
-npm run test:coverage # vitest with v8 coverage
+pnpm install
+pnpm run dev
+pnpm run build
+pnpm run lint
+pnpm run lint:fix
+pnpm run test
+pnpm run test:coverage
+pnpm run test:watch
+pnpm run preview
 ```
 
-Run a single test file:
+Run a single web test file:
+
 ```bash
-npx vitest run src/__tests__/ItemRow.test.tsx
+pnpm --filter @maresia-grill/web exec vitest run src/__tests__/ItemRow.test.tsx
 ```
 
-## Before Every Commit
+Target a specific workspace:
 
-1. `npm run lint` — zero errors or warnings
-2. `npm run test` — all tests passing
+```bash
+pnpm --filter @maresia-grill/web build
+pnpm --filter @maresia-grill/functions build
+```
 
-Husky runs `lint-staged` on pre-commit (ESLint --fix on `*.{ts,tsx}`).
+## Before every commit
+
+1. `pnpm run lint`
+2. `pnpm run test`
+3. `pnpm run build`
+
+Pre-commit currently runs:
+
+- `pnpm exec lint-staged`
+- `pnpm run test`
+- `pnpm run build`
+
+`lint-staged` runs `pnpm exec eslint --fix` for staged `*.{ts,tsx}` files.
 
 ## Architecture
 
-Single-page PWA. State lives entirely in one hook (`useMenuState`), persisted to Firestore. No router.
+This repository is no longer a single app rooted at `src/`. Treat it as a monorepo.
 
-```
-src/
-  contexts/       # ToastContext, ModalContext — wrap the whole app in main.tsx
-  hooks/          # useMenuState (all app state), useHapticFeedback, PWA hooks
-  components/     # Presentational; receive callbacks, no direct Firestore access
-  storage.ts      # All Firestore reads/writes — returns Promise<T> for saves
-  types.ts        # Item, Categoria, DEFAULT_CATEGORIES
-  App.css         # CSS custom properties (design tokens) + toggle/scrollbar CSS
-```
+### Web app
 
-### Data flow
+Primary app code lives in `apps/web/src`.
 
-`main.tsx` → `ToastProvider` → `ModalProvider` → `App` → `useMenuState` → `storage.ts` → Firestore
-
-`useMenuState` owns all mutable state (categories, items, daySelection, usageCounts, sortMode, loading). Components receive slices + callbacks as props.
-
-**Firestore schema:**
-- `config/categories` → `{ items: string[] }`
-- `config/complements` → `{ items: Item[] }`
-- `config/categorySelectionRules` → `{ rules: CategorySelectionRule[] }`
-- `selections/YYYY-MM-DD` → `{ ids: string[] }` — one doc per day; `loadSelectionHistory(n)` fetches `n` docs in parallel (7 days for `usageCounts`, 90 days for insights)
-
-### Auth
-
-`useAuthSession` gates the whole app. `App.tsx` renders `<AuthScreen>` until `isAuthorized` is true.
-
-- Google Sign-In via `signInWithPopup` (Firebase Auth)
-- Allowed accounts are listed in `src/authConfig.ts` (`AUTHORIZED_EMAILS`)
-- All state and Firestore access only begins after a successful authorized sign-in
-
-### Insights
-
-`useMenuInsights(complements, daySelection, enabled)` loads 90 days of history then calls `buildInsightMetrics` (pure function in `src/insights.ts`). `InsightsPanel` renders the result.
-
-`insights.ts` has no side effects — unit-test logic there, not in the component.
-
-### Offline guard
-
-`useOnlineStatus` returns a boolean. `useMenuState` uses it to block write operations while offline, showing a toast error instead.
-
-### Feedback system
-
-Both contexts render their UI inline inside the provider (no separate mount point needed):
-- **`useToast()`** → `showToast(message, type, duration?)` — types: `success | error | info`
-- **`useModal()`** → `confirm(title, message): Promise<boolean>` — replaces all `window.confirm()`
-
-### Commits
-
-Use **Conventional Commits** in English:
-```
-feat: add hidden category support
-fix: correct list overflow on mobile
-refactor: extract sort logic to hook
-test: add tests for useMenuState
-chore: update dependencies
+```text
+apps/web/src/
+  components/   presentational UI
+  contexts/     Toast and modal providers
+  hooks/        auth, editor lock, menu state, PWA, insights
+  lib/          Firebase, storage, billing, admin feedback, helpers
+  App.tsx       admin entrypoint and route resolver
+  PublicMenuPage.tsx
+  MenuView.tsx
+  NotFoundPage.tsx
 ```
 
-Types: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `style`, `perf`
+The app supports:
+
+- admin flow at `/`
+- public order flow at `/s/:token`
+- hash-based public states such as `#/pedido` and `#/enviado`
+
+`App.tsx` resolves pathname-level routing internally. There is no external router dependency.
+
+### Backend
+
+`apps/functions/src/index.ts` is the Functions entrypoint. Shared server logic lives in `apps/functions/src/core.ts`.
+
+`firebase.json` points to `apps/functions` as the deploy source.
+
+### Shared code
+
+`packages/domain` is the shared workspace dependency used by both web and Functions. Prefer importing from `@maresia-grill/domain` instead of relative cross-package paths.
+
+## Data flow
+
+Admin UI flow:
+
+`apps/web/src/main.tsx`
+-> providers
+-> `App.tsx`
+-> hooks such as `useMenuState`, `useMenuInsights`, `useEditorLock`
+-> `apps/web/src/lib/storage.ts`
+-> Firebase services
+
+Public order flow:
+
+`/s/:token`
+-> `PublicMenuPage.tsx`
+-> web billing/storage helpers
+-> public HTTP Functions for checkout and order submission
+
+## Local development
+
+Canonical local workflow:
+
+```bash
+pnpm run dev
+```
+
+It prepares:
+
+- root `.env.local`
+- `apps/functions/.env.local`
+- Functions build
+- Firebase emulators
+- seed data
+- web app on `http://127.0.0.1:5173`
+
+Useful local URL:
+
+```text
+http://127.0.0.1:5173/s/teste-pagamento/#/pedido
+```
+
+Emulator ports:
+
+- Auth: `9099`
+- Firestore: `8180`
+- Functions: `5001`
+- UI: `4000`
+
+In dev, `apps/web/src/lib/firebase.ts` connects automatically to Auth and Firestore emulators.
 
 ## Tests
 
-- Files: `src/__tests__/<Component>.test.tsx` or `<hook>.test.ts`
-- Stack: `vitest` + `@testing-library/react` + `@testing-library/jest-dom`
-- Components that use `useModal` must be wrapped in `<ModalProvider>` in tests
-- Components that use `useToast` / hooks that call `useMenuState` must be wrapped in `<ToastProvider>`
-- Test behavior visible to the user, not implementation details
-- For async modal flows, wrap the confirm click in `await act(async () => { ... })`
+- Web tests live in `apps/web/src/__tests__`
+- Stack: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`
+- `apps/web` test script currently generates coverage by default
+- Prefer behavior tests over implementation-detail tests
 
-## Haptic Feedback
+When testing components that use context:
 
-Every clickable element uses `useHapticFeedback` from `src/hooks/useHapticFeedback.ts`.
+- wrap toast consumers with `ToastProvider`
+- wrap modal consumers with `ModalProvider`
 
-| Method | When |
-|---|---|
-| `lightTap` | Toggle item, collapse/expand, move category, sort change, open/cancel form |
-| `success` | Add item/category confirmed, copy menu |
-| `mediumTap` | Remove item, remove category |
+## Linting and configs
 
-## Styling
+- shared ESLint config lives in `packages/eslint-config`
+- shared TypeScript bases live in `packages/tsconfig`
+- root `eslint.config.js` scopes React rules to `apps/web` and Node rules to `apps/functions` and `tools`
 
-Tailwind CSS v4 via `@tailwindcss/vite`. Design tokens are CSS custom properties in `src/App.css`:
+## Commits
 
-| Variable | Usage |
-|---|---|
-| `--bg` / `--bg-card` | Page / card backgrounds |
-| `--accent` | Primary gold color |
-| `--accent-red` | Destructive actions |
-| `--text` / `--text-dim` | Primary / secondary text |
-| `--border` | Borders and dividers |
-| `--green` | Success states |
+Use Conventional Commits in English:
 
-Reference them in Tailwind with arbitrary values: `bg-[var(--bg-card)]`, `text-[var(--accent)]`.
+```text
+feat: add public checkout retry state
+fix: correct emulator env lookup in web app
+refactor: move shared menu types to domain package
+test: add coverage for public order validation
+docs: update monorepo setup instructions
+chore: align github actions with pnpm
+```
 
-Custom CSS in `src/App.css` is limited to: toggle switch pseudo-elements, webkit scrollbar, and hover-only button visibility (`@media (hover: hover)`).
+## Operational notes
+
+- Use `pnpm`, never `npm`, for repository commands and docs.
+- Do not document or rely on legacy root paths like `src/...` unless the file actually exists under `apps/web/src/...`.
+- `apps/web/dist` is the frontend build output.
+- `apps/functions/lib` is the Functions build output.
+- Keep README and this file aligned whenever dev, CI, or deployment flows change.
