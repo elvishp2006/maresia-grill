@@ -270,10 +270,11 @@ input[type='search']::-webkit-search-results-decoration {
 }
 
 .public-action-bar {
-  position: fixed;
-  inset-inline: 0;
+  position: sticky;
   bottom: 0;
   z-index: 40;
+  margin-top: auto;
+  margin-inline: calc(var(--space-page) * -1);
   border-top: 1px solid var(--border);
   background:
     linear-gradient(180deg, rgba(22, 23, 16, 0.82) 0%, rgba(22, 23, 16, 0.98) 100%);

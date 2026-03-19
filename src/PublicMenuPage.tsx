@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode, RefObject } from 'react';
+import type { ReactNode } from 'react';
 import type { FinalizedPublicOrder, OrderLine, OrderPaymentSummary, PublicMenu, PublicOrderCheckoutSession, SelectedPublicItem } from './types';
 import EmbeddedStripeCheckout from './components/EmbeddedStripeCheckout';
 import BottomSheet from './components/BottomSheet';
@@ -494,15 +494,12 @@ function PublicOrderSummary({
 }
 
 function PublicActionBar({
-  footerRef,
   children,
 }: {
-  footerRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
 }) {
   return (
     <div
-      ref={footerRef}
       className="public-action-bar px-[16px] pt-[10px] pb-[max(16px,env(safe-area-inset-bottom))]"
     >
       <div className="mx-auto w-full max-w-[560px]">
@@ -533,8 +530,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     return draftId ? { draftId, paymentStatus: 'awaiting_payment' } : null;
   });
   const [currentView, setCurrentView] = useState<PublicMenuView>(() => readViewFromHash() ?? getStoredView(token) ?? 'form');
-  const [footerHeight, setFooterHeight] = useState(112);
-  const footerRef = useRef<HTMLDivElement | null>(null);
   const lastVisualStateRef = useRef<PublicVisualState | null>(null);
   const selectedCount = countSelectedUnits(selection);
 
@@ -739,27 +734,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       if (timeoutId) window.clearTimeout(timeoutId);
     };
   }, [menu, pendingPayment?.draftId, showToast]);
-
-  useLayoutEffect(() => {
-    const footer = footerRef.current;
-    if (!footer) return;
-
-    const measure = () => {
-      const nextHeight = Math.ceil(footer.getBoundingClientRect().height);
-      if (nextHeight > 0) setFooterHeight(nextHeight);
-    };
-
-    measure();
-
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(() => measure());
-      observer.observe(footer);
-      return () => observer.disconnect();
-    }
-
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [successState, submitting, selectedCount]);
 
   const visualState: PublicVisualState = successState
     ? 'submitted-success'
@@ -1011,7 +985,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
   if (cancelledState) {
     return (
-      <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
+      <main className="public-shell flex flex-col">
         <PublicHeader eyebrow="Cancelado" title="Maresia Grill" accent="red" />
         <PublicStateCard
           icon={(
@@ -1028,7 +1002,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           }
         />
         {canStartNewOrder ? (
-          <PublicActionBar footerRef={footerRef}>
+          <PublicActionBar>
               <button
                 type="button"
                 onClick={() => {
@@ -1051,7 +1025,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
   if (successState) {
     return (
-      <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
+      <main className="public-shell flex flex-col">
         <PublicHeader eyebrow="Enviado" title="Maresia Grill" />
         <PublicStateCard
           icon={(
@@ -1082,7 +1056,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           )}
         />
         {canModifyExistingOrder ? (
-          <PublicActionBar footerRef={footerRef}>
+          <PublicActionBar>
             <button
               type="button"
               onClick={() => {
@@ -1105,7 +1079,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
   if (currentView === 'submitted' && pendingPayment && !successState) {
     return (
-      <main className="public-shell flex flex-col" style={{ paddingBottom: `${footerHeight + 24}px` }}>
+      <main className="public-shell flex flex-col">
         <PublicHeader eyebrow="Pagamento" title="Confirmando seu pedido" />
         <PublicStateCard
           icon={(
@@ -1135,7 +1109,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           )}
         />
         {pendingPayment.paymentStatus === 'failed' ? (
-          <PublicActionBar footerRef={footerRef}>
+          <PublicActionBar>
             <button
               type="button"
               onClick={() => {
@@ -1195,7 +1169,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   }
 
   return (
-    <main className="public-shell" style={{ paddingBottom: `${footerHeight + 24}px` }}>
+    <main className="public-shell flex flex-col">
       <PublicHeader
         eyebrow="Hoje"
         title="Faça seu pedido"
@@ -1383,7 +1357,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         ))}
       </section>
 
-      <PublicActionBar footerRef={footerRef}>
+      <PublicActionBar>
         <div className="public-inline-panel mb-[10px] px-[14px] py-[12px]">
           <div className="mb-[12px]">
             <p className="mt-[4px] text-[14px] text-[var(--text-muted)]">
