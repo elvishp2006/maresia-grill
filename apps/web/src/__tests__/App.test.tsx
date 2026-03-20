@@ -896,6 +896,25 @@ describe('App', () => {
     expect(screen.getByText('Saladas')).toBeInTheDocument();
   });
 
+  it('focuses the customer name field when submit is attempted without a name', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    const input = screen.getByPlaceholderText('Digite seu nome');
+    expect(await screen.findByText('Informe seu nome.')).toBeInTheDocument();
+    expect(input).toHaveFocus();
+  });
+
   it('renders the public closed state when order intake is closed', async () => {
     window.history.pushState({}, '', '/s/token-1');
     subscribePublicMenuMock.mockImplementation((_token: string, onValue: (menu: unknown) => void) => {
@@ -1360,6 +1379,7 @@ describe('App', () => {
 
     const tomateButton = screen.getByRole('button', { name: 'Adicionar Tomate do menu do dia' });
     expect(tomateButton).toBeDisabled();
+    expect(screen.getByText('A categoria Saladas excedeu o limite permitido.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
   });
 
@@ -1649,6 +1669,58 @@ describe('App', () => {
 
     expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('restores the in-progress public draft after reload', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+
+    const view = render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Elvis' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+
+    view.unmount();
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Elvis')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('does not overwrite a stored public draft with an empty selection during hydration', async () => {
+    localStorage.setItem('public-menu-customer-name', 'Elvis');
+    localStorage.setItem('public-menu-draft-state:token-1', JSON.stringify({
+      customerName: 'Elvis',
+      customerEmail: '',
+      selectedItems: [{ itemId: '1', quantity: 1 }],
+    }));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Elvis')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+    expect(localStorage.getItem('public-menu-draft-state:token-1')).toContain('"itemId":"1"');
   });
 
   it('keeps the submitted state after reload when the hash and cached order are present', async () => {

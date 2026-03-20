@@ -23,6 +23,12 @@ import { groupOrderItemsByCategory } from './lib/utils';
 
 const CUSTOMER_NAME_STORAGE_KEY = 'public-menu-customer-name';
 const CUSTOMER_EMAIL_STORAGE_KEY = 'public-menu-customer-email';
+interface PublicDraftState {
+  customerName: string;
+  customerEmail: string;
+  selectedItems: SelectedPublicItem[];
+}
+
 interface CachedPublicOrder {
   orderId: string;
   customerName: string;
@@ -137,6 +143,7 @@ const getCachedOrderStorageKey = (token: string) => `public-menu-last-order:${to
 const getViewStorageKey = (token: string) => `public-menu-view:${token}`;
 const getCancelledStateStorageKey = (token: string) => `public-menu-cancelled-state:${token}`;
 const getPendingOrderStorageKey = (token: string) => `public-menu-pending-order:${token}`;
+const getDraftStateStorageKey = (token: string) => `public-menu-draft-state:${token}`;
 
 const VIEW_HASHES: Record<PublicMenuView, string> = {
   form: '#/pedido',
@@ -321,6 +328,40 @@ const getStoredPendingOrder = (token: string): PendingPublicOrderSummary | null 
   return null;
 };
 
+const getStoredDraftState = (token: string): PublicDraftState | null => {
+  try {
+    const raw = localStorage.getItem(getDraftStateStorageKey(token));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PublicDraftState>;
+    const selectedItems = normalizeSelectedItems(
+      parsed.selectedItems,
+    );
+    return {
+      customerName: typeof parsed.customerName === 'string' ? parsed.customerName : '',
+      customerEmail: typeof parsed.customerEmail === 'string' ? parsed.customerEmail : '',
+      selectedItems,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const setStoredDraftState = (token: string, draftState: PublicDraftState) => {
+  try {
+    localStorage.setItem(getDraftStateStorageKey(token), JSON.stringify(draftState));
+  } catch {
+    // Ignore local storage failures on unsupported browsers.
+  }
+};
+
+const clearStoredDraftState = (token: string) => {
+  try {
+    localStorage.removeItem(getDraftStateStorageKey(token));
+  } catch {
+    // Ignore local storage failures on unsupported browsers.
+  }
+};
+
 const setStoredPendingOrder = (token: string, pendingOrder: PendingPublicOrderSummary) => {
   try {
     const payload = {
@@ -499,6 +540,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const { showToast } = useToast();
   const { lightTap, mediumTap } = useHapticFeedback();
   const { confirm } = useModal();
+  const customerNameInputRef = useRef<HTMLInputElement | null>(null);
   const [menu, setMenu] = useState<PublicMenu | null | undefined>(undefined);
   const [customerName, setCustomerName] = useState(() => getStoredCustomerName());
   const [customerEmail, setCustomerEmail] = useState(() => getStoredCustomerEmail());
@@ -516,6 +558,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     return draftId ? { draftId, paymentStatus: 'awaiting_payment' } : null;
   });
   const [currentView, setCurrentView] = useState<PublicMenuView>(() => readViewFromHash() ?? getStoredView(token) ?? 'form');
+  const [draftHydratedToken, setDraftHydratedToken] = useState<string | null>(null);
   const lastVisualStateRef = useRef<PublicVisualState | null>(null);
   const selectedCount = countSelectedUnits(selection);
 
@@ -540,6 +583,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   }, [customerEmail]);
 
   useEffect(() => {
+    setDraftHydratedToken(null);
     const nextOrderId = getStoredOrderId(token);
     setOrderId(nextOrderId);
     setCheckoutSession(null);
@@ -548,6 +592,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const storedView = readViewFromHash() ?? getStoredView(token) ?? 'form';
     const storedCancelledState = getStoredCancelledState(token);
     const storedPendingOrder = getStoredPendingOrder(token);
+    const storedDraftState = getStoredDraftState(token);
     const urlDraftId = getDraftIdFromUrl();
     setPendingOrderSummary(storedPendingOrder);
     setPendingPayment(urlDraftId ? { draftId: urlDraftId, paymentStatus: 'awaiting_payment' } : null);
@@ -559,8 +604,14 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         setSuccessState(cachedOrder);
         setCancelledState(null);
         setCurrentView('submitted');
+        setDraftHydratedToken(token);
         return;
       }
+      setSuccessState(null);
+      setCancelledState(null);
+      setCurrentView('form');
+      setDraftHydratedToken(token);
+      return;
     }
 
     if (storedView === 'cancelled' && storedCancelledState) {
@@ -568,6 +619,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setSuccessState(null);
       setSelection([]);
       setCurrentView('cancelled');
+      setDraftHydratedToken(token);
       return;
     }
 
@@ -577,12 +629,24 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setCancelledState(null);
       setSelection(storedPendingOrder.selectedItems);
       setCurrentView('submitted');
+      setDraftHydratedToken(token);
       return;
+    }
+
+    if (storedDraftState) {
+      setCustomerName(storedDraftState.customerName);
+      setCustomerEmail(storedDraftState.customerEmail);
+      setSelection(storedDraftState.selectedItems);
+    } else {
+      setCustomerName(getStoredCustomerName());
+      setCustomerEmail(getStoredCustomerEmail());
+      setSelection([]);
     }
 
     setSuccessState(null);
     setCancelledState(null);
     setCurrentView('form');
+    setDraftHydratedToken(token);
   }, [token]);
 
   useEffect(() => {
@@ -660,6 +724,22 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
     setSelection(prev => prev.filter(item => validIds.has(item.itemId)));
   }, [menu, token]);
+
+  useEffect(() => {
+    if (
+      draftHydratedToken !== token
+      || currentView !== 'form'
+      || successState
+      || cancelledState
+      || pendingPayment
+    ) return;
+
+    setStoredDraftState(token, {
+      customerName,
+      customerEmail,
+      selectedItems: selection,
+    });
+  }, [cancelledState, currentView, customerEmail, customerName, draftHydratedToken, pendingPayment, selection, successState, token]);
 
   useEffect(() => {
     const draftId = pendingPayment?.draftId ?? getDraftIdFromUrl();
@@ -827,6 +907,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const trimmedName = customerName.trim();
     if (!trimmedName) {
       showToast('Informe seu nome.', 'info');
+      customerNameInputRef.current?.focus();
       return;
     }
     if (selectedCount === 0) {
@@ -867,6 +948,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           setSuccessState(nextOrder);
           setCancelledState(null);
           setSelection(selectionFromLines(nextOrder.lines));
+          clearStoredDraftState(menu.token);
           setCurrentView('submitted');
           return;
         }
@@ -910,6 +992,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setCachedOrder(menu.token, nextOrder);
       clearStoredCancelledState(menu.token);
       clearStoredPendingOrder(menu.token);
+      clearStoredDraftState(menu.token);
       clearDraftIdFromUrl();
       setPendingPayment(null);
       setPendingOrderSummary(null);
@@ -942,6 +1025,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       clearCachedOrder(menu.token);
       clearStoredPendingOrder(menu.token);
       clearStoredCancelledState(menu.token);
+      clearStoredDraftState(menu.token);
       clearDraftIdFromUrl();
       setPendingPayment(null);
       setPendingOrderSummary(null);
@@ -964,6 +1048,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       });
       clearCachedOrder(menu.token);
       clearStoredPendingOrder(menu.token);
+      clearStoredDraftState(menu.token);
       clearDraftIdFromUrl();
       setPendingPayment(null);
       setPendingOrderSummary(null);
@@ -1195,6 +1280,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           <label className="mt-[16px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
             Seu nome
             <input
+              ref={customerNameInputRef}
               type="text"
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
@@ -1231,6 +1317,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 const active = quantity > 0;
                 const allowsRepeating = repeatedCategories.has(category);
                 const blockingViolation = canIncreaseItemQuantity(item.id, selection);
+                const blockingMessage = !active && blockingViolation ? blockingViolation.message : null;
                 const canIncrement = !submitting && !blockingViolation;
                 return (
                   <li key={item.id}>
@@ -1249,6 +1336,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                           {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
                             <span className="neon-gold-text mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                               {formatCurrency(item.priceCents)}
+                            </span>
+                          ) : null}
+                          {blockingMessage ? (
+                            <span className="mt-[5px] block text-[11px] leading-[1.45] text-[var(--text-dim)]">
+                              {blockingMessage}
                             </span>
                           ) : null}
                         </span>
@@ -1314,6 +1406,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                               {formatCurrency(item.priceCents)}
                             </span>
                           ) : null}
+                          {blockingMessage ? (
+                            <span className="mt-[5px] block text-[11px] leading-[1.45] text-[var(--text-dim)]">
+                              {blockingMessage}
+                            </span>
+                          ) : null}
                         </span>
                       </button>
                     )}
@@ -1327,8 +1424,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       </div>
 
       <PublicActionBar>
-        <div className="px-[14px] py-[14px] md:px-[18px] md:py-[16px]">
-          <div className="mb-[14px] flex items-end justify-between gap-[14px]">
+        <div className="px-[12px] py-[10px] md:px-[16px] md:py-[14px]">
+          <div className="mb-[10px] flex items-end justify-between gap-[12px]">
             <div className="min-w-0">
               {selectionViolations[0] ? (
                 <p className="text-[13px] leading-[1.6] text-[var(--accent-red)]">
@@ -1354,7 +1451,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               void handleSubmit();
             }}
             disabled={submitting}
-            className="neon-gold-fill min-h-[56px] w-full rounded-[22px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="neon-gold-fill min-h-[52px] w-full rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? 'Processando...' : (currentPaymentSummary?.paidTotalCents ?? 0) > 0 ? 'Pagar e finalizar pedido' : 'Enviar pedido'}
           </button>
