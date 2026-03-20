@@ -86,20 +86,20 @@ export default function MenuView({
             />
           ) : (
             <section className="section-card border-dashed text-center">
-              <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+              <h2 className="font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
                 Estatísticas indisponíveis
               </h2>
-              <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
+              <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
                 Conecte-se a internet para consultar sugestões e histórico.
               </p>
             </section>
           )
         ) : visibleCategories.length === 0 ? (
           <section className="section-card border-dashed text-center">
-            <h2 className="font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+            <h2 className="font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
               Nada encontrado
             </h2>
-            <p className="mt-[8px] text-[15px] leading-[1.5] text-[var(--text-dim)]">
+            <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
               {search.trim()
                 ? `Nenhum resultado para "${search}".`
                 : 'Ajuste a busca para encontrar itens.'}
@@ -153,7 +153,7 @@ export default function MenuView({
         {viewMode === 'manage' ? (
           <button
             type="button"
-            className="neon-gold-text mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[15px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
+            className="neon-gold-text mt-[18px] min-h-[56px] w-full rounded-[22px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-card)] px-[18px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={() => {
               lightTap();
               setShowAddCategorySheet(true);
@@ -223,7 +223,7 @@ export default function MenuView({
               <li key={cat}>
                 <button
                   type="button"
-                  className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px] text-left text-[15px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
+                  className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px] text-left text-[14px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
                   onClick={() => {
                     lightTap();
                     setQuickAddCategory(cat);

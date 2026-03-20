@@ -52,18 +52,12 @@ interface PublicMenuPageProps {
   token: string;
 }
 
-interface PublicHeaderProps {
-  eyebrow: string;
-  title: string;
-  accent?: 'gold' | 'red';
-  trailing?: ReactNode;
-}
-
 interface PublicStateCardProps {
-  icon: ReactNode;
+  icon?: ReactNode;
   title: string;
   body: string;
   summary?: ReactNode;
+  accent?: 'gold' | 'red' | 'green';
 }
 
 const getStoredCustomerName = () => {
@@ -384,47 +378,44 @@ const toCachedOrder = (order: FinalizedPublicOrder): CachedPublicOrder => ({
   paymentSummary: order.paymentSummary,
 });
 
-function PublicHeader({ eyebrow, title, accent = 'gold', trailing }: PublicHeaderProps) {
+function PublicHeader() {
   return (
     <section className="public-topbar">
-      <div className="flex items-start justify-between gap-[10px]">
-        <div className="flex items-center gap-[12px]">
-          <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[15px] border border-[var(--border)] bg-[rgba(215,176,92,0.08)]">
-            <img
-              src="/brand/menu-mark.svg"
-              alt="Logo do Maresia Grill"
-              className="h-[24px] w-[24px] shrink-0 object-cover object-top"
-            />
-          </div>
-          <div className="min-w-0">
-            <p className={`public-topbar__eyebrow ${accent === 'red' ? 'text-[var(--accent-red)]' : ''}`}>
-              {eyebrow}
-            </p>
-            <h1 className="font-[Georgia,'Times_New_Roman',serif] text-[26px] font-bold leading-[1.03] tracking-[-0.02em] text-[var(--text)]">
-              {title}
-            </h1>
-          </div>
+      <div className="public-content">
+        <div className="public-brand-lockup">
+          <img
+            src="/brand/menu-mark.svg"
+            alt="Logo do Maresia Grill"
+            className="public-brand-lockup__logo"
+          />
         </div>
-        {trailing}
       </div>
     </section>
   );
 }
 
-function PublicStateCard({ icon, title, body, summary }: PublicStateCardProps) {
+function PublicStateCard({ icon, title, body, summary, accent = 'gold' }: PublicStateCardProps) {
+  const iconTone = accent === 'red'
+    ? 'border-[rgba(208,109,86,0.32)] bg-[rgba(208,109,86,0.08)] text-[var(--accent-red)] shadow-[0_0_18px_rgba(208,109,86,0.18)]'
+    : accent === 'green'
+      ? 'border-[rgba(79,160,109,0.36)] bg-[rgba(79,160,109,0.12)] text-[var(--green)] shadow-[0_0_20px_rgba(79,160,109,0.24)]'
+      : 'border-[var(--border-strong)] bg-[rgba(215,176,92,0.09)] text-[var(--accent)] shadow-[0_0_18px_rgba(215,176,92,0.18)]';
+
   return (
-    <section className="public-panel px-[18px] py-[20px]">
-      <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px] border border-[var(--border-strong)] bg-[rgba(215,176,92,0.09)] text-[var(--accent)]">
-        {icon}
-      </div>
-      <h2 className="mt-[18px] font-[Georgia,'Times_New_Roman',serif] text-[30px] font-bold leading-[1.04] tracking-[-0.03em] text-[var(--text)]">
+    <section className={`public-panel px-[18px] py-[20px] ${icon ? 'text-center' : ''}`}>
+      {icon ? (
+        <div className={`mx-auto flex h-[52px] w-[52px] items-center justify-center rounded-[18px] border ${iconTone}`}>
+          {icon}
+        </div>
+      ) : null}
+      <h2 className={`${icon ? 'mt-[18px]' : ''} text-[24px] font-semibold leading-[1.08] tracking-[-0.03em] text-[var(--text)] md:text-[28px]`}>
         {title}
       </h2>
-      <p className="mt-[12px] text-[15px] leading-[1.7] text-[var(--text-dim)]">
+      <p className="mt-[12px] text-[14px] leading-[1.65] text-[var(--text-dim)]">
         {body}
       </p>
       {summary ? (
-        <div className="public-inline-panel mt-[18px] px-[16px] py-[14px]">
+        <div className="public-inline-panel mt-[18px] px-[16px] py-[14px] text-left">
           {summary}
         </div>
       ) : null}
@@ -460,7 +451,7 @@ function PublicOrderSummary({
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
             Seu nome
           </p>
-          <p className="mt-[6px] text-[18px] font-semibold text-[var(--text)]">
+          <p className="mt-[6px] text-[16px] font-semibold text-[var(--text)]">
             {customerName}
           </p>
         </>
@@ -469,11 +460,11 @@ function PublicOrderSummary({
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
           Total pago
         </p>
-        <p className="mt-[4px] text-[15px] font-semibold text-[var(--accent)]">
+        <p className="mt-[4px] text-[14px] font-semibold text-[var(--accent)]">
           {formatCurrency(paidTotalCents)}
         </p>
       </div>
-      <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[13px] text-[var(--text-dim)]">
+      <div className="mt-[12px] flex items-center justify-between gap-[10px] text-[12px] text-[var(--text-dim)]">
         <span>Itens escolhidos</span>
         <span>{countSelectedUnits(selectedItems.map(item => ({ itemId: item.id, quantity: item.quantity ?? 1 })))} selecionados</span>
       </div>
@@ -487,7 +478,7 @@ function PublicOrderSummary({
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
                 {group.category}
               </p>
-              <ul className="mt-[8px] space-y-[6px] text-[14px] leading-[1.6] text-[var(--text)]">
+              <ul className="mt-[8px] space-y-[6px] text-[13px] leading-[1.55] text-[var(--text)]">
                 {group.names.map(name => (
                   <li key={`${group.category}-${name}`}>{name}</li>
                 ))}
@@ -507,9 +498,9 @@ function PublicActionBar({
 }) {
   return (
     <div
-      className="public-action-bar px-[16px] pt-[10px] pb-[max(16px,env(safe-area-inset-bottom))]"
+      className="public-action-bar px-0 pt-[10px] pb-[max(16px,env(safe-area-inset-bottom))]"
     >
-      <div className="mx-auto w-full max-w-[560px]">
+      <div className="mx-auto w-full max-w-[880px] px-[4px] sm:px-[6px]">
         {children}
       </div>
     </div>
@@ -959,6 +950,23 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     );
     if (!ok) return;
 
+    const resetExistingOrderState = () => {
+      clearCachedOrder(menu.token);
+      clearStoredPendingOrder(menu.token);
+      clearStoredCancelledState(menu.token);
+      clearDraftIdFromUrl();
+      setPendingPayment(null);
+      setPendingOrderSummary(null);
+      setCheckoutSession(null);
+      const nextOrderId = createOrderId();
+      setStoredOrderId(menu.token, nextOrderId);
+      setOrderId(nextOrderId);
+      setSelection([]);
+      setSuccessState(null);
+      setCancelledState(null);
+      setCurrentView('form');
+    };
+
     setSubmitting(true);
     try {
       await cancelPublicOrder({
@@ -982,6 +990,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       setCancelledState(nextCancelledState);
       setCurrentView('cancelled');
     } catch (error) {
+      if (error instanceof Error && error.message === 'Pedido não encontrado.') {
+        resetExistingOrderState();
+        return;
+      }
       showToast(error instanceof Error ? error.message : 'Não foi possível cancelar o pedido.', 'error');
     } finally {
       setSubmitting(false);
@@ -993,38 +1005,41 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (cancelledState) {
     return (
       <main className="public-shell flex flex-col">
-        <PublicHeader eyebrow="Cancelado" title="Maresia Grill" accent="red" />
-        <PublicStateCard
-          icon={(
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          )}
-          title="Seu pedido foi cancelado"
-          body={
-            canStartNewOrder
-              ? `${cancelledState.customerName}, você ainda pode montar um novo pedido neste cardápio.`
-              : `${cancelledState.customerName}, a confirmação do cancelamento foi preservada neste link.`
-          }
-        />
+        <PublicHeader />
+        <div className="public-content">
+          <PublicStateCard
+            icon={(
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            )}
+            accent="red"
+            title="Seu pedido foi cancelado"
+            body={
+              canStartNewOrder
+                ? `${cancelledState.customerName}, você ainda pode montar um novo pedido neste cardápio.`
+                : `${cancelledState.customerName}, a confirmação do cancelamento foi preservada neste link.`
+            }
+          />
+        </div>
         {canStartNewOrder ? (
-          <PublicActionBar>
-              <button
-                type="button"
-                onClick={() => {
-                  lightTap();
-                  clearStoredCancelledState(token);
-                  setCancelledState(null);
-                  setSuccessState(null);
-                  setSelection([]);
-                  setCurrentView('form');
-                }}
-                className="neon-gold-fill min-h-[54px] w-full rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
-              >
-                Fazer novo pedido
-              </button>
-          </PublicActionBar>
+          <div className="public-content mt-[16px]">
+            <button
+              type="button"
+              onClick={() => {
+                lightTap();
+                clearStoredCancelledState(token);
+                setCancelledState(null);
+                setSuccessState(null);
+                setSelection([]);
+                setCurrentView('form');
+              }}
+              className="neon-gold-fill min-h-[54px] w-full rounded-[20px] bg-[var(--accent)] px-[18px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
+            >
+              Fazer novo pedido
+            </button>
+          </div>
         ) : null}
       </main>
     );
@@ -1033,37 +1048,40 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (successState) {
     return (
       <main className="public-shell flex flex-col">
-        <PublicHeader eyebrow="Enviado" title="Maresia Grill" />
-        <PublicStateCard
-          icon={(
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
-          )}
-          title="Seu pedido foi enviado"
-          body={
-            canModifyExistingOrder
-              ? 'Se precisar alterar algo, cancele este pedido e faça um novo.'
-              : isMenuExpired
-                ? 'A confirmação foi preservada, mas este cardápio não está mais disponível.'
-                : 'A confirmação foi preservada, mas os pedidos já foram encerrados.'
-          }
-          summary={(
-            <PublicOrderSummary
-              customerName={successState.customerName}
-              paidTotalCents={successState.paymentSummary.paidTotalCents}
-              categories={menu?.categories ?? []}
-              selectedItems={successState.lines.map(line => ({
-                id: line.itemId,
-                nome: line.name,
-                categoria: line.categoryName,
-                quantity: line.quantity,
-              }))}
-            />
-          )}
-        />
+        <PublicHeader />
+        <div className="public-content">
+          <PublicStateCard
+            icon={(
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            )}
+            accent="green"
+            title="Seu pedido foi enviado"
+            body={
+              canModifyExistingOrder
+                ? 'Se precisar alterar algo, cancele este pedido e faça um novo.'
+                : isMenuExpired
+                  ? 'A confirmação foi preservada, mas este cardápio não está mais disponível.'
+                  : 'A confirmação foi preservada, mas os pedidos já foram encerrados.'
+            }
+            summary={(
+              <PublicOrderSummary
+                customerName={successState.customerName}
+                paidTotalCents={successState.paymentSummary.paidTotalCents}
+                categories={menu?.categories ?? []}
+                selectedItems={successState.lines.map(line => ({
+                  id: line.itemId,
+                  nome: line.name,
+                  categoria: line.categoryName,
+                  quantity: line.quantity,
+                }))}
+              />
+            )}
+          />
+        </div>
         {canModifyExistingOrder ? (
-          <PublicActionBar>
+          <div className="public-content mt-[16px]">
             <button
               type="button"
               onClick={() => {
@@ -1071,14 +1089,11 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 void handleDeleteOrder();
               }}
               disabled={submitting}
-              className="min-h-[54px] w-full rounded-[20px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)] px-[18px] text-[15px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-[54px] w-full rounded-[20px] border border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)] px-[18px] text-[14px] font-semibold text-[var(--accent-red)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {successState.paymentSummary.paidTotalCents > 0 ? 'Cancelar e estornar' : 'Cancelar pedido'}
             </button>
-            <p className="mt-[10px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
-              Para mudar os itens, cancele este pedido e faça um novo.
-            </p>
-          </PublicActionBar>
+          </div>
         ) : null}
       </main>
     );
@@ -1087,34 +1102,36 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (currentView === 'submitted' && pendingPayment && !successState) {
     return (
       <main className="public-shell flex flex-col">
-        <PublicHeader eyebrow="Pagamento" title="Confirmando seu pedido" />
-        <PublicStateCard
-          icon={(
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 2" />
-            </svg>
-          )}
-          title={pendingPayment.paymentStatus === 'failed' ? 'Pagamento não concluído' : 'Aguardando confirmação'}
-          body={
-            pendingPayment.paymentStatus === 'failed'
-              ? 'O Stripe informou que o pagamento não foi concluído. Você pode voltar ao pedido e tentar novamente.'
-              : 'Estamos aguardando a confirmação do Stripe para finalizar o pedido. Esta tela atualiza automaticamente.'
-          }
-          summary={(
-            <PublicOrderSummary
-              customerName={pendingOrderSummary?.customerName ?? (customerName.trim() || undefined)}
-              paidTotalCents={pendingPaymentSummary?.paidTotalCents ?? 0}
-              categories={menu?.categories ?? []}
-              selectedItems={pendingSelectedItems.map(item => ({
-                id: item.id,
-                nome: item.nome,
-                categoria: item.categoria,
-                quantity: item.quantity,
-              }))}
-            />
-          )}
-        />
+        <PublicHeader />
+        <div className="public-content">
+          <PublicStateCard
+            icon={(
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            )}
+            title={pendingPayment.paymentStatus === 'failed' ? 'Pagamento não concluído' : 'Aguardando confirmação'}
+            body={
+              pendingPayment.paymentStatus === 'failed'
+                ? 'O Stripe informou que o pagamento não foi concluído. Você pode voltar ao pedido e tentar novamente.'
+                : 'Estamos aguardando a confirmação do Stripe para finalizar o pedido. Esta tela atualiza automaticamente.'
+            }
+            summary={(
+              <PublicOrderSummary
+                customerName={pendingOrderSummary?.customerName ?? (customerName.trim() || undefined)}
+                paidTotalCents={pendingPaymentSummary?.paidTotalCents ?? 0}
+                categories={menu?.categories ?? []}
+                selectedItems={pendingSelectedItems.map(item => ({
+                  id: item.id,
+                  nome: item.nome,
+                  categoria: item.categoria,
+                  quantity: item.quantity,
+                }))}
+              />
+            )}
+          />
+        </div>
         {pendingPayment.paymentStatus === 'failed' ? (
           <PublicActionBar>
             <button
@@ -1127,7 +1144,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 setPendingOrderSummary(null);
                 setCurrentView('form');
               }}
-              className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[15px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
+              className="min-h-[54px] w-full rounded-[20px] border border-[var(--border-strong)] bg-[var(--bg)] px-[18px] text-[14px] font-semibold text-[var(--text)] transition-opacity hover:opacity-90"
             >
               Voltar ao pedido
             </button>
@@ -1140,18 +1157,20 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (!menu) {
     return (
       <main className="public-shell">
-        <PublicHeader eyebrow="Link expirado" title="Maresia Grill" accent="red" />
-        <PublicStateCard
-          icon={(
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 8v5" />
-              <path d="M12 16h.01" />
-              <circle cx="12" cy="12" r="9" />
-            </svg>
-          )}
-          title="Este cardápio não está mais disponível"
-          body="O link é válido apenas para o cardápio do dia. Solicite um novo compartilhamento."
-        />
+        <PublicHeader />
+        <div className="public-content">
+          <PublicStateCard
+            icon={(
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 8v5" />
+                <path d="M12 16h.01" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+            )}
+            title="Este cardápio não está mais disponível"
+            body="O link é válido apenas para o cardápio do dia. Solicite um novo compartilhamento."
+          />
+        </div>
       </main>
     );
   }
@@ -1159,86 +1178,64 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   if (!menu.acceptingOrders) {
     return (
       <main className="public-shell">
-        <PublicHeader eyebrow="Encerrado" title="Maresia Grill" accent="red" />
-        <PublicStateCard
-          icon={(
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M8 7V4m8 3V4" />
-              <rect x="3" y="5" width="18" height="16" rx="3" />
-              <path d="M3 10h18" />
-            </svg>
-          )}
-          title="O recebimento de pedidos foi encerrado"
-          body="A cozinha já está montando os pratos deste cardápio. Se precisar, solicite um novo posicionamento do restaurante."
-        />
+        <PublicHeader />
+        <div className="public-content">
+          <PublicStateCard
+            icon={(
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 7V4m8 3V4" />
+                <rect x="3" y="5" width="18" height="16" rx="3" />
+                <path d="M3 10h18" />
+              </svg>
+            )}
+            title="O recebimento de pedidos foi encerrado"
+            body="A cozinha já está montando os pratos deste cardápio. Se precisar, solicite um novo posicionamento do restaurante."
+          />
+        </div>
       </main>
     );
   }
 
   return (
     <main className="public-shell flex flex-col">
-      <PublicHeader
-        eyebrow="Hoje"
-        title="Faça seu pedido"
-        trailing={(
-          <div className="public-inline-panel px-[12px] py-[8px] text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">Opções</p>
-            <p className="mt-[3px] text-[16px] font-semibold text-[var(--accent)]">{menu.items.length}</p>
-          </div>
-        )}
-      />
+      <PublicHeader />
 
-      <section className="public-panel px-[18px] py-[18px]">
-        <div className="flex items-start justify-between gap-[12px]">
-          <div>
-            <h2 className="mt-[8px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold leading-[1.04] tracking-[-0.02em] text-[var(--text)]">
-              Identificação
-            </h2>
-          </div>
-          <div className="public-inline-panel min-w-[92px] px-[12px] py-[8px] text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-              Selecionados
-            </p>
-            <p className="mt-[3px] text-[16px] font-semibold text-[var(--accent)]">
-              {selectedCount}
-            </p>
-          </div>
-        </div>
-        <p className="mt-[10px] text-[14px] leading-[1.7] text-[var(--text-dim)]">
-          Digite seu nome e escolha os itens do seu pedido.
-        </p>
+      <div className="public-content">
+        <section className="public-panel px-[18px] py-[18px] md:px-[22px] md:py-[20px]">
+          <h2 className="text-[21px] font-semibold leading-[1.08] tracking-[-0.02em] text-[var(--text)] md:text-[24px]">
+            Identificação
+          </h2>
 
-        <label className="mt-[18px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-          Seu nome
-          <input
-            type="text"
-            value={customerName}
-            onChange={(event) => setCustomerName(event.target.value)}
-            placeholder="Digite seu nome"
-            className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[17px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
-          />
-        </label>
+          <label className="mt-[16px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+            Seu nome
+            <input
+              type="text"
+              value={customerName}
+              onChange={(event) => setCustomerName(event.target.value)}
+              placeholder="Digite seu nome"
+              className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[15px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+            />
+          </label>
+        </section>
 
-      </section>
-
-      <section className="mt-[14px] space-y-[12px]">
+        <section className="mt-[16px] grid gap-[14px] pb-[calc(128px+env(safe-area-inset-bottom))] lg:grid-cols-2 lg:items-start lg:pb-[calc(146px+env(safe-area-inset-bottom))]">
         {itemsByCategory.map(({ category, items }) => (
           <section
             key={category}
-            className="public-panel px-[18px] py-[18px]"
+            className="public-panel px-[18px] py-[18px] md:px-[22px] md:py-[20px]"
           >
-            <div className="flex items-start justify-between gap-[12px]">
+            <div className="flex items-center justify-between gap-[12px]">
               <div>
-                <h2 className="mt-[6px] font-[Georgia,'Times_New_Roman',serif] text-[25px] font-bold leading-[1.04] tracking-[-0.02em] text-[var(--text)]">
+                <h2 className="text-[20px] font-semibold leading-[1.08] tracking-[-0.02em] text-[var(--text)] md:text-[22px]">
                   {category}
                 </h2>
               </div>
-              <div className="public-inline-panel flex min-h-[40px] min-w-[40px] items-center justify-center px-[10px] text-[14px] font-semibold text-[var(--accent)]">
+              <div className="public-pill neon-gold-text text-[14px] font-semibold text-[var(--accent)]">
                 {items.length}
               </div>
             </div>
             {describeCategorySelectionRule(category, menu.categorySelectionRules) ? (
-              <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--accent)]">
+              <p className="neon-gold-text mt-[10px] text-[13px] leading-[1.55] text-[var(--accent)]">
                 {describeCategorySelectionRule(category, menu.categorySelectionRules)}
               </p>
             ) : null}
@@ -1249,49 +1246,37 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 const allowsRepeating = repeatedCategories.has(category);
                 const blockingViolation = canIncreaseItemQuantity(item.id, selection);
                 const canIncrement = !submitting && !blockingViolation;
-                const helperText = active
-                  ? quantity > 1
-                    ? `${quantity} selecionados no pedido`
-                    : 'Selecionado no pedido'
-                  : blockingViolation
-                    ? 'Limite atingido'
-                    : allowsRepeating
-                      ? 'Use + e - para ajustar'
-                      : 'Disponivel para incluir';
                 return (
                   <li key={item.id}>
                     {allowsRepeating ? (
                       <div
-                        className={`public-choice flex min-h-[72px] items-center gap-[14px] px-[14px] py-[13px] ${
+                        className={`public-choice grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[12px] px-[14px] py-[13px] ${
                           blockingViolation && quantity === 0 ? 'opacity-80' : ''
                         }`}
                       >
-                        <span className="min-w-0 flex-1">
-                          <span className={`block text-[16px] leading-[1.35] ${
+                        <span className="min-w-0">
+                          <span className={`block text-[14px] leading-[1.25] ${
                             active ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--text-muted)]'
                           }`}>
                             {item.nome}
                           </span>
-                          <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
-                            {helperText}
-                          </span>
                           {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
-                            <span className="mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                            <span className="neon-gold-text mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                               {formatCurrency(item.priceCents)}
                             </span>
                           ) : null}
                         </span>
-                        <div className="flex shrink-0 items-center gap-[8px]">
+                        <div className="flex min-w-[116px] shrink-0 items-center justify-end gap-[8px] self-center">
                           <button
                             type="button"
                             onClick={() => decrementItem(item.id)}
                             disabled={submitting || quantity === 0}
                             aria-label={`Diminuir ${item.nome}`}
-                            className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[20px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                            className="flex h-[34px] w-[34px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[17px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             -
                           </button>
-                          <span className="flex min-w-[32px] items-center justify-center text-[16px] font-semibold text-[var(--text)]">
+                          <span className="flex min-w-[26px] items-center justify-center text-[14px] font-semibold text-[var(--text)]">
                             {quantity}
                           </span>
                           <button
@@ -1299,7 +1284,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                             onClick={() => incrementItem(item.id)}
                             disabled={!canIncrement}
                             aria-label={`Aumentar ${item.nome}`}
-                            className="flex h-[40px] w-[40px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[20px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                            className="flex h-[34px] w-[34px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-elevated)] text-[17px] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             +
                           </button>
@@ -1312,12 +1297,12 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                         disabled={submitting || Boolean(blockingViolation && !active)}
                         aria-pressed={active}
                         aria-label={`${active ? 'Remover' : 'Adicionar'} ${item.nome} do menu do dia`}
-                        className={`public-choice flex min-h-[72px] w-full items-center gap-[14px] px-[14px] py-[13px] text-left disabled:cursor-not-allowed ${
+                        className={`public-choice flex min-h-[68px] w-full items-center gap-[12px] px-[14px] py-[12px] text-left disabled:cursor-not-allowed ${
                           blockingViolation && !active ? 'opacity-45 grayscale-[0.2]' : 'disabled:opacity-60'
                         }`}
                       >
                         <span
-                          className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[14px] border text-[16px] font-bold transition-colors ${
+                          className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[12px] border text-[14px] font-bold transition-colors ${
                             active
                               ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
                               : blockingViolation
@@ -1329,7 +1314,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                           ✓
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className={`block text-[16px] leading-[1.35] ${
+                          <span className={`block text-[14px] leading-[1.25] ${
                             active
                               ? 'font-semibold text-[var(--text)]'
                               : blockingViolation
@@ -1338,11 +1323,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                           }`}>
                             {item.nome}
                           </span>
-                          <span className="mt-[5px] block text-[12px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
-                            {helperText}
-                          </span>
                           {typeof item.priceCents === 'number' && item.priceCents > 0 ? (
-                            <span className="mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                            <span className="neon-gold-text mt-[5px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                               {formatCurrency(item.priceCents)}
                             </span>
                           ) : null}
@@ -1355,28 +1337,28 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             </ul>
           </section>
         ))}
-      </section>
+        </section>
+      </div>
 
       <PublicActionBar>
-        <div className="public-inline-panel mb-[10px] px-[14px] py-[12px]">
-          <div className="mb-[12px]">
-            <p className="mt-[4px] text-[14px] text-[var(--text-muted)]">
-              {selectedCount === 0 ? 'Selecione os complementos desejados.' : `${selectedCount} item(ns) pronto(s) para envio`}
-            </p>
+        <div className="px-[14px] py-[14px] md:px-[18px] md:py-[16px]">
+          <div className="mb-[14px] flex items-end justify-between gap-[14px]">
+            <div className="min-w-0">
+              {selectionViolations[0] ? (
+                <p className="text-[13px] leading-[1.6] text-[var(--accent-red)]">
+                  {selectionViolations[0].message}
+                </p>
+              ) : null}
+            </div>
             {currentPaymentSummary ? (
-              <div className="mt-[12px] rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]">
+              <div className="min-w-[124px] text-right md:min-w-[190px]">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
                   Total a pagar
                 </p>
-                <p className="mt-[4px] text-[15px] font-semibold text-[var(--accent)]">
+                <p className="neon-gold-text mt-[4px] text-[16px] font-semibold text-[var(--accent)]">
                   {formatCurrency(currentPaymentSummary.paidTotalCents)}
                 </p>
               </div>
-            ) : null}
-            {selectionViolations[0] ? (
-              <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--accent-red)]">
-                {selectionViolations[0].message}
-              </p>
             ) : null}
           </div>
           <button
@@ -1386,7 +1368,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               void handleSubmit();
             }}
             disabled={submitting}
-            className="neon-gold-fill min-h-[56px] w-full rounded-[22px] bg-[var(--accent)] px-[18px] text-[16px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="neon-gold-fill min-h-[56px] w-full rounded-[22px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? 'Processando...' : (currentPaymentSummary?.paidTotalCents ?? 0) > 0 ? 'Pagar e finalizar pedido' : 'Enviar pedido'}
           </button>

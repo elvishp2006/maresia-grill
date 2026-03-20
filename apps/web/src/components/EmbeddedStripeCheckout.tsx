@@ -165,7 +165,7 @@ export default function EmbeddedStripeCheckout(props: EmbeddedStripeCheckoutProp
         colorDanger: '#f97373',
         borderRadius: '18px',
         spacingUnit: '5px',
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily: 'Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       },
       rules: {
         '.Block': {

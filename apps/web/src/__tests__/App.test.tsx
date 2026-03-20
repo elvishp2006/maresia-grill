@@ -1520,6 +1520,40 @@ describe('App', () => {
     expect(window.location.hash).toBe('#/pedido');
   });
 
+  it('clears the stale public order state when cancellation returns pedido nao encontrado', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-2' });
+    cancelPublicOrderMock.mockRejectedValueOnce(new Error('Pedido não encontrado.'));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar pedido' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    });
+
+    expect(localStorage.getItem('public-menu-last-order:token-1')).toBeNull();
+    expect(window.location.hash).toBe('#/pedido');
+    expect(screen.queryByText('Seu pedido foi enviado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pedido não encontrado.')).not.toBeInTheDocument();
+  });
+
   it('persists only the validated public selection after submit', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'public-order-1' });
     submitPublicOrderMock.mockResolvedValue({

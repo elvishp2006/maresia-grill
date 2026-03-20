@@ -56,19 +56,18 @@ export default function Header({
       ref={headerRef}
       className="sticky top-0 z-30 -mx-[16px] mb-[14px] border-b border-[var(--border)] bg-[rgba(21,22,15,0.92)] px-[16px] pb-[10px] pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-[18px]"
     >
-      <div className="flex items-center justify-between gap-[8px]">
-        <div className="flex items-center gap-[8px]">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[8px]">
+        <div aria-hidden="true" />
+
+        <div className="flex items-center justify-center">
           <img
             src="/brand/menu-mark.svg"
             alt="Logo do Maresia Grill"
-            className="h-[28px] w-[28px] shrink-0 object-cover object-top"
+            className="h-[46px] w-[46px] shrink-0 object-cover object-top"
           />
-          <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">
-            Maresia Grill
-          </span>
         </div>
 
-        <div className="flex items-center gap-[8px]">
+        <div className="flex items-center justify-end gap-[8px]">
           {activeCount > 0 ? (
             <span className="neon-gold-border neon-gold-text rounded-full bg-[var(--accent-soft)] px-[10px] py-[3px] text-[12px] font-semibold text-[var(--accent)]">
               {activeCount} • {dateShort}
