@@ -884,6 +884,29 @@ describe('App', () => {
     expect(screen.getByText('Login cancelado.')).toBeInTheDocument();
   });
 
+  it('keeps unauthorized users on the sign-in screen instead of mounting the admin', () => {
+    useAuthSessionMock.mockReturnValue({
+      user: null,
+      loading: false,
+      authError: 'Este email não tem acesso ao admin.',
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText('Este email não tem acesso ao admin.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sair da conta' })).not.toBeInTheDocument();
+  });
+
   it('starts the sign-in flow from the auth screen', () => {
     const signIn = vi.fn();
     useAuthSessionMock.mockReturnValue({
