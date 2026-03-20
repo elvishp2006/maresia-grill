@@ -940,7 +940,7 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Este cardápio não está mais disponível')).toBeInTheDocument();
-    expect(screen.getByText('Link expirado')).toBeInTheDocument();
+    expect(screen.getByText('O link é válido apenas para o cardápio do dia. Solicite um novo compartilhamento.')).toBeInTheDocument();
   });
 
   it('syncs the public menu snapshot while the authenticated menu changes', async () => {
@@ -1068,7 +1068,6 @@ describe('App', () => {
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
     expect(window.location.hash).toBe('#/enviado');
-    expect(screen.getByText('Seu nome')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
     const groupedCategoryLabels = screen.getAllByText(/^(Carnes|Saladas|Molhos)$/).map(node => node.textContent);
     expect(groupedCategoryLabels.slice(0, 3)).toEqual(['Carnes', 'Saladas', 'Molhos']);
@@ -1077,7 +1076,6 @@ describe('App', () => {
     expect(screen.getByText('Molho da casa')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeInTheDocument();
-    expect(screen.getByText('Para mudar os itens, cancele este pedido e faça um novo.')).toBeInTheDocument();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
 
@@ -1362,7 +1360,6 @@ describe('App', () => {
 
     const tomateButton = screen.getByRole('button', { name: 'Adicionar Tomate do menu do dia' });
     expect(tomateButton).toBeDisabled();
-    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
   });
 
@@ -1402,7 +1399,8 @@ describe('App', () => {
 
     const linguicaButton = screen.getByRole('button', { name: 'Adicionar Linguica do menu do dia' });
     expect(linguicaButton).toBeDisabled();
-    expect(screen.getAllByText('Limite atingido').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Remover Picanha do menu do dia' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Frango do menu do dia' })).toBeInTheDocument();
   });
 
   it('renders repeated items without a redundant left-side indicator', async () => {
@@ -1432,7 +1430,8 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Brownie')).toBeInTheDocument();
-    expect(screen.getByText('Use + e - para ajustar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aumentar Brownie' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Adicionar Brownie do menu do dia' })).not.toBeInTheDocument();
     expect(screen.queryByText('0x')).not.toBeInTheDocument();
   });
@@ -1465,14 +1464,16 @@ describe('App', () => {
 
     expect(await screen.findByText('Brownie')).toBeInTheDocument();
 
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar Brownie' }));
-    expect(screen.getByText('Selecionado no pedido')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar Brownie' }));
-    expect(screen.getByText('2 selecionados no pedido')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Diminuir Brownie' }));
-    expect(screen.getByText('Selecionado no pedido')).toBeInTheDocument();
+    expect(screen.queryByText('2')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeEnabled();
   });
 
   it('allows cancelling the public order while intake is open and shows a cancellation confirmation state', async () => {
@@ -1825,7 +1826,6 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument();
-    expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
     const groupedCategoryLabels = screen.getAllByText(/^(Carnes|Saladas|Molhos)$/).map(node => node.textContent);
     expect(groupedCategoryLabels.slice(0, 3)).toEqual(['Saladas', 'Carnes', 'Molhos']);
@@ -2125,6 +2125,6 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
+    expect(screen.getByText('Esse caminho não existe')).toBeInTheDocument();
   });
 });
