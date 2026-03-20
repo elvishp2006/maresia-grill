@@ -779,6 +779,22 @@ export const loadSelectionHistory = async (days: number): Promise<SelectionHisto
   });
 };
 
+export const loadMenuAvailabilityHistory = async (days: number): Promise<SelectionHistoryEntry[]> => {
+  const today = new Date();
+  const dateKeys = Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    return getDateKey(date);
+  });
+
+  const menuSnaps = await Promise.all(dateKeys.map(dateKey => getDoc(dailyMenuRef(dateKey))));
+  return menuSnaps.flatMap((snap, index) => {
+    if (!snap.exists()) return [];
+    const dailyMenu = normalizeDailyMenuRecord(dateKeys[index]!, snap.data());
+    return dailyMenu.itemIds.length > 0 ? [{ dateKey: dateKeys[index]!, ids: dailyMenu.itemIds }] : [];
+  });
+};
+
 const normalizeEditorLock = (value: unknown): EditorLock | null => {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Record<string, unknown>;

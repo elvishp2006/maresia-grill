@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { loadSelectionHistory, type SelectionHistoryEntry } from '../lib/storage';
+import {
+  loadMenuAvailabilityHistory,
+  loadSelectionHistory,
+  type SelectionHistoryEntry,
+} from '../lib/storage';
 import type { Item } from '../types';
 import { buildInsightMetrics } from '../lib/insights';
 
 export const useMenuInsights = (complements: Item[], daySelection: string[], enabled = true) => {
   const [history, setHistory] = useState<SelectionHistoryEntry[]>([]);
+  const [availabilityHistory, setAvailabilityHistory] = useState<SelectionHistoryEntry[]>([]);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,15 +22,19 @@ export const useMenuInsights = (complements: Item[], daySelection: string[], ena
       setError(null);
     });
 
-    loadSelectionHistory(90)
-      .then(entries => {
+    Promise.all([
+      loadSelectionHistory(90),
+      loadMenuAvailabilityHistory(90),
+    ])
+      .then(([selectionEntries, availabilityEntries]) => {
         if (cancelled) return;
-        setHistory(entries);
+        setHistory(selectionEntries);
+        setAvailabilityHistory(availabilityEntries);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
-        setError('Não foi possível carregar o histórico de seleções.');
+        setError('Não foi possível carregar o histórico das estatísticas.');
         setLoading(false);
       });
 
@@ -35,8 +44,8 @@ export const useMenuInsights = (complements: Item[], daySelection: string[], ena
   }, [enabled]);
 
   const metrics = useMemo(
-    () => buildInsightMetrics({ complements, history, daySelection }),
-    [complements, daySelection, history],
+    () => buildInsightMetrics({ complements, history, availabilityHistory, daySelection }),
+    [availabilityHistory, complements, daySelection, history],
   );
 
   return {

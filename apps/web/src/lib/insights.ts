@@ -42,6 +42,7 @@ export interface InsightMetrics {
 interface BuildInsightMetricsParams {
   complements: Item[];
   history: SelectionHistoryEntry[];
+  availabilityHistory?: SelectionHistoryEntry[];
   daySelection: string[];
   now?: Date;
 }
@@ -141,12 +142,15 @@ const toInsightItems = (
 export const buildInsightMetrics = ({
   complements,
   history,
+  availabilityHistory = [],
   daySelection,
   now = new Date(),
 }: BuildInsightMetricsParams): InsightMetrics => {
   const safeHistory = sanitizeHistory(history);
+  const safeAvailabilityHistory = sanitizeHistory(availabilityHistory);
   const safeDaySelection = sanitizeDaySelection(daySelection);
   const mergedHistory = mergeCurrentDay(safeHistory, safeDaySelection, now);
+  const mergedAvailabilityHistory = mergeCurrentDay(safeAvailabilityHistory, safeDaySelection, now);
   const complementsById = new Map(complements.map(item => [item.id, item]));
   const totalCounts = buildCounts(mergedHistory);
   const lastSeen = buildLastSeen(mergedHistory);
@@ -165,7 +169,7 @@ export const buildInsightMetrics = ({
   );
 
   const weekdayStats = Array.from({ length: 7 }, (_, index) => {
-    const entries = mergedHistory.filter(entry => getWeekdayFromDateKey(entry.dateKey) === index);
+    const entries = mergedAvailabilityHistory.filter(entry => getWeekdayFromDateKey(entry.dateKey) === index);
     const total = entries.reduce((sum, entry) => sum + entry.ids.length, 0);
     return {
       weekday: index,
