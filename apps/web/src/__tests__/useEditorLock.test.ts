@@ -104,6 +104,29 @@ describe('useEditorLock', () => {
     }, { force: true });
   });
 
+  it('recovers the lock automatically when the same user is marked active on the same device', async () => {
+    subscribeEditorLockMock.mockImplementation((onValue: (lock: EditorLock | null) => void) => {
+      onValue(makeLock({
+        sessionId: 'session-2',
+        userEmail: 'chef@maresia.com',
+        deviceLabel: 'Mac',
+      }));
+      return vi.fn();
+    });
+
+    renderHook(() => useEditorLock('chef@maresia.com', true));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(acquireEditorLockMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      userEmail: 'chef@maresia.com',
+      deviceLabel: 'Mac',
+    }, { force: true });
+  });
+
   it('does not auto-acquire when offline or without a user', async () => {
     renderHook(() => useEditorLock('chef@maresia.com', false));
     renderHook(() => useEditorLock(null, true));

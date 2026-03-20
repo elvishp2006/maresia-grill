@@ -93,7 +93,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
 
-  const [search, setSearch] = useState('');
+  const [searchByView, setSearchByView] = useState<{ menu: string; manage: string }>({ menu: '', manage: '' });
   const [viewMode, setViewMode] = useState<'menu' | 'stats' | 'manage' | 'orders'>('menu');
   const [manualExpandedCategory, setManualExpandedCategory] = useState<string | null | undefined>(undefined);
   const [headerHeight, setHeaderHeight] = useState(188);
@@ -113,6 +113,8 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
   const lastSyncedRevisionRef = useRef<number | null>(null);
   const syncBaselineInitializedRef = useRef(false);
   const syncScopeKeyRef = useRef<string | null>(null);
+
+  const search = viewMode === 'manage' ? searchByView.manage : searchByView.menu;
 
   const visibleCategories = useMemo(() => {
     if (!search.trim()) return categories;
@@ -142,6 +144,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     const text = formatMenuText(complements, daySelection, categories);
     if (navigator.share) {
       await navigator.share({ title: 'Menu do Maresia Grill', text });
+      showAdminSuccess(showToast, 'Menu compartilhado!');
     } else {
       try {
         await navigator.clipboard.writeText(text);
@@ -188,6 +191,22 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
       await releaseEditAccess();
       onSignOut();
     }
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchByView((current) => (
+      viewMode === 'manage'
+        ? { ...current, manage: value }
+        : { ...current, menu: value }
+    ));
+  };
+
+  const clearCurrentSearch = () => {
+    setSearchByView((current) => (
+      viewMode === 'manage'
+        ? { ...current, manage: '' }
+        : { ...current, menu: '' }
+    ));
   };
 
   useEffect(() => {
@@ -448,7 +467,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
       {viewMode === 'menu' || viewMode === 'manage' ? (
         <Toolbar
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={handleSearchChange}
           sortMode={sortMode}
           onToggleSort={toggleSortMode}
           viewMode={viewMode}
@@ -492,7 +511,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
           onRemoveCategory={removeCategory}
           onAddCategory={addCategory}
           onSaveCategoryRule={saveCategoryRule}
-          onClearSearch={() => setSearch('')}
+          onClearSearch={clearCurrentSearch}
           onShare={() => setShowShareSheet(true)}
         />
       )}
@@ -510,8 +529,9 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
             className="neon-gold-fill min-h-[52px] rounded-[18px] bg-[var(--accent)] px-[18px] text-left text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90"
             onClick={() => {
               success();
-              setShowShareSheet(false);
-              void shareMenu();
+              void shareMenu().finally(() => {
+                setShowShareSheet(false);
+              });
             }}
           >
             Compartilhar texto

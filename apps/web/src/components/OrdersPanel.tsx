@@ -2,6 +2,18 @@ import type { OrderEntry, PublicMenuVersion } from '../types';
 import { groupOrderItemsByCategory } from '../lib/utils';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { formatCurrency } from '../lib/billing';
+import type { PublicOrderPaymentStatus } from '../types';
+
+const PAYMENT_STATUS_LABELS: Record<PublicOrderPaymentStatus, string> = {
+  not_required: 'Não precisa pagar',
+  awaiting_payment: 'Aguardando pagamento',
+  paid: 'Pago',
+  refund_pending: 'Estorno pendente',
+  refunded: 'Estornado',
+  failed: 'Falhou',
+};
+
+const getPaymentStatusLabel = (status: PublicOrderPaymentStatus) => PAYMENT_STATUS_LABELS[status] ?? status;
 
 interface OrdersPanelProps {
   orders: OrderEntry[];
@@ -175,7 +187,7 @@ export default function OrdersPanel({
             </div>
 
             <p className="mt-[10px] text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
-              Status: {paymentSummary.paymentStatus}
+              Status: {getPaymentStatusLabel(paymentSummary.paymentStatus)}
             </p>
 
             {groupedItems.length > 0 ? (

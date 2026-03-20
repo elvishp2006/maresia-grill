@@ -77,5 +77,41 @@ describe('OrdersPanel', () => {
 
     expect(screen.getByText('Arroz')).toBeInTheDocument();
     expect(screen.getByText('Refrigerante')).toBeInTheDocument();
+    expect(screen.getByText(/Status: Pago/i)).toBeInTheDocument();
+  });
+
+  it('renders a friendly label for free orders', () => {
+    render(
+      <OrdersPanel
+        orders={[{
+          id: 'entry-2',
+          dateKey: '2026-03-18',
+          shareToken: 'token-1',
+          orderId: 'order-2',
+          customerName: 'Pedido Gratis',
+          paymentSummary: {
+            freeTotalCents: 0,
+            paidTotalCents: 0,
+            currency: 'BRL',
+            paymentStatus: 'not_required',
+            provider: null,
+            paymentMethod: null,
+            providerPaymentId: null,
+            refundedAt: null,
+          },
+          submittedAt: new Date('2026-03-18T12:00:00Z').getTime(),
+        }]}
+        categories={['Acompanhamentos']}
+        menuVersions={{}}
+        acceptingOrders
+        intakePending={false}
+        canManageIntake
+        onToggleIntake={vi.fn()}
+        loading={false}
+        error={false}
+      />,
+    );
+
+    expect(screen.getByText(/Status: Não precisa pagar/i)).toBeInTheDocument();
   });
 });

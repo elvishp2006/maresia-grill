@@ -371,6 +371,7 @@ describe('App', () => {
         text: expect.stringContaining('Alface'),
       });
     });
+    expect(await screen.findByText('Menu compartilhado!')).toBeInTheDocument();
   });
 
   it('falls back to alert when clipboard copy fails', async () => {
@@ -432,6 +433,32 @@ describe('App', () => {
 
     expect(screen.getByRole('button', { name: 'Compartilhar link único' })).toBeDisabled();
     expect(screen.getByText(/recebimento estiver encerrado/i)).toBeInTheDocument();
+  });
+
+  it('keeps search isolated between menu and catalog views', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar item para o menu...'), {
+      target: { value: 'zzzz' },
+    });
+    expect(screen.getByDisplayValue('zzzz')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    expect(screen.getByPlaceholderText('Buscar item ou categoria')).toHaveValue('');
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar item ou categoria'), {
+      target: { value: 'carne' },
+    });
+    expect(screen.getByDisplayValue('carne')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Menu' }));
+    expect(screen.getByPlaceholderText('Buscar item para o menu...')).toHaveValue('zzzz');
   });
 
   it('shows the update indicator in the header and applies the update on click', async () => {
