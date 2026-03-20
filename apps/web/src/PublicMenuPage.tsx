@@ -424,12 +424,10 @@ function PublicStateCard({ icon, title, body, summary, accent = 'gold' }: Public
 }
 
 function PublicOrderSummary({
-  customerName,
   paidTotalCents,
   categories,
   selectedItems,
 }: {
-  customerName?: string;
   paidTotalCents: number;
   categories: string[];
   selectedItems: Array<{ id: string; nome: string; categoria: string; quantity?: number }>;
@@ -446,17 +444,7 @@ function PublicOrderSummary({
 
   return (
     <>
-      {customerName ? (
-        <>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-dim)]">
-            Seu nome
-          </p>
-          <p className="mt-[6px] text-[16px] font-semibold text-[var(--text)]">
-            {customerName}
-          </p>
-        </>
-      ) : null}
-      <div className={`${customerName ? 'mt-[12px]' : ''} rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]`}>
+      <div className="rounded-[16px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]">
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
           Total pago
         </p>
@@ -1067,7 +1055,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             }
             summary={(
               <PublicOrderSummary
-                customerName={successState.customerName}
                 paidTotalCents={successState.paymentSummary.paidTotalCents}
                 categories={menu?.categories ?? []}
                 selectedItems={successState.lines.map(line => ({
@@ -1119,7 +1106,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
             }
             summary={(
               <PublicOrderSummary
-                customerName={pendingOrderSummary?.customerName ?? (customerName.trim() || undefined)}
                 paidTotalCents={pendingPaymentSummary?.paidTotalCents ?? 0}
                 categories={menu?.categories ?? []}
                 selectedItems={pendingSelectedItems.map(item => ({
