@@ -25,6 +25,15 @@ const ToastHarness = () => {
 };
 
 describe('ToastProvider', () => {
+  it('positions the toast container below the top safe area', () => {
+    const { container } = render(createElement(ToastProvider, null, createElement(ToastHarness)));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toast fixo' }));
+
+    const toastContainer = container.querySelector('.fixed.z-50');
+    expect(toastContainer).toHaveStyle({ top: 'max(16px, calc(env(safe-area-inset-top) + 8px))' });
+  });
+
   it('keeps the toast visible until the user closes it', () => {
     render(createElement(ToastProvider, null, createElement(ToastHarness)));
 
