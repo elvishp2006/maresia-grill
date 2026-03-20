@@ -4,6 +4,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 const onAuthStateChangedMock = vi.fn();
 const signInWithPopupMock = vi.fn();
 const signOutMock = vi.fn();
+const loadEditorLockMock = vi.fn();
 
 interface FirebaseModuleMock {
   auth: object | null;
@@ -24,12 +25,16 @@ const importUseAuthSession = async (firebaseMock: FirebaseModuleMock = {
 }) => {
   vi.resetModules();
   vi.doMock('../lib/firebase', () => firebaseMock);
+  vi.doMock('../lib/storage', () => ({
+    loadEditorLock: (...args: unknown[]) => loadEditorLockMock(...args),
+  }));
   return import('../hooks/useAuthSession');
 };
 
 describe('useAuthSession', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    loadEditorLockMock.mockResolvedValue(null);
   });
 
   it('sets user when onAuthStateChanged fires with an authenticated user', async () => {
@@ -150,5 +155,38 @@ describe('useAuthSession', () => {
     expect(result.current.user).toBeNull();
     expect(result.current.authError).toBe('Configuracao do Firebase ausente.');
     expect(onAuthStateChangedMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks unauthorized users based on the Firestore admin gate', async () => {
+    onAuthStateChangedMock.mockImplementation((_auth, callback) => {
+      void callback({ uid: 'user-2', email: 'intruso@example.com' });
+      return vi.fn();
+    });
+    loadEditorLockMock.mockRejectedValue({ code: 'permission-denied' });
+    signOutMock.mockResolvedValue(undefined);
+
+    const { useAuthSession } = await importUseAuthSession();
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(loadEditorLockMock).toHaveBeenCalledTimes(1);
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(result.current.user).toBeNull();
+    expect(result.current.authError).toBe('Este email não tem acesso ao admin.');
+  });
+
+  it('keeps the user signed in when the admin gate probe fails for a non-permission reason', async () => {
+    onAuthStateChangedMock.mockImplementation((_auth, callback) => {
+      void callback({ uid: 'user-1', email: 'elvishp2006@gmail.com' });
+      return vi.fn();
+    });
+    loadEditorLockMock.mockRejectedValue(new Error('transient'));
+
+    const { useAuthSession } = await importUseAuthSession();
+    const { result } = renderHook(() => useAuthSession());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.user?.email).toBe('elvishp2006@gmail.com');
+    expect(result.current.authError).toBeNull();
   });
 });

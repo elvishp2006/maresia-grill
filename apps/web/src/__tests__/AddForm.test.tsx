@@ -119,4 +119,19 @@ describe('AddForm', () => {
     expect(onAdd).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('keeps submit disabled until a non-blank value is provided', async () => {
+    const user = userEvent.setup();
+
+    render(<AddForm onAdd={vi.fn()} onClose={vi.fn()} />);
+
+    const submitButton = screen.getByRole('button', { name: 'Adicionar' });
+    expect(submitButton).toBeDisabled();
+
+    await user.type(screen.getByRole('textbox'), '   ');
+    expect(submitButton).toBeDisabled();
+
+    await user.type(screen.getByRole('textbox'), 'Feijao');
+    expect(submitButton).toBeEnabled();
+  });
 });

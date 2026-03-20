@@ -85,7 +85,7 @@ function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} className="w-full min-w-0">
-      <div className="stripe-checkout-scroll max-h-[min(52vh,460px)] space-y-[16px] overflow-y-auto pb-[18px] pr-[10px]">
+      <div className="stripe-checkout-scroll max-h-[min(52vh,460px)] space-y-[16px] overflow-y-auto pb-[88px] pr-[10px]">
         <section className="min-w-0 space-y-[8px]">
           <div className="stripe-payment-element stripe-payment-element--ready min-w-0">
             <LinkAuthenticationElement
@@ -135,7 +135,7 @@ function CheckoutForm({
         </section>
       </div>
 
-      <div className="stripe-checkout-footer px-[8px] pb-[4px] pt-[12px]">
+      <div className="stripe-checkout-footer px-[8px] pb-[max(8px,env(safe-area-inset-bottom))] pt-[12px]">
         <button
           type="submit"
           disabled={submitting || !elementReady || !stripe || !elements || Boolean(loadError)}
@@ -165,7 +165,7 @@ export default function EmbeddedStripeCheckout(props: EmbeddedStripeCheckoutProp
         colorDanger: '#f97373',
         borderRadius: '18px',
         spacingUnit: '5px',
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily: 'Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       },
       rules: {
         '.Block': {

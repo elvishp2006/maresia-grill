@@ -205,19 +205,19 @@ export default function CategoryCard({
             >
               <div className="flex items-start gap-[14px]">
                 <div className="min-w-0 flex-1">
-                  <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                  <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
                     {categoria}
                   </h2>
-                  <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+                  <p className="mt-[6px] text-[12px] leading-[1.5] text-[var(--text-dim)]">
                     {selectedCount}/{items.length} itens
                   </p>
-                <p className={`mt-[6px] text-[12px] leading-[1.5] ${hasRule ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
+                <p className={`mt-[6px] text-[11px] leading-[1.5] ${hasRule ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
                     {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite e permite repetir item' : 'Sem limite no pedido publico')}
                   </p>
                 </div>
-                <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
+                <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[16px] text-[var(--text-dim)]">
                   <svg
-                    className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+                    className={`h-[17px] w-[17px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
                     viewBox="0 0 20 20"
                     fill="none"
                     aria-hidden="true"
@@ -244,21 +244,21 @@ export default function CategoryCard({
           >
             <div className="flex items-start gap-[14px]">
               <div className="min-w-0 flex-1">
-                <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+                <h2 className="overflow-hidden text-ellipsis whitespace-nowrap font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
                   {categoria}
                 </h2>
-                <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text-dim)]">
+                <p className="mt-[6px] text-[12px] leading-[1.5] text-[var(--text-dim)]">
                   {selectedCount}/{items.length} itens
                 </p>
                 {ruleSummary ? (
-                  <p className="mt-[6px] text-[12px] leading-[1.5] text-[var(--accent)]">
+                  <p className="mt-[6px] text-[11px] leading-[1.5] text-[var(--accent)]">
                     {ruleSummary}
                   </p>
                 ) : null}
               </div>
-              <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[18px] text-[var(--text-dim)]">
+              <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[16px] text-[var(--text-dim)]">
                 <svg
-                  className={`h-[18px] w-[18px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+                  className={`h-[17px] w-[17px] transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
                   viewBox="0 0 20 20"
                   fill="none"
                   aria-hidden="true"
@@ -286,13 +286,13 @@ export default function CategoryCard({
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
                         Pedido publico
                       </p>
-                      <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">
+                      <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--text)]">
                         {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite de selecao e com repeticao do mesmo item liberada.' : 'Sem limite de selecao para esta categoria.')}
                       </p>
                     </div>
                     <button
                       type="button"
-                      className="neon-gold-fill min-h-[42px] rounded-[16px] bg-[var(--accent)] px-[14px] text-[13px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                      className="neon-gold-fill min-h-[42px] rounded-[16px] bg-[var(--accent)] px-[14px] text-[12px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                       onClick={handleOpenRuleSheet}
                       disabled={!isOnline}
                     >

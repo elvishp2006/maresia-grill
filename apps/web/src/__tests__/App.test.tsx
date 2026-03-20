@@ -371,6 +371,7 @@ describe('App', () => {
         text: expect.stringContaining('Alface'),
       });
     });
+    expect(await screen.findByText('Menu compartilhado!')).toBeInTheDocument();
   });
 
   it('falls back to alert when clipboard copy fails', async () => {
@@ -432,6 +433,32 @@ describe('App', () => {
 
     expect(screen.getByRole('button', { name: 'Compartilhar link único' })).toBeDisabled();
     expect(screen.getByText(/recebimento estiver encerrado/i)).toBeInTheDocument();
+  });
+
+  it('keeps search isolated between menu and catalog views', async () => {
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar item para o menu...'), {
+      target: { value: 'zzzz' },
+    });
+    expect(screen.getByDisplayValue('zzzz')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
+    expect(screen.getByPlaceholderText('Buscar item ou categoria')).toHaveValue('');
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar item ou categoria'), {
+      target: { value: 'carne' },
+    });
+    expect(screen.getByDisplayValue('carne')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Menu' }));
+    expect(screen.getByPlaceholderText('Buscar item para o menu...')).toHaveValue('zzzz');
   });
 
   it('shows the update indicator in the header and applies the update on click', async () => {
@@ -857,6 +884,29 @@ describe('App', () => {
     expect(screen.getByText('Login cancelado.')).toBeInTheDocument();
   });
 
+  it('keeps unauthorized users on the sign-in screen instead of mounting the admin', () => {
+    useAuthSessionMock.mockReturnValue({
+      user: null,
+      loading: false,
+      authError: 'Este email não tem acesso ao admin.',
+      signInPending: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    });
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+        <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(screen.getByText('Este email não tem acesso ao admin.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Entrar com Google' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sair da conta' })).not.toBeInTheDocument();
+  });
+
   it('starts the sign-in flow from the auth screen', () => {
     const signIn = vi.fn();
     useAuthSessionMock.mockReturnValue({
@@ -894,6 +944,25 @@ describe('App', () => {
 
     expect(await screen.findByPlaceholderText('Digite seu nome')).toBeInTheDocument();
     expect(screen.getByText('Saladas')).toBeInTheDocument();
+  });
+
+  it('focuses the customer name field when submit is attempted without a name', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    const input = screen.getByPlaceholderText('Digite seu nome');
+    expect(await screen.findByText('Informe seu nome.')).toBeInTheDocument();
+    expect(input).toHaveFocus();
   });
 
   it('renders the public closed state when order intake is closed', async () => {
@@ -940,7 +1009,7 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Este cardápio não está mais disponível')).toBeInTheDocument();
-    expect(screen.getByText('Link expirado')).toBeInTheDocument();
+    expect(screen.getByText('O link é válido apenas para o cardápio do dia. Solicite um novo compartilhamento.')).toBeInTheDocument();
   });
 
   it('syncs the public menu snapshot while the authenticated menu changes', async () => {
@@ -1068,7 +1137,6 @@ describe('App', () => {
 
     expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
     expect(window.location.hash).toBe('#/enviado');
-    expect(screen.getByText('Seu nome')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
     const groupedCategoryLabels = screen.getAllByText(/^(Carnes|Saladas|Molhos)$/).map(node => node.textContent);
     expect(groupedCategoryLabels.slice(0, 3)).toEqual(['Carnes', 'Saladas', 'Molhos']);
@@ -1077,7 +1145,6 @@ describe('App', () => {
     expect(screen.getByText('Molho da casa')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar pedido' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeInTheDocument();
-    expect(screen.getByText('Para mudar os itens, cancele este pedido e faça um novo.')).toBeInTheDocument();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
 
@@ -1362,7 +1429,7 @@ describe('App', () => {
 
     const tomateButton = screen.getByRole('button', { name: 'Adicionar Tomate do menu do dia' });
     expect(tomateButton).toBeDisabled();
-    expect(screen.getByText('Limite atingido')).toBeInTheDocument();
+    expect(screen.getByText('A categoria Saladas excedeu o limite permitido.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
   });
 
@@ -1402,7 +1469,8 @@ describe('App', () => {
 
     const linguicaButton = screen.getByRole('button', { name: 'Adicionar Linguica do menu do dia' });
     expect(linguicaButton).toBeDisabled();
-    expect(screen.getAllByText('Limite atingido').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Remover Picanha do menu do dia' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Frango do menu do dia' })).toBeInTheDocument();
   });
 
   it('renders repeated items without a redundant left-side indicator', async () => {
@@ -1432,7 +1500,8 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Brownie')).toBeInTheDocument();
-    expect(screen.getByText('Use + e - para ajustar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aumentar Brownie' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Adicionar Brownie do menu do dia' })).not.toBeInTheDocument();
     expect(screen.queryByText('0x')).not.toBeInTheDocument();
   });
@@ -1465,14 +1534,16 @@ describe('App', () => {
 
     expect(await screen.findByText('Brownie')).toBeInTheDocument();
 
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar Brownie' }));
-    expect(screen.getByText('Selecionado no pedido')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar Brownie' }));
-    expect(screen.getByText('2 selecionados no pedido')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Diminuir Brownie' }));
-    expect(screen.getByText('Selecionado no pedido')).toBeInTheDocument();
+    expect(screen.queryByText('2')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Diminuir Brownie' })).toBeEnabled();
   });
 
   it('allows cancelling the public order while intake is open and shows a cancellation confirmation state', async () => {
@@ -1518,6 +1589,40 @@ describe('App', () => {
       expect(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' })).toBeInTheDocument();
     });
     expect(window.location.hash).toBe('#/pedido');
+  });
+
+  it('clears the stale public order state when cancellation returns pedido nao encontrado', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'public-order-2' });
+    cancelPublicOrderMock.mockRejectedValueOnce(new Error('Pedido não encontrado.'));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar pedido' }));
+
+    expect(await screen.findByText('Seu pedido foi enviado')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar pedido' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Digite seu nome')).toBeInTheDocument();
+    });
+
+    expect(localStorage.getItem('public-menu-last-order:token-1')).toBeNull();
+    expect(window.location.hash).toBe('#/pedido');
+    expect(screen.queryByText('Seu pedido foi enviado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pedido não encontrado.')).not.toBeInTheDocument();
   });
 
   it('persists only the validated public selection after submit', async () => {
@@ -1614,6 +1719,58 @@ describe('App', () => {
 
     expect(await screen.findByDisplayValue('Ana')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('restores the in-progress public draft after reload', async () => {
+    window.history.pushState({}, '', '/s/token-1');
+
+    const view = render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.change(await screen.findByPlaceholderText('Digite seu nome'), {
+      target: { value: 'Elvis' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar Alface do menu do dia' }));
+
+    view.unmount();
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Elvis')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+  });
+
+  it('does not overwrite a stored public draft with an empty selection during hydration', async () => {
+    localStorage.setItem('public-menu-customer-name', 'Elvis');
+    localStorage.setItem('public-menu-draft-state:token-1', JSON.stringify({
+      customerName: 'Elvis',
+      customerEmail: '',
+      selectedItems: [{ itemId: '1', quantity: 1 }],
+    }));
+    window.history.pushState({}, '', '/s/token-1');
+
+    render(
+      <ToastProvider>
+        <ModalProvider>
+          <App />
+        </ModalProvider>
+      </ToastProvider>
+    );
+
+    expect(await screen.findByDisplayValue('Elvis')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remover Alface do menu do dia' })).toBeInTheDocument();
+    expect(localStorage.getItem('public-menu-draft-state:token-1')).toContain('"itemId":"1"');
   });
 
   it('keeps the submitted state after reload when the hash and cached order are present', async () => {
@@ -1791,7 +1948,6 @@ describe('App', () => {
     );
 
     expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument();
-    expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('Itens escolhidos')).toBeInTheDocument();
     const groupedCategoryLabels = screen.getAllByText(/^(Carnes|Saladas|Molhos)$/).map(node => node.textContent);
     expect(groupedCategoryLabels.slice(0, 3)).toEqual(['Saladas', 'Carnes', 'Molhos']);
@@ -2091,6 +2247,6 @@ describe('App', () => {
       </ToastProvider>
     );
 
-    expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
+    expect(screen.getByText('Esse caminho não existe')).toBeInTheDocument();
   });
 });

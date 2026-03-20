@@ -23,6 +23,7 @@ describe('buildInsightMetrics', () => {
     const metrics = buildInsightMetrics({
       complements,
       history,
+      availabilityHistory: history,
       daySelection: ['1', '3'],
       now: new Date('2026-03-16T12:00:00Z'),
     });
@@ -38,6 +39,7 @@ describe('buildInsightMetrics', () => {
     const metrics = buildInsightMetrics({
       complements,
       history,
+      availabilityHistory: history,
       daySelection: ['1'],
       now: new Date('2026-03-16T12:00:00Z'),
     });
@@ -53,6 +55,7 @@ describe('buildInsightMetrics', () => {
     const metrics = buildInsightMetrics({
       complements,
       history,
+      availabilityHistory: history,
       daySelection: [],
       now: new Date('2026-03-16T12:00:00Z'),
     });
@@ -74,6 +77,7 @@ describe('buildInsightMetrics', () => {
     const metrics = buildInsightMetrics({
       complements,
       history: malformedHistory,
+      availabilityHistory: malformedHistory,
       daySelection: ['1'],
       now: new Date('2026-03-16T12:00:00Z'),
     });
@@ -81,6 +85,48 @@ describe('buildInsightMetrics', () => {
     expect(metrics.topItems[0]).toMatchObject({ id: '1', count: 3 });
     expect(metrics.weekdayAverages.find(entry => entry.label === 'Dom')).toMatchObject({
       sampleSize: 1,
+    });
+  });
+
+  it('does not count today in weekday averages when there is no current selection', () => {
+    const metrics = buildInsightMetrics({
+      complements,
+      history: [
+        { dateKey: '2026-03-13', ids: ['1', '3'] },
+        { dateKey: '2026-03-06', ids: ['1', '3'] },
+      ],
+      availabilityHistory: [
+        { dateKey: '2026-03-13', ids: ['1', '3'] },
+        { dateKey: '2026-03-06', ids: ['1', '3'] },
+      ],
+      daySelection: [],
+      now: new Date('2026-03-20T12:00:00Z'),
+    });
+
+    expect(metrics.weekdayAverages.find(entry => entry.label === 'Sex')).toMatchObject({
+      average: 2,
+      sampleSize: 2,
+    });
+  });
+
+  it('uses available menu complements instead of order selections for weekday averages', () => {
+    const metrics = buildInsightMetrics({
+      complements,
+      history: [
+        { dateKey: '2026-03-13', ids: ['1'] },
+        { dateKey: '2026-03-06', ids: ['1'] },
+      ],
+      availabilityHistory: [
+        { dateKey: '2026-03-13', ids: ['1', '2', '3', '4'] },
+        { dateKey: '2026-03-06', ids: ['1', '2', '3', '4', '1'] },
+      ],
+      daySelection: [],
+      now: new Date('2026-03-20T12:00:00Z'),
+    });
+
+    expect(metrics.weekdayAverages.find(entry => entry.label === 'Sex')).toMatchObject({
+      average: 4.5,
+      sampleSize: 2,
     });
   });
 });

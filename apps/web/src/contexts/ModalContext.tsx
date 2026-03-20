@@ -56,7 +56,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
             onClick={e => e.stopPropagation()}
           >
             <div className="mx-auto max-w-[280px] text-center">
-              <h3 className="mb-[8px] font-[Georgia,'Times_New_Roman',serif] text-[24px] font-bold text-[var(--text)]">
+              <h3 className="mb-[8px] font-[var(--font-display)] text-[24px] font-bold text-[var(--text)]">
                 {modalState.title}
               </h3>
               <p className="mb-[18px] text-[14px] leading-[1.5] text-[var(--text-dim)]">

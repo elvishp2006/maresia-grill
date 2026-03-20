@@ -215,8 +215,68 @@ const buildHistoricalItemIds = (daysAgo) => {
   if (daysAgo === 25) ids.add('car-4');
   if (daysAgo === 50 || daysAgo === 70) ids.add('sal-5');
   if (daysAgo === 80) ids.add('chu-5');
+  if (weekday === 1 || weekday === 2 || weekday === 4 || daysAgo % 7 === 0) ids.add('bebida-1');
+  if (weekday === 5 || weekday === 6 || daysAgo % 9 === 0) ids.add('bebida-2');
+  if (weekday === 5 || weekday === 6 || daysAgo % 11 === 0) ids.add('sobremesa-1');
 
   return Array.from(ids);
+};
+
+const pickAvailableItems = (availableIds, preferredIds) => {
+  const available = new Set(availableIds);
+  return preferredIds.filter((itemId) => available.has(itemId));
+};
+
+const buildHistoricalOrderGroups = (daysAgo) => {
+  const availableIds = buildHistoricalItemIds(daysAgo);
+  const primary = pickAvailableItems(availableIds, [
+    'aco-1',
+    'car-1',
+    'chu-1',
+    'sal-1',
+    'bebida-1',
+    'sobremesa-1',
+  ]);
+  const secondary = pickAvailableItems(availableIds, [
+    'aco-2',
+    'aco-4',
+    'car-2',
+    'sal-4',
+    'chu-3',
+    'bebida-2',
+  ]);
+  const tertiary = pickAvailableItems(availableIds, [
+    'aco-5',
+    'aco-3',
+    'car-3',
+    'car-5',
+    'sal-2',
+    'sal-3',
+    'sal-5',
+    'chu-2',
+    'chu-4',
+    'chu-5',
+  ]);
+
+  const groups = [
+    availableIds,
+    primary.length > 0 ? primary : availableIds.slice(0, Math.min(4, availableIds.length)),
+  ];
+
+  if (secondary.length > 0 && (daysAgo % 2 === 0 || daysAgo <= 14)) {
+    groups.push(secondary);
+  }
+
+  if (tertiary.length > 0 && (daysAgo % 4 === 0 || daysAgo <= 7)) {
+    groups.push(tertiary);
+  }
+
+  return groups
+    .map((itemIds, index) => ({
+      id: `seed-order-history-${daysAgo}-${index + 1}`,
+      itemIds,
+    }))
+    .filter(group => group.itemIds.length > 0);
 };
 
 const buildSelectionEntries = (selectedItemIds) => {
@@ -350,8 +410,6 @@ const writeMenuDay = async (daysAgo) => {
 const writeSeedOrders = async () => {
   const today = dateKeyDaysAgo(0);
   const todayVersionId = versionIdForDate(today);
-  const previousDay = dateKeyDaysAgo(1);
-  const previousVersionId = versionIdForDate(previousDay);
 
   const orderSpecs = [
     {
@@ -384,19 +442,6 @@ const writeSeedOrders = async () => {
       providerPaymentId: 'pi_seed_paid',
     },
     {
-      path: `dailyMenus/${previousDay}/orders/seed-order-history`,
-      payload: {
-        id: 'seed-order-history',
-        dateKey: previousDay,
-        shareToken: `seed-${previousDay}`,
-        menuVersionId: previousVersionId,
-        customerName: 'Pedido Historico',
-        lines: buildOrderLines(['aco-1', 'car-1', 'chu-1']),
-        submittedAt: Date.now() - 86_400_000,
-      },
-      paymentStatus: ORDER_STATUS.FREE,
-    },
-    {
       path: `dailyMenus/${today}/orders/seed-order-awaiting`,
       payload: {
         id: 'seed-order-awaiting',
@@ -424,6 +469,26 @@ const writeSeedOrders = async () => {
         spec.providerPaymentId ?? null,
       ),
     });
+  }
+
+  for (let daysAgo = 1; daysAgo < HISTORY_DAYS; daysAgo += 1) {
+    const currentDateKey = dateKeyDaysAgo(daysAgo);
+    const currentVersionId = versionIdForDate(currentDateKey);
+    const groups = buildHistoricalOrderGroups(daysAgo);
+
+    for (const [index, group] of groups.entries()) {
+      const lines = buildOrderLines(group.itemIds);
+      await db.doc(`dailyMenus/${currentDateKey}/orders/${group.id}`).set({
+        id: group.id,
+        dateKey: currentDateKey,
+        shareToken: `seed-${currentDateKey}`,
+        menuVersionId: currentVersionId,
+        customerName: `Historico ${daysAgo}-${index + 1}`,
+        lines,
+        paymentSummary: buildPaymentSummary(lines, ORDER_STATUS.FREE),
+        submittedAt: Date.now() - (daysAgo * 86_400_000) - (index * 60_000),
+      });
+    }
   }
 };
 

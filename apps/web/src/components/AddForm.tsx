@@ -23,6 +23,8 @@ export default function AddForm({
   const [nome, setNome] = useState(initialValue);
   const { lightTap, success } = useHapticFeedback();
   const inputId = useId();
+  const trimmedName = nome.trim();
+  const canSubmit = !disabled && trimmedName.length > 0;
 
   useEffect(() => {
     setNome(initialValue);
@@ -30,11 +32,9 @@ export default function AddForm({
 
   const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
-    if (disabled) return;
-    const trimmed = nome.trim();
-    if (!trimmed) return;
+    if (!canSubmit) return;
     success();
-    onAdd(trimmed);
+    onAdd(trimmedName);
     setNome('');
     onClose();
   };
@@ -66,7 +66,7 @@ export default function AddForm({
         <button
           type="submit"
           className="neon-gold-fill min-h-[48px] flex-1 rounded-[18px] bg-[var(--accent)] px-[16px] py-[12px] text-[14px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
-          disabled={disabled}
+          disabled={!canSubmit}
         >
           {submitLabel}
         </button>

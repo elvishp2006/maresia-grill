@@ -125,6 +125,15 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
   const isOwner = effectiveLock?.sessionId === sessionId && !isLockExpired(effectiveLock);
   const isExpired = isLockExpired(effectiveLock);
   const canEdit = isOnline && isOwner;
+  const shouldRecoverSameDeviceLock = Boolean(
+    userEmail
+    && isOnline
+    && effectiveLock
+    && !isOwner
+    && !isExpired
+    && effectiveLock.userEmail === userEmail
+    && effectiveLock.deviceLabel === deviceLabel,
+  );
 
   useEffect(() => {
     if (!userEmail || !isOnline || lock) return;
@@ -150,6 +159,20 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
 
     return () => window.clearInterval(id);
   }, [canEdit, sessionId]);
+
+  useEffect(() => {
+    if (!shouldRecoverSameDeviceLock) return;
+
+    void acquireEditorLock({ sessionId, userEmail: userEmail!, deviceLabel }, { force: true })
+      .then((nextLock) => {
+        if (!nextLock || nextLock.sessionId !== sessionId) return;
+        setLock(nextLock);
+        setError(null);
+      })
+      .catch((nextError) => {
+        setError(getAdminErrorMessage('lock_takeover', nextError));
+      });
+  }, [deviceLabel, sessionId, shouldRecoverSameDeviceLock, userEmail]);
 
   useEffect(() => {
     if (!userEmail) return;

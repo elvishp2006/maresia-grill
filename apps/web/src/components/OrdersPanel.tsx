@@ -2,6 +2,18 @@ import type { OrderEntry, PublicMenuVersion } from '../types';
 import { groupOrderItemsByCategory } from '../lib/utils';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { formatCurrency } from '../lib/billing';
+import type { PublicOrderPaymentStatus } from '../types';
+
+const PAYMENT_STATUS_LABELS: Record<PublicOrderPaymentStatus, string> = {
+  not_required: 'Não precisa pagar',
+  awaiting_payment: 'Aguardando pagamento',
+  paid: 'Pago',
+  refund_pending: 'Estorno pendente',
+  refunded: 'Estornado',
+  failed: 'Falhou',
+};
+
+const getPaymentStatusLabel = (status: PublicOrderPaymentStatus) => PAYMENT_STATUS_LABELS[status] ?? status;
 
 interface OrdersPanelProps {
   orders: OrderEntry[];
@@ -43,7 +55,7 @@ export default function OrdersPanel({
       <section className={`section-card border ${acceptingOrders ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--accent-red)] bg-[rgba(208,109,86,0.08)]'}`}>
         <div className="flex items-center justify-between gap-[14px]">
           <div className="min-w-0">
-            <p className="text-[15px] font-semibold text-[var(--text)]">
+            <p className="text-[14px] font-semibold text-[var(--text)]">
               Recebimento de pedidos
             </p>
             <p className={`mt-[4px] text-[13px] font-medium ${acceptingOrders ? 'text-[var(--accent)]' : 'text-[var(--accent-red)]'}`}>
@@ -83,7 +95,7 @@ export default function OrdersPanel({
           <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
             Pedidos
           </p>
-          <h2 className="mt-[10px] font-[Georgia,'Times_New_Roman',serif] text-[26px] font-bold text-[var(--text)]">
+          <h2 className="mt-[10px] font-[var(--font-display)] text-[23px] font-bold text-[var(--text)]">
             Carregando pedidos
           </h2>
         </section>
@@ -94,10 +106,10 @@ export default function OrdersPanel({
           <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent-red)]">
             Pedidos
           </p>
-          <h2 className="mt-[10px] font-[Georgia,'Times_New_Roman',serif] text-[26px] font-bold text-[var(--text)]">
+          <h2 className="mt-[10px] font-[var(--font-display)] text-[23px] font-bold text-[var(--text)]">
             Pedidos indisponíveis
           </h2>
-          <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text-dim)]">
+          <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
             Não foi possível carregar os pedidos do dia.
           </p>
         </section>
@@ -108,10 +120,10 @@ export default function OrdersPanel({
           <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
             Pedidos
           </p>
-          <h2 className="mt-[10px] font-[Georgia,'Times_New_Roman',serif] text-[26px] font-bold text-[var(--text)]">
+          <h2 className="mt-[10px] font-[var(--font-display)] text-[23px] font-bold text-[var(--text)]">
             Nenhum pedido ainda
           </h2>
-          <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text-dim)]">
+          <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
             Os pedidos enviados pelo link público aparecerão aqui.
           </p>
         </section>
@@ -151,7 +163,7 @@ export default function OrdersPanel({
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
                   Pedido
                 </p>
-                <h2 className="mt-[8px] truncate font-[Georgia,'Times_New_Roman',serif] text-[22px] font-bold text-[var(--text)]">
+                <h2 className="mt-[8px] truncate font-[var(--font-display)] text-[20px] font-bold text-[var(--text)]">
                   {order.customerName}
                 </h2>
               </div>
@@ -168,14 +180,14 @@ export default function OrdersPanel({
                 <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
                   Total pago
                 </p>
-                <p className="mt-[6px] text-[15px] font-semibold text-[var(--accent)]">
+                <p className="mt-[6px] text-[14px] font-semibold text-[var(--accent)]">
                   {formatCurrency(paymentSummary.paidTotalCents)}
                 </p>
               </div>
             </div>
 
             <p className="mt-[10px] text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
-              Status: {paymentSummary.paymentStatus}
+              Status: {getPaymentStatusLabel(paymentSummary.paymentStatus)}
             </p>
 
             {groupedItems.length > 0 ? (
@@ -190,7 +202,7 @@ export default function OrdersPanel({
                     </p>
                     <ul className="mt-[8px] space-y-[6px]">
                       {group.names.map((name) => (
-                        <li key={name} className="text-[14px] leading-[1.5] text-[var(--text)]">
+                        <li key={name} className="text-[13px] leading-[1.5] text-[var(--text)]">
                           {name}
                         </li>
                       ))}
@@ -199,7 +211,7 @@ export default function OrdersPanel({
                 ))}
               </div>
             ) : (
-              <p className="mt-[14px] text-[14px] leading-[1.6] text-[var(--text)]">
+              <p className="mt-[14px] text-[13px] leading-[1.6] text-[var(--text)]">
                 Nenhum item selecionado.
               </p>
             )}
