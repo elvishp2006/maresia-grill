@@ -83,4 +83,21 @@ describe('buildInsightMetrics', () => {
       sampleSize: 1,
     });
   });
+
+  it('does not count today in weekday averages when there is no current selection', () => {
+    const metrics = buildInsightMetrics({
+      complements,
+      history: [
+        { dateKey: '2026-03-13', ids: ['1', '3'] },
+        { dateKey: '2026-03-06', ids: ['1', '3'] },
+      ],
+      daySelection: [],
+      now: new Date('2026-03-20T12:00:00Z'),
+    });
+
+    expect(metrics.weekdayAverages.find(entry => entry.label === 'Sex')).toMatchObject({
+      average: 2,
+      sampleSize: 2,
+    });
+  });
 });

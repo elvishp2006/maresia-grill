@@ -69,10 +69,10 @@ const getWeekdayFromDateKey = (dateKey: string) => {
 const mergeCurrentDay = (history: SelectionHistoryEntry[], daySelection: string[], now: Date) => {
   const todayKey = getDateKey(now);
   const withoutToday = history.filter(entry => entry.dateKey !== todayKey);
-  return [
-    { dateKey: todayKey, ids: [...daySelection] },
-    ...withoutToday,
-  ].sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+  const merged = daySelection.length > 0
+    ? [{ dateKey: todayKey, ids: [...daySelection] }, ...withoutToday]
+    : withoutToday;
+  return merged.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
 };
 
 const buildCounts = (history: SelectionHistoryEntry[]) => {
