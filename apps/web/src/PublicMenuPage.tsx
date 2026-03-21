@@ -27,6 +27,7 @@ interface PublicDraftState {
   customerName: string;
   customerEmail: string;
   selectedItems: SelectedPublicItem[];
+  observation: string;
 }
 
 interface CachedPublicOrder {
@@ -34,6 +35,7 @@ interface CachedPublicOrder {
   customerName: string;
   lines: OrderLine[];
   paymentSummary: OrderPaymentSummary;
+  observation?: string;
 }
 
 interface CancelledPublicOrderState {
@@ -244,6 +246,7 @@ const getCachedOrder = (token: string): CachedPublicOrder | null => {
         customerName: parsed.customerName,
         lines,
         paymentSummary,
+        ...(typeof parsed.observation === 'string' && parsed.observation ? { observation: parsed.observation } : {}),
       };
     }
   } catch {
@@ -340,6 +343,7 @@ const getStoredDraftState = (token: string): PublicDraftState | null => {
       customerName: typeof parsed.customerName === 'string' ? parsed.customerName : '',
       customerEmail: typeof parsed.customerEmail === 'string' ? parsed.customerEmail : '',
       selectedItems,
+      observation: typeof parsed.observation === 'string' ? parsed.observation : '',
     };
   } catch {
     return null;
@@ -417,6 +421,7 @@ const toCachedOrder = (order: FinalizedPublicOrder): CachedPublicOrder => ({
   customerName: order.customerName,
   lines: order.lines,
   paymentSummary: order.paymentSummary,
+  observation: order.observation,
 });
 
 function PublicHeader() {
@@ -544,6 +549,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const [menu, setMenu] = useState<PublicMenu | null | undefined>(undefined);
   const [customerName, setCustomerName] = useState(() => getStoredCustomerName());
   const [customerEmail, setCustomerEmail] = useState(() => getStoredCustomerEmail());
+  const [observation, setObservation] = useState('');
   const [selection, setSelection] = useState<SelectedPublicItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState(() => getStoredOrderId(token));
@@ -636,6 +642,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     if (storedDraftState) {
       setCustomerName(storedDraftState.customerName);
       setCustomerEmail(storedDraftState.customerEmail);
+      setObservation(storedDraftState.observation);
       setSelection(storedDraftState.selectedItems);
     } else {
       setCustomerName(getStoredCustomerName());
@@ -737,9 +744,10 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     setStoredDraftState(token, {
       customerName,
       customerEmail,
+      observation,
       selectedItems: selection,
     });
-  }, [cancelledState, currentView, customerEmail, customerName, draftHydratedToken, pendingPayment, selection, successState, token]);
+  }, [cancelledState, currentView, customerEmail, customerName, draftHydratedToken, observation, pendingPayment, selection, successState, token]);
 
   useEffect(() => {
     const draftId = pendingPayment?.draftId ?? getDraftIdFromUrl();
@@ -931,6 +939,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           shareToken: menu.token,
           customerName: trimmedName,
           selectedItems: selection,
+          observation,
           successUrl: url.toString(),
           pendingUrl: url.toString(),
           failureUrl: `${window.location.origin}${window.location.pathname}#/pedido`,
@@ -987,6 +996,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         shareToken: menu.token,
         customerName: trimmedName,
         selectedItems: selection,
+        observation,
       });
       const nextOrder = toCachedOrder(submission);
       setCachedOrder(menu.token, nextOrder);
@@ -1139,16 +1149,24 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                   : 'A confirmação foi preservada, mas os pedidos já foram encerrados.'
             }
             summary={(
-              <PublicOrderSummary
-                paidTotalCents={successState.paymentSummary.paidTotalCents}
-                categories={menu?.categories ?? []}
-                selectedItems={successState.lines.map(line => ({
-                  id: line.itemId,
-                  nome: line.name,
-                  categoria: line.categoryName,
-                  quantity: line.quantity,
-                }))}
-              />
+              <>
+                {successState.observation ? (
+                  <div className="mb-[10px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">Observação</p>
+                    <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text)]">{successState.observation}</p>
+                  </div>
+                ) : null}
+                <PublicOrderSummary
+                  paidTotalCents={successState.paymentSummary.paidTotalCents}
+                  categories={menu?.categories ?? []}
+                  selectedItems={successState.lines.map(line => ({
+                    id: line.itemId,
+                    nome: line.name,
+                    categoria: line.categoryName,
+                    quantity: line.quantity,
+                  }))}
+                />
+              </>
             )}
           />
         </div>
@@ -1286,6 +1304,18 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               onChange={(event) => setCustomerName(event.target.value)}
               placeholder="Digite seu nome"
               className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[15px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+            />
+          </label>
+
+          <label className="mt-[16px] block text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
+            Observação
+            <textarea
+              value={observation}
+              onChange={(event) => setObservation(event.target.value)}
+              placeholder="Ex: sem cebola, alérgico a amendoim"
+              maxLength={500}
+              rows={3}
+              className="neon-gold-focus mt-[8px] w-full resize-none rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[15px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
             />
           </label>
         </section>

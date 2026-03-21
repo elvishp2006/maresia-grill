@@ -105,6 +105,7 @@ export interface Order {
   paymentSummary: OrderPaymentSummary;
   submittedAt: number;
   sourceDraftId?: string | null;
+  observation?: string;
 }
 
 export interface MenuEditorState {
@@ -354,6 +355,7 @@ export const buildOrder = ({
   paymentSummary,
   submittedAt,
   sourceDraftId = null,
+  observation,
 }: {
   id: OrderId;
   dateKey: DateKey;
@@ -364,6 +366,7 @@ export const buildOrder = ({
   paymentSummary: OrderPaymentSummary;
   submittedAt: number;
   sourceDraftId?: string | null;
+  observation?: string;
 }): Order => ({
   id,
   dateKey,
@@ -374,6 +377,7 @@ export const buildOrder = ({
   paymentSummary,
   submittedAt,
   sourceDraftId,
+  ...(observation?.trim() ? { observation: observation.trim() } : {}),
 });
 
 export const createCategoryId = (name: string) => (

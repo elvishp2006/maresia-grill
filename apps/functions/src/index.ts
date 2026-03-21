@@ -66,6 +66,7 @@ interface PublicOrderDraft {
   supersededAt?: number | null;
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
+  observation?: string;
 }
 
 interface StoredOrderEntry {
@@ -88,6 +89,7 @@ interface PreparePublicOrderCheckoutBody {
   shareToken: string;
   customerName: string;
   selectedItems: SelectionEntry[];
+  observation?: string;
   successUrl?: string;
   pendingUrl?: string;
   failureUrl?: string;
@@ -151,11 +153,13 @@ const buildFinalizedPublicOrder = (
   customerName: string,
   lines: OrderLine[],
   paymentSummary: OrderPaymentSummary,
+  observation?: string,
 ) => ({
   orderId,
   customerName,
   lines,
   paymentSummary,
+  ...(observation ? { observation } : {}),
 });
 
 let stripeClient: Stripe | null = null;
@@ -358,6 +362,7 @@ const finalizeOrderFromDraft = async (
     paymentSummary,
     submittedAt: Date.now(),
     sourceDraftId: draft.id,
+    observation: draft.observation,
   });
 
   await db.runTransaction(async (transaction) => {
@@ -387,6 +392,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
     const { menu, version } = await loadActivePublicMenu(body.shareToken, true);
     if (menu.dateKey !== body.dateKey) throw new Error('Cardápio público indisponível para este pedido.');
     const customerName = normalizeCustomerName(body.customerName);
+    const observation = typeof body.observation === 'string' && body.observation.trim() ? body.observation.trim() : undefined;
 
     const normalizedSelectedItems = normalizeSelectionEntries(body.selectedItems);
     const allowedItemIds = new Set(version.items.map(item => item.id));
@@ -412,11 +418,12 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
         lines,
         paymentSummary: finalizedSummary,
         submittedAt: Date.now(),
+        observation,
       }));
 
       return json(res, 200, {
         kind: 'free_order_confirmed',
-        order: buildFinalizedPublicOrder(body.orderId, customerName, lines, finalizedSummary),
+        order: buildFinalizedPublicOrder(body.orderId, customerName, lines, finalizedSummary, observation),
       });
     }
 
@@ -435,6 +442,7 @@ export const preparePublicOrderCheckout = onRequest(publicBrowserEndpointOptions
       checkoutSession: null,
       createdAt: now,
       updatedAt: now,
+      ...(observation ? { observation } : {}),
     };
 
     const checkoutSession = await createStripeCheckout(draft, body, req.get('origin') ?? undefined);
@@ -484,7 +492,7 @@ export const publicOrderStatus = onRequest(publicBrowserEndpointOptions, async (
     }
 
     if (orderSnap.exists) {
-      const order = orderSnap.data() as StoredOrderEntry & { customerName: string; lines: OrderLine[]; paymentSummary: OrderPaymentSummary };
+      const order = orderSnap.data() as StoredOrderEntry & { customerName: string; lines: OrderLine[]; paymentSummary: OrderPaymentSummary; observation?: string };
       if (isWinningOrderDraft(order, draft.id, draft.paymentSummary.providerPaymentId)) {
         return json(res, 200, {
           draftId: draft.id,
@@ -494,6 +502,7 @@ export const publicOrderStatus = onRequest(publicBrowserEndpointOptions, async (
             order.customerName ?? draft.customerName,
             (order.lines ?? []) as OrderLine[],
             order.paymentSummary,
+            order.observation ?? draft.observation,
           ),
         });
       }

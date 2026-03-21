@@ -91,6 +91,7 @@ export interface SubmitPublicOrderInput {
   shareToken: string;
   customerName: string;
   selectedItems: SelectedPublicItem[];
+  observation?: string;
 }
 
 export interface SubmitPublicOrderResult {
@@ -106,6 +107,7 @@ export interface PreparePublicOrderCheckoutInput {
   shareToken: string;
   customerName: string;
   selectedItems: SelectedPublicItem[];
+  observation?: string;
   successUrl?: string;
   pendingUrl?: string;
   failureUrl?: string;
@@ -580,6 +582,7 @@ const normalizeOrderEntry = (id: string, value: unknown): OrderEntry | null => {
       quantity: line.quantity,
     })),
     submittedAt: normalizeTimestamp(candidate.submittedAt) ?? Date.now(),
+    ...(typeof candidate.observation === 'string' && candidate.observation ? { observation: candidate.observation } : {}),
   };
 };
 

@@ -215,6 +215,12 @@ export default function OrdersPanel({
                 Nenhum item selecionado.
               </p>
             )}
+            {order.observation ? (
+              <div className="mt-[10px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
+                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">Observação</p>
+                <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text)]">{order.observation}</p>
+              </div>
+            ) : null}
           </article>
         );
       }) : null}

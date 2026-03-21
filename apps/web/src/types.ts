@@ -52,6 +52,7 @@ export interface FinalizedPublicOrder {
   customerName: string;
   lines: OrderLine[];
   paymentSummary: OrderPaymentSummary;
+  observation?: string;
 }
 
 export interface PublicOrderCheckoutSession {
@@ -111,6 +112,7 @@ export interface OrderEntry {
   lines?: OrderLine[];
   submittedItems?: Item[];
   submittedAt: number;
+  observation?: string;
 }
 
 export type PersistedOrder = Order;
