@@ -247,7 +247,7 @@ describe('CategoryCard', () => {
   it('renders the minimum quantity section in the rule sheet', () => {
     renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
     fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
-    expect(screen.getByText('Quantidade minima')).toBeInTheDocument();
+    expect(screen.getByText('Quantidade mínima')).toBeInTheDocument();
   });
 
   it('saves minSelections when a minimum is set', () => {
@@ -353,7 +353,7 @@ describe('CategoryCard', () => {
     );
 
     expect(screen.getByText('Sem limite e permite repetir item')).toBeInTheDocument();
-    expect(screen.getByText('Sem limite de selecao e com repeticao do mesmo item liberada.')).toBeInTheDocument();
+    expect(screen.getByText('Sem limite de seleção e com repetição do mesmo item liberada.')).toBeInTheDocument();
   });
 
   it('shows the selection rule summary in select mode', () => {
@@ -365,7 +365,7 @@ describe('CategoryCard', () => {
       />,
     );
 
-    expect(screen.getByText('Escolha ate 1')).toBeInTheDocument();
+    expect(screen.getByText('Escolha até 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Configurar limite' })).not.toBeInTheDocument();
   });
 

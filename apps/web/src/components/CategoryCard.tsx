@@ -239,7 +239,7 @@ export default function CategoryCard({
                     {selectedCount}/{items.length} itens
                   </p>
                 <p className={`mt-[6px] text-[11px] leading-[1.5] ${hasRule ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
-                    {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite e permite repetir item' : 'Sem limite no pedido publico')}
+                    {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite e permite repetir item' : 'Sem limite no pedido público')}
                   </p>
                 </div>
                 <div className="flex h-[44px] w-[44px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] text-[16px] text-[var(--text-dim)]">
@@ -311,10 +311,10 @@ export default function CategoryCard({
                   <div className="flex items-start justify-between gap-[12px]">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-                        Pedido publico
+                        Pedido público
                       </p>
                       <p className="mt-[8px] text-[13px] leading-[1.6] text-[var(--text)]">
-                        {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite de selecao e com repeticao do mesmo item liberada.' : 'Sem limite de selecao para esta categoria.')}
+                        {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite de seleção e com repetição do mesmo item liberada.' : 'Sem limite de seleção para esta categoria.')}
                       </p>
                     </div>
                     <button
@@ -403,10 +403,10 @@ export default function CategoryCard({
             <div className="flex items-start justify-between gap-[12px]">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-                  Repeticao do mesmo item
+                  Repetição do mesmo item
                 </p>
                 <p className="mt-[6px] text-[13px] leading-[1.6] text-[var(--text-dim)]">
-                  Quando ativo, o cliente pode aumentar a quantidade do mesmo item no pedido publico.
+                  Quando ativo, o cliente pode aumentar a quantidade do mesmo item no pedido público.
                 </p>
               </div>
               <button
@@ -437,7 +437,7 @@ export default function CategoryCard({
 
           <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-              Quantidade minima
+              Quantidade mínima
             </p>
             <div className="mt-[12px] flex items-center gap-[10px]">
               <button
@@ -450,7 +450,7 @@ export default function CategoryCard({
                 -
               </button>
               <div className="flex min-h-[52px] flex-1 items-center justify-center rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] text-[20px] font-semibold text-[var(--text)]">
-                {draftMinSelections ?? 'Sem minimo'}
+                {draftMinSelections ?? 'Sem mínimo'}
               </div>
               <button
                 type="button"
@@ -495,14 +495,14 @@ export default function CategoryCard({
                 }}
                 disabled={!isOnline}
               >
-                Sem minimo
+                Sem mínimo
               </button>
             </div>
           </section>
 
           <section className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-card)] p-[14px]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-dim)]">
-              Quantidade maxima
+              Quantidade máxima
             </p>
             <div className="mt-[12px] flex items-center gap-[10px]">
               <button

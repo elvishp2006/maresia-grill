@@ -215,12 +215,12 @@ export const describeCategorySelectionRule = (
     const others = groupedCategories.filter(candidate => candidate !== category).join(', ');
     if (min !== null && max !== null) return `Escolha de ${min} a ${max} somando com ${others}`;
     if (min !== null) return `Escolha pelo menos ${min} somando com ${others}`;
-    return `Escolha ate ${max} somando com ${others}`;
+    return `Escolha até ${max} somando com ${others}`;
   }
 
   if (min !== null && max !== null) return `Escolha de ${min} a ${max}`;
   if (min !== null) return `Escolha pelo menos ${min}`;
-  return `Escolha ate ${max}`;
+  return `Escolha até ${max}`;
 };
 
 export const getLinkedCategories = (

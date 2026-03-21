@@ -569,10 +569,17 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const selectedCount = countSelectedUnits(selection);
 
   useEffect(() => {
-    setMenu(undefined);
+    const cacheKey = `public-menu-cache:${token}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try { setMenu(JSON.parse(cached) as PublicMenu); } catch { /* ignore corrupt cache */ }
+    } else {
+      setMenu(undefined);
+    }
 
     const unsubscribe = subscribePublicMenu(token, (result) => {
       setMenu(result);
+      sessionStorage.setItem(cacheKey, JSON.stringify(result));
     }, () => {
       setMenu(null);
     });

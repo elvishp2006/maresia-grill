@@ -95,7 +95,7 @@ describe('categorySelectionRules', () => {
     ]);
 
     expect(getLinkedCategories('Bebidas', rules)).toEqual(['Sobremesas']);
-    expect(describeCategorySelectionRule('Bebidas', rules)).toBe('Escolha ate 1 somando com Sobremesas');
+    expect(describeCategorySelectionRule('Bebidas', rules)).toBe('Escolha até 1 somando com Sobremesas');
 
     expect(upsertCategorySelectionRule(rules, 'Bebidas', {
       maxSelections: 2,
