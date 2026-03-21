@@ -2,6 +2,7 @@ import { validateSelection as validateDomainSelection } from '@maresia-grill/dom
 import type { CategorySelectionRule, Item, SelectedPublicItem } from '../types';
 
 export interface CategorySelectionRuleInput {
+  minSelections?: number | null;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
   linkedCategories?: string[];
@@ -9,9 +10,10 @@ export interface CategorySelectionRuleInput {
 }
 
 export interface SelectionViolation {
-  type: 'category' | 'group';
+  type: 'category' | 'group' | 'min';
   category: string;
-  maxSelections: number;
+  maxSelections?: number;
+  minSelections?: number;
   selectedCount: number;
   categories: string[];
   groupId?: string;
@@ -38,6 +40,7 @@ export const normalizeCategorySelectionRule = (value: unknown): CategorySelectio
 
   return {
     category: candidate.category.trim(),
+    minSelections: normalizePositiveInteger(candidate.minSelections),
     maxSelections: normalizePositiveInteger(candidate.maxSelections),
     sharedLimitGroupId: normalizeGroupId(candidate.sharedLimitGroupId),
     allowRepeatedItems: candidate.allowRepeatedItems === true ? true : undefined,
@@ -65,12 +68,13 @@ export const sanitizeCategorySelectionRuleInput = (
 
   const normalized: CategorySelectionRule = {
     category: normalizedCategory,
+    minSelections: normalizePositiveInteger(input.minSelections),
     maxSelections: normalizePositiveInteger(input.maxSelections),
     sharedLimitGroupId: normalizeGroupId(input.sharedLimitGroupId),
     allowRepeatedItems: input.allowRepeatedItems ? true : undefined,
   };
 
-  if (normalized.maxSelections === null && !normalized.sharedLimitGroupId && !normalized.allowRepeatedItems) return null;
+  if (normalized.minSelections === null && normalized.maxSelections === null && !normalized.sharedLimitGroupId && !normalized.allowRepeatedItems) return null;
   return normalized;
 };
 
@@ -114,6 +118,7 @@ export const upsertCategorySelectionRule = (
 
   const nextRules = normalizedRules.filter(rule => !affectedCategories.has(rule.category));
   const nextAllowRepeatedItems = input.allowRepeatedItems ?? currentRule?.allowRepeatedItems ?? false;
+  const nextMinSelections = normalizePositiveInteger(input.minSelections);
 
   if (typeof nextMaxSelections === 'number') {
     if (desiredCategories.length > 1) {
@@ -128,6 +133,7 @@ export const upsertCategorySelectionRule = (
         const previousRule = normalizedRules.find(rule => rule.category === targetCategory);
         nextRules.push({
           category: targetCategory,
+          minSelections: targetCategory === normalizedCategory ? nextMinSelections : (previousRule?.minSelections ?? null),
           maxSelections: nextMaxSelections,
           sharedLimitGroupId: existingGroupId,
           allowRepeatedItems: targetCategory === normalizedCategory
@@ -138,27 +144,30 @@ export const upsertCategorySelectionRule = (
     } else {
       nextRules.push({
         category: normalizedCategory,
+        minSelections: nextMinSelections,
         maxSelections: nextMaxSelections,
         sharedLimitGroupId: null,
         allowRepeatedItems: nextAllowRepeatedItems ? true : undefined,
       });
     }
-  } else if (nextAllowRepeatedItems) {
+  } else if (nextAllowRepeatedItems || nextMinSelections !== null) {
     nextRules.push({
       category: normalizedCategory,
+      minSelections: nextMinSelections,
       maxSelections: null,
       sharedLimitGroupId: null,
-      allowRepeatedItems: true,
+      allowRepeatedItems: nextAllowRepeatedItems ? true : undefined,
     });
   }
 
   for (const affectedCategory of affectedCategories) {
     if (desiredCategories.includes(affectedCategory)) continue;
     const previousRule = normalizedRules.find(rule => rule.category === affectedCategory);
-    if (!previousRule || typeof previousRule.maxSelections !== 'number') continue;
+    if (!previousRule || (typeof previousRule.maxSelections !== 'number' && !previousRule.minSelections)) continue;
     nextRules.push({
       category: affectedCategory,
-      maxSelections: previousRule.maxSelections,
+      minSelections: previousRule.minSelections ?? null,
+      maxSelections: previousRule.maxSelections ?? null,
       sharedLimitGroupId: null,
       allowRepeatedItems: previousRule.allowRepeatedItems ? true : undefined,
     });
@@ -193,17 +202,25 @@ export const describeCategorySelectionRule = (
 ): string | null => {
   const normalizedRules = normalizeCategorySelectionRules(rules);
   const rule = normalizedRules.find(candidate => candidate.category === category);
-  if (!rule || rule.maxSelections === null) return null;
+  if (!rule || (rule.maxSelections == null && rule.minSelections == null)) return null;
+
+  const min = rule.minSelections ?? null;
+  const max = rule.maxSelections ?? null;
 
   if (rule.sharedLimitGroupId) {
     const groupedCategories = normalizedRules
       .filter(candidate => candidate.sharedLimitGroupId === rule.sharedLimitGroupId)
       .map(candidate => candidate.category)
       .sort((left, right) => left.localeCompare(right, 'pt-BR', { sensitivity: 'base' }));
-    return `Escolha ate ${rule.maxSelections} somando com ${groupedCategories.filter(candidate => candidate !== category).join(', ')}`;
+    const others = groupedCategories.filter(candidate => candidate !== category).join(', ');
+    if (min !== null && max !== null) return `Escolha de ${min} a ${max} somando com ${others}`;
+    if (min !== null) return `Escolha pelo menos ${min} somando com ${others}`;
+    return `Escolha até ${max} somando com ${others}`;
   }
 
-  return `Escolha ate ${rule.maxSelections}`;
+  if (min !== null && max !== null) return `Escolha de ${min} a ${max}`;
+  if (min !== null) return `Escolha pelo menos ${min}`;
+  return `Escolha até ${max}`;
 };
 
 export const getLinkedCategories = (
@@ -248,6 +265,7 @@ export const validateSelectionRules = (
       id: categoryName,
       name: categoryName,
       selectionPolicy: {
+        minSelections: rule?.minSelections ?? null,
         maxSelections: rule?.maxSelections ?? null,
         sharedLimitGroupId: rule?.sharedLimitGroupId ?? null,
         allowRepeatedItems: rule?.allowRepeatedItems === true,

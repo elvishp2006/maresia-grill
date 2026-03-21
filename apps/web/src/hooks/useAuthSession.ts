@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, googleProvider, hasFirebaseConfig } from '../lib/firebase';
 import { loadEditorLock } from '../lib/storage';
 
@@ -36,48 +36,74 @@ export function useAuthSession() {
 
     let active = true;
     const authInstance = auth;
+    let unsubscribe: (() => void) | undefined;
 
-    const unsubscribe = onAuthStateChanged(authInstance, async (nextUser) => {
-      if (!active) return;
-      setLoading(true);
-      setAuthError(null);
-
-      if (!nextUser) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        await loadEditorLock();
+    const startListening = () => {
+      unsubscribe = onAuthStateChanged(authInstance, async (nextUser) => {
         if (!active) return;
-        setUser(nextUser);
-        setLoading(false);
-      } catch (error) {
-        if (!active) return;
+        setLoading(true);
+        setAuthError(null);
 
-        if (isPermissionDeniedError(error)) {
-          try {
-            await firebaseSignOut(authInstance);
-          } catch {
-            // Ignore sign-out failures during access denial handling.
-          }
-
-          if (!active) return;
+        if (!nextUser) {
           setUser(null);
-          setAuthError('Este email não tem acesso ao admin.');
           setLoading(false);
           return;
         }
 
-        setUser(nextUser);
-        setLoading(false);
-      }
-    });
+        try {
+          await loadEditorLock();
+          if (!active) return;
+          setUser(nextUser);
+          setLoading(false);
+        } catch (error) {
+          if (!active) return;
+
+          if (isPermissionDeniedError(error)) {
+            try {
+              await firebaseSignOut(authInstance);
+            } catch {
+              // Ignore sign-out failures during access denial handling.
+            }
+
+            if (!active) return;
+            setUser(null);
+            setAuthError('Este email não tem acesso ao admin.');
+            setLoading(false);
+            return;
+          }
+
+          setUser(nextUser);
+          setLoading(false);
+        }
+      });
+    };
+
+    if (import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_BYPASS === 'true') {
+      void (async () => {
+        const DEV_EMAIL = 'elvishp2006@gmail.com';
+        const DEV_PASSWORD = 'devdev';
+        try {
+          await signInWithEmailAndPassword(authInstance, DEV_EMAIL, DEV_PASSWORD);
+        } catch (err) {
+          const code = (err as { code?: string }).code;
+          if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+            try {
+              await createUserWithEmailAndPassword(authInstance, DEV_EMAIL, DEV_PASSWORD);
+            } catch {
+              // Account creation failed (e.g. race condition). startListening() will
+              // still be called below so the auth state listener is always attached.
+            }
+          }
+        }
+        if (active) startListening();
+      })();
+    } else {
+      startListening();
+    }
 
     return () => {
       active = false;
-      unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 

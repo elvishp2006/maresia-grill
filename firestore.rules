@@ -34,10 +34,12 @@ service cloud.firestore {
     function isValidSelectionPolicy(policy) {
       return policy is map
         && policy.keys().hasOnly([
+          'minSelections',
           'maxSelections',
           'sharedLimitGroupId',
           'allowRepeatedItems'
         ])
+        && isNullableInt(policy.minSelections)
         && isNullableInt(policy.maxSelections)
         && isNullableString(policy.sharedLimitGroupId)
         && policy.allowRepeatedItems is bool;
@@ -159,6 +161,7 @@ service cloud.firestore {
           'shareToken',
           'menuVersionId',
           'customerName',
+          'observation',
           'lines',
           'paymentSummary',
           'submittedAt',
@@ -170,6 +173,7 @@ service cloud.firestore {
         && request.resource.data.menuVersionId is string
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() > 0
+        && (!('observation' in request.resource.data) || isNullableString(request.resource.data.observation))
         && request.resource.data.lines is list
         && request.resource.data.lines.size() > 0
         && isValidPaymentSummary(request.resource.data.paymentSummary)

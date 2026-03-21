@@ -165,6 +165,86 @@ describe('menu domain', () => {
     )).toEqual([]);
   });
 
+  it('reports min violation when category count falls below minSelections', () => {
+    const categoriesWithMin = [
+      {
+        id: 'salads',
+        name: 'Saladas',
+        sortOrder: 1,
+        selectionPolicy: { allowRepeatedItems: false, minSelections: 2, maxSelections: null, sharedLimitGroupId: null },
+      },
+    ];
+    const items = [
+      { id: 'salad-1', categoryId: 'salads' },
+      { id: 'salad-2', categoryId: 'salads' },
+    ];
+
+    const violations = validateSelection(categoriesWithMin, items, [{ itemId: 'salad-1', quantity: 1 }]);
+
+    expect(violations).toEqual([
+      expect.objectContaining({
+        type: 'min',
+        category: 'Saladas',
+        minSelections: 2,
+        selectedCount: 1,
+        message: 'A categoria Saladas requer pelo menos 2 item(s).',
+      }),
+    ]);
+  });
+
+  it('returns no min violation when category count meets minSelections', () => {
+    const categoriesWithMin = [
+      {
+        id: 'salads',
+        name: 'Saladas',
+        sortOrder: 1,
+        selectionPolicy: { allowRepeatedItems: false, minSelections: 2, maxSelections: null, sharedLimitGroupId: null },
+      },
+    ];
+    const items = [
+      { id: 'salad-1', categoryId: 'salads' },
+      { id: 'salad-2', categoryId: 'salads' },
+    ];
+
+    expect(validateSelection(categoriesWithMin, items, [
+      { itemId: 'salad-1', quantity: 1 },
+      { itemId: 'salad-2', quantity: 1 },
+    ])).toEqual([]);
+  });
+
+  it('reports shared group min violation when total falls below minSelections', () => {
+    const categoriesWithGroupMin = [
+      {
+        id: 'drinks',
+        name: 'Bebidas',
+        sortOrder: 1,
+        selectionPolicy: { allowRepeatedItems: false, minSelections: 2, maxSelections: null, sharedLimitGroupId: 'extras' },
+      },
+      {
+        id: 'desserts',
+        name: 'Sobremesas',
+        sortOrder: 2,
+        selectionPolicy: { allowRepeatedItems: false, minSelections: 2, maxSelections: null, sharedLimitGroupId: 'extras' },
+      },
+    ];
+    const items = [
+      { id: 'drink-1', categoryId: 'drinks' },
+      { id: 'dessert-1', categoryId: 'desserts' },
+    ];
+
+    const violations = validateSelection(categoriesWithGroupMin, items, [{ itemId: 'drink-1', quantity: 1 }]);
+
+    expect(violations).toEqual([
+      expect.objectContaining({
+        type: 'min',
+        minSelections: 2,
+        selectedCount: 1,
+        categories: ['Bebidas', 'Sobremesas'],
+        groupId: 'extras',
+      }),
+    ]);
+  });
+
   it('builds a published menu version with active selected items ordered by sort order and name', () => {
     const version = buildPublishedMenuVersion({
       versionId: 'v1',

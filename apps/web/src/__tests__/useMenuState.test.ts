@@ -183,8 +183,8 @@ describe('useMenuState', () => {
     });
 
     expect(saveCategorySelectionRules).toHaveBeenCalledWith([
-      { category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' },
-      { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' },
+      expect.objectContaining({ category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' }),
+      expect.objectContaining({ category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' }),
     ], ['Saladas', 'Carnes']);
   });
 

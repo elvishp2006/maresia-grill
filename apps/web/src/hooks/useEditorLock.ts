@@ -161,7 +161,8 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
   }, [canEdit, sessionId]);
 
   useEffect(() => {
-    if (!shouldRecoverSameDeviceLock) return;
+    if (!shouldRecoverSameDeviceLock || !effectiveLock) return;
+    if (Date.now() - effectiveLock.lastHeartbeatAt <= HEARTBEAT_INTERVAL_MS * 2) return;
 
     void acquireEditorLock({ sessionId, userEmail: userEmail!, deviceLabel }, { force: true })
       .then((nextLock) => {
@@ -172,7 +173,7 @@ export function useEditorLock(userEmail?: string | null, isOnline = true): Edito
       .catch((nextError) => {
         setError(getAdminErrorMessage('lock_takeover', nextError));
       });
-  }, [deviceLabel, sessionId, shouldRecoverSameDeviceLock, userEmail]);
+  }, [deviceLabel, effectiveLock, sessionId, shouldRecoverSameDeviceLock, userEmail]);
 
   useEffect(() => {
     if (!userEmail) return;

@@ -81,7 +81,7 @@ export const validateSelectionForVersion = (
 export const validateSelection = (
   items: Array<{ id: string; categoria: string; nome?: string; priceCents?: number | null }>,
   selectedItems: SelectedPublicItem[] | string[],
-  rules: Array<{ category: string; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
+  rules: Array<{ category: string; minSelections?: number | null; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
 ) => {
   const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
     ? normalizeSelectionEntries(undefined, selectedItems as string[])
@@ -95,15 +95,20 @@ export const validateSelection = (
     counts.set(category, (counts.get(category) ?? 0) + quantity);
   });
 
+  // Pre-pass: accumulate group counts for all rules regardless of max/min presence,
+  // so both max-group and min-group validation loops see correct totals.
   const groupedCounts = new Map<string, number>();
+  for (const rule of rules) {
+    if (!rule.sharedLimitGroupId) continue;
+    const categoryCount = counts.get(rule.category) ?? 0;
+    groupedCounts.set(rule.sharedLimitGroupId, (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount);
+  }
+
   for (const rule of rules) {
     if (typeof rule.maxSelections !== 'number') continue;
     const categoryCount = counts.get(rule.category) ?? 0;
     if (!rule.sharedLimitGroupId && categoryCount > rule.maxSelections) {
       throw new Error(`A categoria ${rule.category} excedeu o limite permitido.`);
-    }
-    if (rule.sharedLimitGroupId) {
-      groupedCounts.set(rule.sharedLimitGroupId, (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount);
     }
   }
 
@@ -111,6 +116,23 @@ export const validateSelection = (
     if (typeof rule.maxSelections !== 'number' || !rule.sharedLimitGroupId) continue;
     if ((groupedCounts.get(rule.sharedLimitGroupId) ?? 0) > rule.maxSelections) {
       throw new Error(`O grupo compartilhado ${rule.sharedLimitGroupId} excedeu o limite permitido.`);
+    }
+  }
+
+  const checkedMinGroups = new Set<string>();
+  for (const rule of rules) {
+    const minSelections = typeof rule.minSelections === 'number' ? rule.minSelections : null;
+    if (!minSelections) continue;
+    const categoryCount = counts.get(rule.category) ?? 0;
+    if (!rule.sharedLimitGroupId) {
+      if (categoryCount < minSelections) {
+        throw new Error(`A categoria ${rule.category} requer pelo menos ${minSelections} item(s).`);
+      }
+    } else if (!checkedMinGroups.has(rule.sharedLimitGroupId)) {
+      checkedMinGroups.add(rule.sharedLimitGroupId);
+      if ((groupedCounts.get(rule.sharedLimitGroupId) ?? 0) < minSelections) {
+        throw new Error(`O grupo compartilhado ${rule.sharedLimitGroupId} requer pelo menos ${minSelections} item(s).`);
+      }
     }
   }
 };

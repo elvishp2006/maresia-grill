@@ -84,14 +84,14 @@ export default function BottomSheet({
     >
       <div
         ref={dialogRef}
-        className="w-full rounded-t-[30px] border border-b-0 border-[var(--border-strong)] bg-[var(--bg-elevated)] px-[20px] pb-[max(22px,env(safe-area-inset-bottom))] pt-[14px] shadow-[0_-20px_60px_rgba(0,0,0,0.35)]"
+        className="w-full max-h-[90svh] flex flex-col rounded-t-[30px] border border-b-0 border-[var(--border-strong)] bg-[var(--bg-elevated)] px-[20px] pb-[max(22px,env(safe-area-inset-bottom))] pt-[14px] shadow-[0_-20px_60px_rgba(0,0,0,0.35)]"
         onClick={event => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <div className="mx-auto mb-[18px] h-[5px] w-[60px] rounded-full bg-[var(--border-strong)]" />
-        <div className="mb-[20px] flex items-start justify-between gap-[14px]">
+        <div className="mx-auto mb-[18px] h-[5px] w-[60px] shrink-0 rounded-full bg-[var(--border-strong)]" />
+        <div className="mb-[20px] shrink-0 flex items-start justify-between gap-[14px]">
           <div className="min-w-0">
             <h2 className="font-[var(--font-display)] text-[24px] font-bold text-[var(--text)]">
               {title}
@@ -111,7 +111,9 @@ export default function BottomSheet({
             ×
           </button>
         </div>
-        {children}
+        <div className="overflow-y-auto">
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -82,6 +82,10 @@ Variaveis locais injetadas automaticamente pelo bootstrap:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_PUBLIC_ORDER_API_URL`
 
+Variavel opcional para bypass de autenticacao em desenvolvimento:
+
+- `.env.local` com `VITE_DEV_AUTH_BYPASS=true` (nunca use em producao)
+
 Variaveis opcionais para habilitar Stripe local:
 
 - `.env.local` com `VITE_STRIPE_PUBLISHABLE_KEY`

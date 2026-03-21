@@ -569,12 +569,24 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   const selectedCount = countSelectedUnits(selection);
 
   useEffect(() => {
-    setMenu(undefined);
+    const cacheKey = `public-menu-cache:${token}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try { setMenu(JSON.parse(cached) as PublicMenu); } catch { /* ignore corrupt cache */ }
+    } else {
+      setMenu(undefined);
+    }
 
     const unsubscribe = subscribePublicMenu(token, (result) => {
       setMenu(result);
+      if (result !== null) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(result));
+      } else {
+        sessionStorage.removeItem(cacheKey);
+      }
     }, () => {
       setMenu(null);
+      sessionStorage.removeItem(cacheKey);
     });
 
     return () => unsubscribe();
@@ -871,7 +883,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     const currentQuantity = getSelectedQuantity(currentSelection, itemId);
     const nextSelection = setSelectedQuantity(currentSelection, itemId, currentQuantity + 1);
     const violations = validateSelectionRules(menu.items, nextSelection, menu.categorySelectionRules);
-    return violations[0] ?? null;
+    return violations.find(v => v.type !== 'min') ?? null;
   };
 
   const incrementItem = (itemId: string) => {

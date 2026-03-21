@@ -42,6 +42,7 @@ export interface Item {
 
 export interface CategorySelectionRule {
   category: Categoria;
+  minSelections?: number | null;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
   allowRepeatedItems?: boolean | null;
@@ -133,6 +134,7 @@ export const DEFAULT_CATEGORIES: Categoria[] = [...DEFAULT_CATEGORY_NAMES];
 
 export const categoryRuleFromCategory = (category: CatalogCategory): CategorySelectionRule => ({
   category: category.name,
+  minSelections: category.selectionPolicy.minSelections ?? null,
   maxSelections: category.selectionPolicy.maxSelections ?? null,
   sharedLimitGroupId: category.selectionPolicy.sharedLimitGroupId ?? null,
   allowRepeatedItems: category.selectionPolicy.allowRepeatedItems ? true : undefined,
@@ -141,7 +143,7 @@ export const categoryRuleFromCategory = (category: CatalogCategory): CategorySel
 export const categoryRulesFromCategories = (categories: CatalogCategory[]): CategorySelectionRule[] => (
   categories
     .map(categoryRuleFromCategory)
-    .filter((rule) => rule.maxSelections || rule.sharedLimitGroupId || rule.allowRepeatedItems)
+    .filter((rule) => rule.minSelections || rule.maxSelections || rule.sharedLimitGroupId || rule.allowRepeatedItems)
 );
 
 export const itemViewFromCatalog = (

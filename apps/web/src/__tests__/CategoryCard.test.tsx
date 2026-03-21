@@ -157,12 +157,13 @@ describe('CategoryCard', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
-    fireEvent.click(screen.getByRole('button', { name: '1' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '1' })[1]);
     fireEvent.click(screen.getByRole('switch', { name: 'Permitir repetir itens em Saladas' }));
     fireEvent.click(screen.getByRole('button', { name: 'Carnes' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
 
     expect(onSaveCategoryRule).toHaveBeenCalledWith({
+      minSelections: null,
       maxSelections: 1,
       sharedLimitGroupId: null,
       linkedCategories: ['Carnes'],
@@ -175,10 +176,9 @@ describe('CategoryCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
     fireEvent.click(screen.getByRole('button', { name: 'Aumentar limite de Saladas' }));
-    expect(screen.getByText('3')).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole('button', { name: 'Diminuir limite de Saladas' }));
-    expect(screen.getByText('2')).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: 'Diminuir limite de Saladas' })).toBeDisabled();
   });
 
   it('keeps the shared limit group id when saving an existing rule', () => {
@@ -200,6 +200,7 @@ describe('CategoryCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
 
     expect(onSaveCategoryRule).toHaveBeenCalledWith({
+      minSelections: null,
       maxSelections: 2,
       sharedLimitGroupId: 'proteinas',
       linkedCategories: ['Carnes'],
@@ -226,6 +227,7 @@ describe('CategoryCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Limpar regra' }));
 
     expect(onSaveCategoryRule).toHaveBeenCalledWith({
+      minSelections: null,
       maxSelections: null,
       sharedLimitGroupId: null,
       linkedCategories: [],
@@ -240,6 +242,60 @@ describe('CategoryCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sem limite' }));
 
     expect(screen.getByRole('button', { name: 'Salvar limite' })).toBeDisabled();
+  });
+
+  it('renders the minimum quantity section in the rule sheet', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    expect(screen.getByText('Quantidade mínima')).toBeInTheDocument();
+  });
+
+  it('saves minSelections when a minimum is set', () => {
+    const onSaveCategoryRule = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        onSaveCategoryRule={onSaveCategoryRule}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '1' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '1' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
+
+    expect(onSaveCategoryRule).toHaveBeenCalledWith(
+      expect.objectContaining({ minSelections: 1, maxSelections: 1 }),
+    );
+  });
+
+  it('enables save limit when only a minimum is set', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar minimo de Saladas' }));
+
+    expect(screen.getByRole('button', { name: 'Salvar limite' })).not.toBeDisabled();
+  });
+
+  it('clears minSelections along with maxSelections when clearing the rule', () => {
+    const onSaveCategoryRule = vi.fn();
+    renderWithProviders(
+      <CategoryCard
+        {...defaultProps}
+        viewMode="manage"
+        categoryRule={{ category: 'Saladas', minSelections: 1, maxSelections: 2 }}
+        onSaveCategoryRule={onSaveCategoryRule}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar regra' }));
+
+    expect(onSaveCategoryRule).toHaveBeenCalledWith(
+      expect.objectContaining({ minSelections: null, maxSelections: null }),
+    );
   });
 
   it('calls onRemoveCategory after confirmation', async () => {
@@ -297,7 +353,7 @@ describe('CategoryCard', () => {
     );
 
     expect(screen.getByText('Sem limite e permite repetir item')).toBeInTheDocument();
-    expect(screen.getByText('Sem limite de selecao e com repeticao do mesmo item liberada.')).toBeInTheDocument();
+    expect(screen.getByText('Sem limite de seleção e com repetição do mesmo item liberada.')).toBeInTheDocument();
   });
 
   it('shows the selection rule summary in select mode', () => {
@@ -309,7 +365,7 @@ describe('CategoryCard', () => {
       />,
     );
 
-    expect(screen.getByText('Escolha ate 1')).toBeInTheDocument();
+    expect(screen.getByText('Escolha até 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Configurar limite' })).not.toBeInTheDocument();
   });
 

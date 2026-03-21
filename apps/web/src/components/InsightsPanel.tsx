@@ -150,6 +150,7 @@ export default function InsightsPanel({
 
             <div className="rounded-[22px] border border-[var(--border)] bg-[var(--bg-card)] p-[16px] shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
               <h3 className="text-[15px] font-semibold text-[var(--text)]">Quantidade por dia da semana</h3>
+              <p className="mt-[4px] text-[12px] text-[var(--text-dim)]">média de itens por pedido</p>
               <ul className="mt-[12px] flex list-none flex-col gap-[10px]">
                 {weekdayAverages.map(entry => (
                   <li key={entry.weekday} className="flex items-center justify-between gap-[10px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[12px] py-[10px]">
@@ -157,7 +158,7 @@ export default function InsightsPanel({
                       <p className="text-[13px] font-semibold text-[var(--text)]">{entry.label}</p>
                       <p className="text-[12px] text-[var(--text-dim)]">{entry.sampleSize} registro(s)</p>
                     </div>
-                    <span className="neon-gold-text text-[13px] font-semibold text-[var(--accent)]">{entry.average.toFixed(1)}</span>
+                    <span className="neon-gold-text text-[13px] font-semibold text-[var(--accent)]">{entry.average.toFixed(1)} itens</span>
                   </li>
                 ))}
               </ul>

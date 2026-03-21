@@ -152,6 +152,7 @@ type CatalogCategoryRecord = {
   name: string;
   sortOrder: number;
   selectionPolicy?: {
+    minSelections?: number | null;
     maxSelections?: number | null;
     sharedLimitGroupId?: string | null;
     allowRepeatedItems?: boolean;
@@ -217,6 +218,9 @@ const normalizeCategoryRecord = (id: string, value: unknown) => {
     name: candidate.name,
     sortOrder: normalizeSortOrder(candidate.sortOrder),
     selectionPolicy: {
+      minSelections: typeof candidate.selectionPolicy?.minSelections === 'number'
+        ? Math.trunc(candidate.selectionPolicy.minSelections)
+        : null,
       maxSelections: typeof candidate.selectionPolicy?.maxSelections === 'number'
         ? Math.trunc(candidate.selectionPolicy.maxSelections)
         : null,
@@ -357,6 +361,7 @@ const ensureDefaultCategories = async () => {
       name,
       sortOrder: index,
       selectionPolicy: {
+        minSelections: null,
         maxSelections: null,
         sharedLimitGroupId: null,
         allowRepeatedItems: false,
@@ -395,6 +400,7 @@ const saveCategoriesInternal = async (items: string[]): Promise<void> => {
       name: normalizedName,
       sortOrder: index,
       selectionPolicy: existingEntry?.selectionPolicy ?? {
+        minSelections: null,
         maxSelections: null,
         sharedLimitGroupId: null,
         allowRepeatedItems: false,
@@ -472,6 +478,7 @@ const buildPublicMenuFromVersion = (
     name: string;
     sortOrder: number;
     selectionPolicy: {
+      minSelections?: number | null;
       maxSelections?: number | null;
       sharedLimitGroupId?: string | null;
       allowRepeatedItems?: boolean;
@@ -494,10 +501,11 @@ const buildPublicMenuFromVersion = (
     categories: sortCategories(versionCategories).map(category => category.name),
     items: sortItems(versionItems).map(item => itemViewFromCatalog(item, categoryById.get(item.categoryId)?.name ?? 'Sem categoria')),
     categorySelectionRules: versionCategories.flatMap(category => {
-      const hasRule = category.selectionPolicy.maxSelections || category.selectionPolicy.sharedLimitGroupId || category.selectionPolicy.allowRepeatedItems;
+      const hasRule = category.selectionPolicy.minSelections || category.selectionPolicy.maxSelections || category.selectionPolicy.sharedLimitGroupId || category.selectionPolicy.allowRepeatedItems;
       return hasRule
         ? [{
             category: category.name,
+            minSelections: category.selectionPolicy.minSelections ?? null,
             maxSelections: category.selectionPolicy.maxSelections ?? null,
             sharedLimitGroupId: category.selectionPolicy.sharedLimitGroupId ?? null,
             allowRepeatedItems: category.selectionPolicy.allowRepeatedItems ? true : undefined,
@@ -683,6 +691,7 @@ export const saveCategorySelectionRules = async (
       name: categoryName,
       sortOrder: normalizeSortOrder(existingCategory?.sortOrder, index),
       selectionPolicy: {
+        minSelections: rule?.minSelections ?? null,
         maxSelections: rule?.maxSelections ?? null,
         sharedLimitGroupId: rule?.sharedLimitGroupId ?? null,
         allowRepeatedItems: rule?.allowRepeatedItems === true,
