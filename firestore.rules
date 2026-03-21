@@ -161,6 +161,7 @@ service cloud.firestore {
           'shareToken',
           'menuVersionId',
           'customerName',
+          'observation',
           'lines',
           'paymentSummary',
           'submittedAt',
@@ -172,6 +173,7 @@ service cloud.firestore {
         && request.resource.data.menuVersionId is string
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() > 0
+        && (!('observation' in request.resource.data) || isNullableString(request.resource.data.observation))
         && request.resource.data.lines is list
         && request.resource.data.lines.size() > 0
         && isValidPaymentSummary(request.resource.data.paymentSummary)

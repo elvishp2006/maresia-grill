@@ -138,6 +138,35 @@ describe('functions core', () => {
     )).toThrow('O grupo compartilhado extras requer pelo menos 2 item(s).');
   });
 
+  it('correctly counts group totals for min-only shared group rules (no maxSelections)', () => {
+    // With the pre-pass fix, groupedCounts is populated regardless of whether maxSelections is set.
+    // Before the fix, 1 item in Bebidas would not be counted for the group because the
+    // groupedCounts map was only populated inside the maxSelections loop.
+    expect(() => validateSelection(
+      [
+        { id: 'drink-1', nome: 'Coca-Cola', categoria: 'Bebidas' },
+        { id: 'dessert-1', nome: 'Brownie', categoria: 'Sobremesas' },
+      ],
+      [{ itemId: 'drink-1', quantity: 1 }],
+      [
+        { category: 'Bebidas', minSelections: 1, sharedLimitGroupId: 'extras' },
+        { category: 'Sobremesas', minSelections: 1, sharedLimitGroupId: 'extras' },
+      ],
+    )).not.toThrow();
+
+    expect(() => validateSelection(
+      [
+        { id: 'drink-1', nome: 'Coca-Cola', categoria: 'Bebidas' },
+        { id: 'dessert-1', nome: 'Brownie', categoria: 'Sobremesas' },
+      ],
+      [],
+      [
+        { category: 'Bebidas', minSelections: 1, sharedLimitGroupId: 'extras' },
+        { category: 'Sobremesas', minSelections: 1, sharedLimitGroupId: 'extras' },
+      ],
+    )).toThrow('O grupo compartilhado extras requer pelo menos 1 item(s).');
+  });
+
   it('builds return urls with draftId, hash fallback and origin validation', () => {
     expect(buildReturnUrl(
       'draft-1',

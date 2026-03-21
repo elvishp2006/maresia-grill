@@ -95,15 +95,20 @@ export const validateSelection = (
     counts.set(category, (counts.get(category) ?? 0) + quantity);
   });
 
+  // Pre-pass: accumulate group counts for all rules regardless of max/min presence,
+  // so both max-group and min-group validation loops see correct totals.
   const groupedCounts = new Map<string, number>();
+  for (const rule of rules) {
+    if (!rule.sharedLimitGroupId) continue;
+    const categoryCount = counts.get(rule.category) ?? 0;
+    groupedCounts.set(rule.sharedLimitGroupId, (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount);
+  }
+
   for (const rule of rules) {
     if (typeof rule.maxSelections !== 'number') continue;
     const categoryCount = counts.get(rule.category) ?? 0;
     if (!rule.sharedLimitGroupId && categoryCount > rule.maxSelections) {
       throw new Error(`A categoria ${rule.category} excedeu o limite permitido.`);
-    }
-    if (rule.sharedLimitGroupId) {
-      groupedCounts.set(rule.sharedLimitGroupId, (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount);
     }
   }
 

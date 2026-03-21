@@ -582,6 +582,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
       sessionStorage.setItem(cacheKey, JSON.stringify(result));
     }, () => {
       setMenu(null);
+      sessionStorage.removeItem(cacheKey);
     });
 
     return () => unsubscribe();

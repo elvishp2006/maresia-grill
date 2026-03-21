@@ -87,7 +87,12 @@ export function useAuthSession() {
         } catch (err) {
           const code = (err as { code?: string }).code;
           if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
-            await createUserWithEmailAndPassword(authInstance, DEV_EMAIL, DEV_PASSWORD);
+            try {
+              await createUserWithEmailAndPassword(authInstance, DEV_EMAIL, DEV_PASSWORD);
+            } catch {
+              // Account creation failed (e.g. race condition). startListening() will
+              // still be called below so the auth state listener is always attached.
+            }
           }
         }
         if (active) startListening();
