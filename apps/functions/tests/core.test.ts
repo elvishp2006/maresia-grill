@@ -118,6 +118,24 @@ describe('functions core', () => {
         { category: 'Sobremesas', maxSelections: 1, sharedLimitGroupId: 'extras' },
       ],
     )).toThrow('O grupo compartilhado extras excedeu o limite permitido.');
+
+    expect(() => validateSelection(
+      [{ id: 'salad-1', nome: 'Alface', categoria: 'Saladas' }],
+      [],
+      [{ category: 'Saladas', minSelections: 1 }],
+    )).toThrow('A categoria Saladas requer pelo menos 1 item(s).');
+
+    expect(() => validateSelection(
+      [
+        { id: 'drink-1', nome: 'Coca-Cola', categoria: 'Bebidas' },
+        { id: 'dessert-1', nome: 'Brownie', categoria: 'Sobremesas' },
+      ],
+      [],
+      [
+        { category: 'Bebidas', minSelections: 2, sharedLimitGroupId: 'extras' },
+        { category: 'Sobremesas', minSelections: 2, sharedLimitGroupId: 'extras' },
+      ],
+    )).toThrow('O grupo compartilhado extras requer pelo menos 2 item(s).');
   });
 
   it('builds return urls with draftId, hash fallback and origin validation', () => {

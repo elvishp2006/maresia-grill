@@ -30,6 +30,7 @@ describe('categorySelectionRules', () => {
       allowRepeatedItems: true,
     })).toEqual({
       category: 'Bebidas',
+      minSelections: null,
       maxSelections: 1,
       sharedLimitGroupId: 'extras',
       allowRepeatedItems: true,
@@ -47,6 +48,7 @@ describe('categorySelectionRules', () => {
     ])).toEqual([
       {
         category: 'Bebidas',
+        minSelections: null,
         maxSelections: 2,
         sharedLimitGroupId: 'extras',
         allowRepeatedItems: undefined,
@@ -58,6 +60,7 @@ describe('categorySelectionRules', () => {
     expect(sanitizeCategorySelectionRuleInput('  Sobremesas ', { maxSelections: 2, allowRepeatedItems: true }))
       .toEqual({
         category: 'Sobremesas',
+        minSelections: null,
         maxSelections: 2,
         sharedLimitGroupId: null,
         allowRepeatedItems: true,
@@ -77,12 +80,14 @@ describe('categorySelectionRules', () => {
     expect(rules).toEqual([
       {
         category: 'Bebidas',
+        minSelections: null,
         maxSelections: 1,
         sharedLimitGroupId: 'shared:Bebidas__Sobremesas',
         allowRepeatedItems: true,
       },
       {
         category: 'Sobremesas',
+        minSelections: null,
         maxSelections: 1,
         sharedLimitGroupId: 'shared:Bebidas__Sobremesas',
         allowRepeatedItems: undefined,
@@ -98,12 +103,14 @@ describe('categorySelectionRules', () => {
     })).toEqual([
       {
         category: 'Bebidas',
+        minSelections: null,
         maxSelections: 2,
         sharedLimitGroupId: null,
         allowRepeatedItems: true,
       },
       {
         category: 'Sobremesas',
+        minSelections: null,
         maxSelections: 1,
         sharedLimitGroupId: null,
         allowRepeatedItems: undefined,
@@ -118,7 +125,7 @@ describe('categorySelectionRules', () => {
     ];
 
     expect(removeCategorySelectionRule(rules, 'Bebidas')).toEqual([
-      { category: 'Sobremesas', maxSelections: 1, sharedLimitGroupId: null, allowRepeatedItems: undefined },
+      { category: 'Sobremesas', minSelections: null, maxSelections: 1, sharedLimitGroupId: null, allowRepeatedItems: undefined },
     ]);
   });
 
@@ -153,6 +160,28 @@ describe('categorySelectionRules', () => {
         category: 'Saladas',
         selectedCount: 2,
       }),
+    ]);
+  });
+
+  it('describes min-only rule as "Escolha pelo menos N"', () => {
+    const rules: CategorySelectionRule[] = [
+      { category: 'Saladas', minSelections: 2, maxSelections: null },
+    ];
+    expect(describeCategorySelectionRule('Saladas', rules)).toBe('Escolha pelo menos 2');
+  });
+
+  it('describes rule with both min and max as "Escolha de N a M"', () => {
+    const rules: CategorySelectionRule[] = [
+      { category: 'Saladas', minSelections: 1, maxSelections: 3 },
+    ];
+    expect(describeCategorySelectionRule('Saladas', rules)).toBe('Escolha de 1 a 3');
+  });
+
+  it('validates min violations through validateSelectionRules', () => {
+    expect(validateSelectionRules(items, [], [
+      { category: 'Saladas', minSelections: 1 },
+    ])).toEqual([
+      expect.objectContaining({ type: 'min', category: 'Saladas', minSelections: 1 }),
     ]);
   });
 });

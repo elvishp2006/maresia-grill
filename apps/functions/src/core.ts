@@ -81,7 +81,7 @@ export const validateSelectionForVersion = (
 export const validateSelection = (
   items: Array<{ id: string; categoria: string; nome?: string; priceCents?: number | null }>,
   selectedItems: SelectedPublicItem[] | string[],
-  rules: Array<{ category: string; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
+  rules: Array<{ category: string; minSelections?: number | null; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
 ) => {
   const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
     ? normalizeSelectionEntries(undefined, selectedItems as string[])
@@ -111,6 +111,23 @@ export const validateSelection = (
     if (typeof rule.maxSelections !== 'number' || !rule.sharedLimitGroupId) continue;
     if ((groupedCounts.get(rule.sharedLimitGroupId) ?? 0) > rule.maxSelections) {
       throw new Error(`O grupo compartilhado ${rule.sharedLimitGroupId} excedeu o limite permitido.`);
+    }
+  }
+
+  const checkedMinGroups = new Set<string>();
+  for (const rule of rules) {
+    const minSelections = typeof rule.minSelections === 'number' ? rule.minSelections : null;
+    if (!minSelections) continue;
+    const categoryCount = counts.get(rule.category) ?? 0;
+    if (!rule.sharedLimitGroupId) {
+      if (categoryCount < minSelections) {
+        throw new Error(`A categoria ${rule.category} requer pelo menos ${minSelections} item(s).`);
+      }
+    } else if (!checkedMinGroups.has(rule.sharedLimitGroupId)) {
+      checkedMinGroups.add(rule.sharedLimitGroupId);
+      if ((groupedCounts.get(rule.sharedLimitGroupId) ?? 0) < minSelections) {
+        throw new Error(`O grupo compartilhado ${rule.sharedLimitGroupId} requer pelo menos ${minSelections} item(s).`);
+      }
     }
   }
 };

@@ -16,6 +16,7 @@ export type PaymentProvider = 'mercado_pago' | 'stripe';
 export type PaymentMethodType = 'pix' | 'card';
 
 export interface SelectionPolicy {
+  minSelections?: number | null;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
   allowRepeatedItems: boolean;
@@ -117,9 +118,10 @@ export interface MenuEditorState {
 }
 
 export interface SelectionViolation {
-  type: 'category' | 'group';
+  type: 'category' | 'group' | 'min';
   category: string;
-  maxSelections: number;
+  maxSelections?: number;
+  minSelections?: number;
   selectedCount: number;
   categories: string[];
   groupId?: string;
@@ -203,6 +205,15 @@ export const validateSelection = (
   const groupCategories = new Map<string, string[]>();
 
   for (const category of categories) {
+    const categoryCount = counts.get(category.id) ?? 0;
+    const groupId = category.selectionPolicy.sharedLimitGroupId ?? undefined;
+    if (groupId) {
+      groupCounts.set(groupId, (groupCounts.get(groupId) ?? 0) + categoryCount);
+      groupCategories.set(groupId, [...(groupCategories.get(groupId) ?? []), category.name]);
+    }
+  }
+
+  for (const category of categories) {
     const maxSelections = category.selectionPolicy.maxSelections ?? null;
     if (!maxSelections) continue;
 
@@ -218,11 +229,6 @@ export const validateSelection = (
         categories: [category.name],
         message: `A categoria ${category.name} excedeu o limite permitido.`,
       });
-    }
-
-    if (groupId) {
-      groupCounts.set(groupId, (groupCounts.get(groupId) ?? 0) + categoryCount);
-      groupCategories.set(groupId, [...(groupCategories.get(groupId) ?? []), category.name]);
     }
   }
 
@@ -246,6 +252,45 @@ export const validateSelection = (
         message: `Escolha ate ${maxSelections} somando com ${categoriesInGroup.filter(name => name !== category.name).join(', ')}.`,
       });
       break;
+    }
+  }
+
+  const checkedMinGroups = new Set<string>();
+  for (const category of categories) {
+    const minSelections = category.selectionPolicy.minSelections ?? null;
+    if (!minSelections) continue;
+
+    const categoryCount = counts.get(category.id) ?? 0;
+    const groupId = category.selectionPolicy.sharedLimitGroupId ?? undefined;
+
+    if (!groupId) {
+      if (categoryCount < minSelections) {
+        violations.push({
+          type: 'min',
+          category: category.name,
+          minSelections,
+          selectedCount: categoryCount,
+          categories: [category.name],
+          message: `A categoria ${category.name} requer pelo menos ${minSelections} item(s).`,
+        });
+      }
+    } else if (!checkedMinGroups.has(groupId)) {
+      checkedMinGroups.add(groupId);
+      const selectedCount = groupCounts.get(groupId) ?? 0;
+      if (selectedCount < minSelections) {
+        const categoriesInGroup = (groupCategories.get(groupId) ?? []).sort((left, right) => (
+          left.localeCompare(right, 'pt-BR', { sensitivity: 'base' })
+        ));
+        violations.push({
+          type: 'min',
+          category: category.name,
+          minSelections,
+          selectedCount,
+          categories: categoriesInGroup,
+          groupId,
+          message: `Escolha pelo menos ${minSelections} somando com ${categoriesInGroup.filter(name => name !== category.name).join(', ')}.`,
+        });
+      }
     }
   }
 

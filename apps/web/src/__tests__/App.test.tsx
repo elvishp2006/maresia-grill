@@ -1353,15 +1353,14 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Catálogo' }));
     fireEvent.click(screen.getByRole('button', { name: 'Configurar limite' }));
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '2' })[1]);
     fireEvent.click(screen.getByRole('button', { name: 'Carnes' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
 
-    expect(saveCategoryRule).toHaveBeenCalledWith('Saladas', {
+    expect(saveCategoryRule).toHaveBeenCalledWith('Saladas', expect.objectContaining({
       maxSelections: 2,
-      sharedLimitGroupId: null,
       linkedCategories: ['Carnes'],
-    });
+    }));
   });
 
   it('quick-adds a searched item from the empty manage state and clears the search', async () => {

@@ -426,15 +426,15 @@ describe('storage', () => {
 
       const { loadCategorySelectionRules, saveCategorySelectionRules } = await import('../lib/storage');
       await expect(loadCategorySelectionRules()).resolves.toEqual([
-        { category: 'Saladas', maxSelections: 1, sharedLimitGroupId: null },
-        { category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'proteinas', allowRepeatedItems: true },
+        { category: 'Saladas', minSelections: null, maxSelections: 1, sharedLimitGroupId: null },
+        { category: 'Carnes', minSelections: null, maxSelections: 2, sharedLimitGroupId: 'proteinas', allowRepeatedItems: true },
       ]);
 
       await saveCategorySelectionRules([{ category: 'Carnes', maxSelections: 3, sharedLimitGroupId: 'proteinas' }]);
       expect(mockBatchSet).toHaveBeenCalledWith(
         expect.objectContaining({ path: 'catalog/root/categories/carnes' }),
         expect.objectContaining({
-          selectionPolicy: { maxSelections: 3, sharedLimitGroupId: 'proteinas', allowRepeatedItems: false },
+          selectionPolicy: { minSelections: null, maxSelections: 3, sharedLimitGroupId: 'proteinas', allowRepeatedItems: false },
         }),
       );
     });
@@ -464,7 +464,7 @@ describe('storage', () => {
         expect.objectContaining({ path: 'catalog/root/categories/sobremesas' }),
         expect.objectContaining({
           name: 'Sobremesas',
-          selectionPolicy: { maxSelections: 1, sharedLimitGroupId: null, allowRepeatedItems: false },
+          selectionPolicy: { minSelections: null, maxSelections: 1, sharedLimitGroupId: null, allowRepeatedItems: false },
         }),
       );
     });
@@ -483,7 +483,7 @@ describe('storage', () => {
         expect.objectContaining({ path: 'catalog/root/categories/saladas' }),
         expect.objectContaining({
           sortOrder: 1,
-          selectionPolicy: { maxSelections: 2, sharedLimitGroupId: null, allowRepeatedItems: false },
+          selectionPolicy: { minSelections: null, maxSelections: 2, sharedLimitGroupId: null, allowRepeatedItems: false },
         }),
       );
     });
