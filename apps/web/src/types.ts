@@ -38,6 +38,7 @@ export interface Item {
   categoria: Categoria;
   priceCents?: number | null;
   quantity?: number | null;
+  alwaysActive?: boolean;
 }
 
 export interface CategorySelectionRule {
@@ -147,7 +148,7 @@ export const categoryRulesFromCategories = (categories: CatalogCategory[]): Cate
 );
 
 export const itemViewFromCatalog = (
-  item: Pick<CatalogItem, 'id' | 'name' | 'priceCents'>,
+  item: Pick<CatalogItem, 'id' | 'name' | 'priceCents'> & { alwaysActive?: boolean },
   categoryName: string,
   quantity?: number | null,
 ): Item => ({
@@ -155,5 +156,6 @@ export const itemViewFromCatalog = (
   nome: item.name,
   categoria: categoryName,
   priceCents: item.priceCents,
+  ...(item.alwaysActive ? { alwaysActive: true } : {}),
   ...(typeof quantity === 'number' ? { quantity } : {}),
 });

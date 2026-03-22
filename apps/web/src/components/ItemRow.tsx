@@ -12,6 +12,7 @@ interface ItemRowProps {
   onToggle: () => void;
   onRemove: () => void;
   onUpdate?: (input: { nome: string; priceCents: number }) => void;
+  onUpdateAlwaysActive?: (alwaysActive: boolean) => void;
   onRename?: (newNome: string) => void;
   mode: 'select' | 'manage';
   isOnline?: boolean;
@@ -23,6 +24,7 @@ export default function ItemRow({
   onToggle,
   onRemove,
   onUpdate,
+  onUpdateAlwaysActive,
   onRename,
   mode,
   isOnline = true,
@@ -71,6 +73,13 @@ export default function ItemRow({
               </span>
             ) : null}
           </span>
+          {item.alwaysActive ? (
+            <span
+              className="h-[8px] w-[8px] shrink-0 rounded-full bg-[var(--accent)]"
+              aria-label="Sempre ativo"
+              title="Sempre ativo"
+            />
+          ) : null}
         </button>
       </li>
     );
@@ -89,6 +98,25 @@ export default function ItemRow({
             </p>
           </div>
           <div className="flex shrink-0 gap-[8px]">
+            {onUpdateAlwaysActive ? (
+              <button
+                type="button"
+                className={`flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${item.alwaysActive ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-dim)] hover:border-[var(--accent)]'}`}
+                onClick={() => {
+                  if (!isOnline) return;
+                  lightTap();
+                  onUpdateAlwaysActive(!item.alwaysActive);
+                }}
+                aria-label={item.alwaysActive ? `Desmarcar ${item.nome} como sempre ativo` : `Marcar ${item.nome} como sempre ativo`}
+                aria-pressed={item.alwaysActive === true}
+                disabled={!isOnline}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="12" y1="17" x2="12" y2="22"/>
+                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/>
+                </svg>
+              </button>
+            ) : null}
             <button
               type="button"
               className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text)] transition-colors hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45"

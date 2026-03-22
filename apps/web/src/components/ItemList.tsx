@@ -14,6 +14,7 @@ interface ItemListProps {
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
   onUpdate?: (id: string, input: { nome: string; priceCents: number }) => void;
+  onUpdateAlwaysActive?: (itemId: string, alwaysActive: boolean) => void;
   onRename?: (id: string, newNome: string) => void;
   isOnline?: boolean;
 }
@@ -30,6 +31,7 @@ export default function ItemList({
   onToggle,
   onRemove,
   onUpdate,
+  onUpdateAlwaysActive,
   onRename,
   isOnline = true,
 }: ItemListProps) {
@@ -94,6 +96,7 @@ export default function ItemList({
             onToggle={() => onToggle(item.id)}
             onRemove={() => onRemove(item.id)}
             onUpdate={onUpdate ? (input) => onUpdate(item.id, input) : undefined}
+            onUpdateAlwaysActive={onUpdateAlwaysActive ? (alwaysActive) => onUpdateAlwaysActive(item.id, alwaysActive) : undefined}
             onRename={onRename ? (newNome) => onRename(item.id, newNome) : undefined}
             mode={viewMode}
             isOnline={isOnline}

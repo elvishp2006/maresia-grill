@@ -28,6 +28,7 @@ interface MenuViewProps {
   onAddItem: (nome: string, categoria: Categoria, priceCents?: number | null) => void;
   onRemoveItem: (id: string) => void;
   onUpdateItem: (id: string, input: { nome: string; priceCents: number | null }) => void;
+  onUpdateItemAlwaysActive: (itemId: string, alwaysActive: boolean) => void;
   onMoveCategory: (categoria: Categoria, dir: 'up' | 'down') => void;
   onRemoveCategory: (categoria: Categoria) => void;
   onAddCategory: (nome: string) => void;
@@ -55,6 +56,7 @@ export default function MenuView({
   onAddItem,
   onRemoveItem,
   onUpdateItem,
+  onUpdateItemAlwaysActive,
   onMoveCategory,
   onRemoveCategory,
   onAddCategory,
@@ -139,6 +141,7 @@ export default function MenuView({
                 onAdd={onAddItem}
                 onRemove={onRemoveItem}
                 onUpdateItem={onUpdateItem}
+                onUpdateItemAlwaysActive={onUpdateItemAlwaysActive}
                 search={search}
                 sortMode={sortMode}
                 usageCounts={usageCounts}

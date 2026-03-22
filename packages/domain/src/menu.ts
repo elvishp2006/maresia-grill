@@ -35,6 +35,7 @@ export interface CatalogItem {
   name: string;
   priceCents: number;
   isActive: boolean;
+  alwaysActive: boolean;
   sortOrder: number;
 }
 

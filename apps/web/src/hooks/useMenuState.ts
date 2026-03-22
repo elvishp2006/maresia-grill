@@ -173,7 +173,11 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     if (lastDateKeyRef.current === currentDateKey) return;
     lastDateKeyRef.current = currentDateKey;
     showAdminInfo(showToast, DAY_CHANGED_MESSAGE);
-  }, [currentDateKey, showToast]);
+    const alwaysActiveIds = complements.filter(item => item.alwaysActive).map(item => item.id);
+    if (alwaysActiveIds.length > 0) {
+      void storage.initDaySelectionIfEmpty(currentDateKey, alwaysActiveIds);
+    }
+  }, [currentDateKey, showToast, complements]);
 
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
 
@@ -234,6 +238,12 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       trackWrite(revision, storage.saveComplements(next));
       return next;
     });
+  };
+
+  const updateItemAlwaysActive = (itemId: string, alwaysActive: boolean) => {
+    if (!guardWritableAction()) return;
+    setComplements(prev => prev.map(item => item.id === itemId ? { ...item, alwaysActive } : item));
+    void storage.saveItemAlwaysActive(itemId, alwaysActive);
   };
 
   const renameItem = (id: string, newNome: string) => {
@@ -325,5 +335,6 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     removeCategory,
     moveCategory,
     saveCategoryRule,
+    updateItemAlwaysActive,
   };
 };
