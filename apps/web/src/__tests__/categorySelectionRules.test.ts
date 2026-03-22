@@ -77,19 +77,21 @@ describe('categorySelectionRules', () => {
       allowRepeatedItems: true,
     });
 
+    const groupId = rules[0].sharedLimitGroupId;
+    expect(groupId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(rules).toEqual([
       {
         category: 'Bebidas',
         minSelections: null,
         maxSelections: 1,
-        sharedLimitGroupId: 'shared:Bebidas__Sobremesas',
+        sharedLimitGroupId: groupId,
         allowRepeatedItems: true,
       },
       {
         category: 'Sobremesas',
         minSelections: null,
         maxSelections: 1,
-        sharedLimitGroupId: 'shared:Bebidas__Sobremesas',
+        sharedLimitGroupId: groupId,
         allowRepeatedItems: undefined,
       },
     ]);

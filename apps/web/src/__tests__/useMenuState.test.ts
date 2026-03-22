@@ -190,9 +190,12 @@ describe('useMenuState', () => {
       await Promise.resolve();
     });
 
+    const [[rules]] = saveCategorySelectionRules.mock.calls;
+    const groupId = rules[0].sharedLimitGroupId;
+    expect(groupId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(saveCategorySelectionRules).toHaveBeenCalledWith([
-      expect.objectContaining({ category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' }),
-      expect.objectContaining({ category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' }),
+      expect.objectContaining({ category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: groupId }),
+      expect.objectContaining({ category: 'Carnes', maxSelections: 2, sharedLimitGroupId: groupId }),
     ], [
       { id: 'cat-saladas', name: 'Saladas' },
       { id: 'cat-carnes', name: 'Carnes' },
