@@ -363,9 +363,9 @@ const ensureDefaultCategories = async () => {
 
   const batch = writeBatch(getDb());
   DEFAULT_CATEGORY_NAMES.forEach((name, index) => {
-    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${createCategoryId(name)}-${Math.random().toString(36).slice(2, 8)}`;
+    // Use deterministic slug-based IDs for system defaults so concurrent
+    // or repeated seed calls are idempotent (last write wins, same doc).
+    const id = createCategoryId(name);
     batch.set(doc(categoriesCollectionRef(), id), {
       name,
       sortOrder: index,
@@ -688,6 +688,7 @@ export const saveCategorySelectionRules = async (
     const categoryName = categoryEntry.name;
     const rule = rulesByName.get(categoryName);
     const categoryId = categoryEntry.id;
+    // Fallback to name lookup for data migrated from slug-based IDs (pre-UUID).
     const existingCategory = existingById.get(categoryId) ?? existingByName.get(categoryName);
     batch.set(doc(categoriesCollectionRef(), categoryId), {
       name: categoryName,
@@ -973,7 +974,6 @@ const publishMenuVersion = async (input: CreateDailyShareLinkInput, acceptingOrd
   await saveDaySelection(input.dateKey, input.daySelection);
   return writePublishedMenuVersion(input, acceptingOrders);
 };
-
 
 export const getOrCreateDailyShareLink = async (input: CreateDailyShareLinkInput): Promise<ShareLinkResult> => {
   const { token } = await publishMenuVersion(input, true);
