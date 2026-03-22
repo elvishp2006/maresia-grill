@@ -7,6 +7,7 @@ import BottomSheet from './components/BottomSheet';
 import InsightsPanel from './components/InsightsPanel';
 import type { useMenuInsights } from './hooks/useMenuInsights';
 import { useHapticFeedback } from './hooks/useHapticFeedback';
+import { normalize } from './lib/utils';
 
 interface MenuViewProps {
   viewMode: 'menu' | 'stats' | 'manage' | 'orders';
@@ -66,6 +67,12 @@ export default function MenuView({
   const [showQuickAddSheet, setShowQuickAddSheet] = useState(false);
   const [quickAddCategory, setQuickAddCategory] = useState<Categoria | null>(null);
 
+  const searchTerm = search.trim();
+  const exactMatch = searchTerm
+    ? complements.some(item => normalize(item.nome) === normalize(searchTerm))
+    : false;
+  const showCreateButton = Boolean(searchTerm && canEdit && categories.length > 0 && !exactMatch);
+
   return (
     <>
       <main className="pb-[24px]">
@@ -104,7 +111,7 @@ export default function MenuView({
                 ? `Nenhum resultado para "${search}".`
                 : 'Ajuste a busca para encontrar itens.'}
             </p>
-            {search.trim() && canEdit && categories.length > 0 ? (
+            {showCreateButton ? (
               <button
                 type="button"
                 className="neon-gold-border neon-gold-text mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
@@ -149,6 +156,16 @@ export default function MenuView({
             ))}
           </div>
         )}
+
+        {visibleCategories.length > 0 && showCreateButton ? (
+          <button
+            type="button"
+            className="neon-gold-text mt-[12px] min-h-[48px] w-full rounded-[22px] border border-dashed border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+            onClick={() => { lightTap(); setShowQuickAddSheet(true); }}
+          >
+            + Cadastrar "{search}" no catálogo
+          </button>
+        ) : null}
 
         {viewMode === 'manage' ? (
           <button
