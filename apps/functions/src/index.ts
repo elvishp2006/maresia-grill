@@ -119,17 +119,19 @@ const parseBody = <T>(raw: unknown): T => {
   return raw as T;
 };
 
+const ERR_MENU_UNAVAILABLE = 'Cardápio público indisponível.';
+
 const loadActivePublicMenu = async (shareToken: string, requireAcceptingOrders = true) => {
   const tokenSnap = await db.doc(`dailyMenuTokens/${shareToken}`).get();
-  if (!tokenSnap.exists) throw new Error('Cardápio público indisponível.');
+  if (!tokenSnap.exists) throw new Error(ERR_MENU_UNAVAILABLE);
   const tokenRecord = tokenSnap.data() as DailyMenuTokenRecord;
-  if (!tokenRecord?.dateKey || !tokenRecord?.activeVersionId) throw new Error('Cardápio público indisponível.');
+  if (!tokenRecord?.dateKey || !tokenRecord?.activeVersionId) throw new Error(ERR_MENU_UNAVAILABLE);
 
   const dailyMenuDoc = await db.doc(`dailyMenus/${tokenRecord.dateKey}`).get();
-  if (!dailyMenuDoc.exists) throw new Error('Cardápio público indisponível.');
+  if (!dailyMenuDoc.exists) throw new Error(ERR_MENU_UNAVAILABLE);
   const dailyMenu = dailyMenuDoc.data() as DailyMenuRecord;
-  if (!dailyMenu.activeVersionId) throw new Error('Cardápio público indisponível.');
-  if (dailyMenu.activeVersionId !== tokenRecord.activeVersionId) throw new Error('Cardápio público indisponível.');
+  if (!dailyMenu.activeVersionId) throw new Error(ERR_MENU_UNAVAILABLE);
+  if (dailyMenu.activeVersionId !== tokenRecord.activeVersionId) throw new Error(ERR_MENU_UNAVAILABLE);
   if (requireAcceptingOrders && dailyMenu.status === 'closed') {
     throw new Error('Os pedidos deste cardápio foram encerrados.');
   }
@@ -549,6 +551,112 @@ export const cancelPublicOrder = onRequest(publicBrowserEndpointOptions, async (
   }
 });
 
+type WebhookRes = { status: (code: number) => { send: (body: string) => void } };
+
+const handlePaymentIntentEvent = async (event: Stripe.Event, res: WebhookRes): Promise<void> => {
+  const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const draftPayload = await getDraftFromStripeObject(paymentIntent);
+  if (!draftPayload) {
+    res.status(202).send('missing draft');
+    return;
+  }
+
+  const { draft, draftId } = draftPayload;
+  const providerPaymentId = paymentIntent.id ?? draft.paymentSummary.providerPaymentId;
+
+  const paymentStatus = (
+    event.type === 'payment_intent.payment_failed'
+    || event.type === 'payment_intent.canceled'
+  )
+    ? 'failed'
+    : paymentIntent.status === 'succeeded'
+      ? 'paid'
+      : 'awaiting_payment';
+
+  const paymentMethod = providerPaymentId && paymentStatus === 'paid'
+    ? await getStripePaymentMethod(providerPaymentId)
+    : draft.paymentSummary.paymentMethod;
+
+  const dateKey = parseDateKeyFromVersionId(draft.menuVersionId) || draft.dateKey;
+  const versionSnap = await db.doc(`dailyMenus/${dateKey}/versions/${draft.menuVersionId}`).get();
+  if (!versionSnap.exists) throw new Error('Snapshot do cardápio indisponível.');
+  const version = versionSnap.data() as PublishedMenuVersion;
+  const lines = resolveOrderLines(version, draft.selectedItems);
+  const nextSummary: OrderPaymentSummary = {
+    ...calculateOrderPaymentSummaryFromLines(lines, paymentStatus, 'stripe', paymentMethod),
+    providerPaymentId: providerPaymentId ?? null,
+    refundedAt: draft.paymentSummary.refundedAt ?? null,
+  };
+
+  if (paymentStatus === 'paid') {
+    const finalizeResult = await finalizeOrderFromDraft(draft, nextSummary);
+    if (finalizeResult === 'created' || finalizeResult === 'replaced') {
+      await updateDraftPaymentSummary(draftId, nextSummary);
+      res.status(200).send('ok');
+      return;
+    }
+
+    const orderSnap = await db.doc(`dailyMenus/${draft.dateKey}/orders/${draft.orderId}`).get();
+    const order = orderSnap.exists ? orderSnap.data() as StoredOrderEntry : null;
+
+    if (isDuplicatePaidDraft(order, draft.id, providerPaymentId ?? null)) {
+      if (!providerPaymentId) {
+        logger.error('Pagamento duplicado sem providerPaymentId.', { draftId, orderId: draft.orderId });
+        await updateDraftPaymentSummary(draftId, nextSummary);
+        res.status(200).send('ok');
+        return;
+      }
+
+      await refundStripePayment(providerPaymentId);
+      await updateDraftMetadata(draftId, {
+        paymentSummary: {
+          ...nextSummary,
+          paymentStatus: 'refund_pending' as const,
+        },
+        failureReason: 'superseded',
+        supersededByDraftId: order?.sourceDraftId ?? null,
+        supersededAt: Date.now(),
+      });
+      res.status(200).send('ok');
+      return;
+    }
+  }
+
+  await updateDraftPaymentSummary(draftId, nextSummary);
+  res.status(200).send('ok');
+};
+
+const handleChargeRefundedEvent = async (event: Stripe.Event, res: WebhookRes): Promise<void> => {
+  const charge = event.data.object as Stripe.Charge;
+  const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
+  if (!paymentIntentId) {
+    res.status(202).send('ignored');
+    return;
+  }
+
+  const draftQuery = await db.collection('publicOrderDrafts')
+    .where('paymentSummary.providerPaymentId', '==', paymentIntentId)
+    .limit(1)
+    .get();
+  if (draftQuery.empty) {
+    res.status(202).send('ignored');
+    return;
+  }
+
+  const draftDoc = draftQuery.docs[0];
+  if (!draftDoc) {
+    res.status(202).send('ignored');
+    return;
+  }
+  const draft = draftDoc.data() as PublicOrderDraft;
+  await updateDraftPaymentSummary(draftDoc.id, {
+    ...draft.paymentSummary,
+    paymentStatus: 'refunded',
+    refundedAt: Date.now(),
+  });
+  res.status(200).send('ok');
+};
+
 export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');
@@ -572,109 +680,12 @@ export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) =
       || event.type === 'payment_intent.payment_failed'
       || event.type === 'payment_intent.canceled'
     ) {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const draftPayload = await getDraftFromStripeObject(paymentIntent);
-      if (!draftPayload) {
-        res.status(202).send('missing draft');
-        return;
-      }
-
-      const { draft, draftId } = draftPayload;
-      const providerPaymentId = paymentIntent.id ?? draft.paymentSummary.providerPaymentId;
-
-      const paymentStatus = (
-        event.type === 'payment_intent.payment_failed'
-        || event.type === 'payment_intent.canceled'
-      )
-        ? 'failed'
-        : paymentIntent.status === 'succeeded'
-          ? 'paid'
-          : 'awaiting_payment';
-
-      const paymentMethod = providerPaymentId && paymentStatus === 'paid'
-        ? await getStripePaymentMethod(providerPaymentId)
-        : draft.paymentSummary.paymentMethod;
-
-      const dateKey = parseDateKeyFromVersionId(draft.menuVersionId) || draft.dateKey;
-      const versionSnap = await db.doc(`dailyMenus/${dateKey}/versions/${draft.menuVersionId}`).get();
-      if (!versionSnap.exists) throw new Error('Snapshot do cardápio indisponível.');
-      const version = versionSnap.data() as PublishedMenuVersion;
-      const lines = resolveOrderLines(version, draft.selectedItems);
-      const nextSummary: OrderPaymentSummary = {
-        ...calculateOrderPaymentSummaryFromLines(lines, paymentStatus, 'stripe', paymentMethod),
-        providerPaymentId: providerPaymentId ?? null,
-        refundedAt: draft.paymentSummary.refundedAt ?? null,
-      };
-
-      if (paymentStatus === 'paid') {
-        const finalizeResult = await finalizeOrderFromDraft(draft, nextSummary);
-        if (finalizeResult === 'created' || finalizeResult === 'replaced') {
-          await updateDraftPaymentSummary(draftId, nextSummary);
-          res.status(200).send('ok');
-          return;
-        }
-
-        const orderSnap = await db.doc(`dailyMenus/${draft.dateKey}/orders/${draft.orderId}`).get();
-        const order = orderSnap.exists ? orderSnap.data() as StoredOrderEntry : null;
-
-        if (isDuplicatePaidDraft(order, draft.id, providerPaymentId ?? null)) {
-          if (!providerPaymentId) {
-            logger.error('Pagamento duplicado sem providerPaymentId.', { draftId, orderId: draft.orderId });
-            await updateDraftPaymentSummary(draftId, nextSummary);
-            res.status(200).send('ok');
-            return;
-          }
-
-          await refundStripePayment(providerPaymentId);
-          await updateDraftMetadata(draftId, {
-            paymentSummary: {
-              ...nextSummary,
-              paymentStatus: 'refund_pending' as const,
-            },
-            failureReason: 'superseded',
-            supersededByDraftId: order?.sourceDraftId ?? null,
-            supersededAt: Date.now(),
-          });
-          res.status(200).send('ok');
-          return;
-        }
-      }
-
-      await updateDraftPaymentSummary(draftId, nextSummary);
-
-      res.status(200).send('ok');
+      await handlePaymentIntentEvent(event, res);
       return;
     }
 
     if (event.type === 'charge.refunded') {
-      const charge = event.data.object as Stripe.Charge;
-      const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
-      if (!paymentIntentId) {
-        res.status(202).send('ignored');
-        return;
-      }
-
-      const draftQuery = await db.collection('publicOrderDrafts')
-        .where('paymentSummary.providerPaymentId', '==', paymentIntentId)
-        .limit(1)
-        .get();
-      if (draftQuery.empty) {
-        res.status(202).send('ignored');
-        return;
-      }
-
-      const draftDoc = draftQuery.docs[0];
-      if (!draftDoc) {
-        res.status(202).send('ignored');
-        return;
-      }
-      const draft = draftDoc.data() as PublicOrderDraft;
-      await updateDraftPaymentSummary(draftDoc.id, {
-        ...draft.paymentSummary,
-        paymentStatus: 'refunded',
-        refundedAt: Date.now(),
-      });
-      res.status(200).send('ok');
+      await handleChargeRefundedEvent(event, res);
       return;
     }
 

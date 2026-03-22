@@ -39,6 +39,76 @@ interface MenuViewProps {
   onShare: () => void;
 }
 
+function StatsView({
+  isOnline,
+  insights,
+  onSelectSuggestion,
+}: {
+  isOnline: boolean;
+  insights: ReturnType<typeof useMenuInsights>;
+  onSelectSuggestion: (id: string) => void;
+}) {
+  if (isOnline) {
+    return (
+      <InsightsPanel
+        loading={insights.loading}
+        error={insights.error}
+        trackedDays={insights.trackedDays}
+        weekdayLabel={insights.weekdayLabel}
+        topItems={insights.topItems}
+        weekdayAverages={insights.weekdayAverages}
+        categoryLeaders={insights.categoryLeaders}
+        streakItems={insights.streakItems}
+        neglectedItems={insights.neglectedItems}
+        suggestedItems={insights.suggestedItems}
+        onSelectSuggestion={onSelectSuggestion}
+      />
+    );
+  }
+  return (
+    <section className="section-card border-dashed text-center">
+      <h2 className="font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
+        Estatísticas indisponíveis
+      </h2>
+      <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+        Conecte-se a internet para consultar sugestões e histórico.
+      </p>
+    </section>
+  );
+}
+
+function EmptyMenuState({
+  search,
+  showCreateButton,
+  onQuickAdd,
+}: {
+  search: string;
+  showCreateButton: boolean;
+  onQuickAdd: () => void;
+}) {
+  return (
+    <section className="section-card border-dashed text-center">
+      <h2 className="font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
+        Nada encontrado
+      </h2>
+      <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
+        {search.trim()
+          ? `Nenhum resultado para "${search}".`
+          : 'Ajuste a busca para encontrar itens.'}
+      </p>
+      {showCreateButton ? (
+        <button
+          type="button"
+          className="neon-gold-border neon-gold-text mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+          onClick={onQuickAdd}
+        >
+          + Cadastrar "{search}" no catálogo
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 export default function MenuView({
   viewMode,
   visibleCategories,
@@ -78,58 +148,15 @@ export default function MenuView({
     ? complements.some(item => normalize(item.nome) === normalize(searchTerm))
     : false;
   const showCreateButton = Boolean(searchTerm && canEdit && categories.length > 0 && !exactMatch);
+  const handleQuickAdd = () => { lightTap(); setShowQuickAddSheet(true); };
 
   return (
     <>
       <main className="pb-[24px]">
         {viewMode === 'stats' ? (
-          isOnline ? (
-            <InsightsPanel
-              loading={insights.loading}
-              error={insights.error}
-              trackedDays={insights.trackedDays}
-              weekdayLabel={insights.weekdayLabel}
-              topItems={insights.topItems}
-              weekdayAverages={insights.weekdayAverages}
-              categoryLeaders={insights.categoryLeaders}
-              streakItems={insights.streakItems}
-              neglectedItems={insights.neglectedItems}
-              suggestedItems={insights.suggestedItems}
-              onSelectSuggestion={onToggle}
-            />
-          ) : (
-            <section className="section-card border-dashed text-center">
-              <h2 className="font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
-                Estatísticas indisponíveis
-              </h2>
-              <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
-                Conecte-se a internet para consultar sugestões e histórico.
-              </p>
-            </section>
-          )
+          <StatsView isOnline={isOnline} insights={insights} onSelectSuggestion={onToggle} />
         ) : visibleCategories.length === 0 ? (
-          <section className="section-card border-dashed text-center">
-            <h2 className="font-[var(--font-display)] text-[22px] font-bold text-[var(--text)]">
-              Nada encontrado
-            </h2>
-            <p className="mt-[8px] text-[14px] leading-[1.5] text-[var(--text-dim)]">
-              {search.trim()
-                ? `Nenhum resultado para "${search}".`
-                : 'Ajuste a busca para encontrar itens.'}
-            </p>
-            {showCreateButton ? (
-              <button
-                type="button"
-                className="neon-gold-border neon-gold-text mt-[16px] min-h-[48px] rounded-[22px] border border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
-                onClick={() => {
-                  lightTap();
-                  setShowQuickAddSheet(true);
-                }}
-              >
-                + Cadastrar "{search}" no catálogo
-              </button>
-            ) : null}
-          </section>
+          <EmptyMenuState search={search} showCreateButton={showCreateButton} onQuickAdd={handleQuickAdd} />
         ) : (
           <div className="grid grid-cols-1 gap-[16px] md:grid-cols-2">
             {visibleCategories.map(categoria => (
@@ -170,7 +197,7 @@ export default function MenuView({
           <button
             type="button"
             className="neon-gold-text mt-[12px] min-h-[48px] w-full rounded-[22px] border border-dashed border-[var(--accent)] bg-transparent px-[20px] text-[14px] font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--bg)]"
-            onClick={() => { lightTap(); setShowQuickAddSheet(true); }}
+            onClick={handleQuickAdd}
           >
             + Cadastrar "{search}" no catálogo
           </button>

@@ -3,7 +3,7 @@ import type { Item } from '../types';
 import BottomSheet from './BottomSheet';
 import ItemEditorForm from './ItemEditorForm';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
-import { useModal } from '../contexts/ModalContext';
+import { useModal } from '../hooks/useModal';
 import { formatCurrency } from '../lib/billing';
 
 interface ItemRowProps {

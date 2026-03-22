@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useRegisterSW } from '../pwa';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from './useToast';
 
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 

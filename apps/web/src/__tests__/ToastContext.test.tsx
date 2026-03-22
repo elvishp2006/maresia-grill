@@ -1,7 +1,8 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { ToastProvider, useToast } from '../contexts/ToastContext';
+import { ToastProvider } from '../contexts/ToastContext';
+import { useToast } from '../hooks/useToast';
 
 const ToastHarness = () => {
   const { showToast } = useToast();

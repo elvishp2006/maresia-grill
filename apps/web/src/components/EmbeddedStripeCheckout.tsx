@@ -9,7 +9,7 @@ import {
 } from '@stripe/react-stripe-js';
 import type { StripeLinkAuthenticationElementChangeEvent } from '@stripe/stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../hooks/useToast';
 
 const getPublishableKey = () => {
   const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
