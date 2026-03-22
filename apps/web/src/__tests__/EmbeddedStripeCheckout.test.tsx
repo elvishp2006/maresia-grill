@@ -68,7 +68,7 @@ vi.mock('@stripe/stripe-js', () => ({
   loadStripe: vi.fn(async () => ({})),
 }));
 
-vi.mock('../contexts/ToastContext', () => ({
+vi.mock('../hooks/useToast', () => ({
   useToast: () => ({
     showToast: mockShowToast,
   }),

@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useHapticFeedback } from '../hooks/useHapticFeedback';
+import { ModalContext } from '../hooks/useModal';
 
 interface ModalState {
   isOpen: boolean;
@@ -9,11 +10,6 @@ interface ModalState {
   resolve: ((value: boolean) => void) | null;
 }
 
-interface ModalContextValue {
-  confirm: (title: string, message: string) => Promise<boolean>;
-}
-
-const ModalContext = createContext<ModalContextValue | null>(null);
 const INITIAL_MODAL_STATE: ModalState = {
   isOpen: false,
   title: '',
@@ -84,11 +80,4 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       )}
     </ModalContext.Provider>
   );
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function useModal() {
-  const ctx = useContext(ModalContext);
-  if (!ctx) throw new Error('useModal must be used within ModalProvider');
-  return ctx;
 }

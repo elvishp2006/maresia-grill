@@ -73,15 +73,12 @@ export const validateSelectionForVersion = (
   }
 };
 
-export const validateSelection = (
-  items: Array<{ id: string; categoria: string; nome?: string; priceCents?: number | null }>,
-  selectedItems: SelectedPublicItem[] | string[],
-  rules: Array<{ category: string; minSelections?: number | null; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
-// eslint-disable-next-line sonarjs/cognitive-complexity -- TODO: refactor
-) => {
-  const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
-    ? normalizeSelectionEntries(undefined, selectedItems as string[])
-    : selectedItems as SelectedPublicItem[];
+type SelectionRule = { category: string; minSelections?: number | null; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null };
+
+const buildSelectionCounts = (
+  items: Array<{ id: string; categoria: string }>,
+  normalizedSelection: SelectedPublicItem[],
+): { counts: Map<string, number>; groupedCounts: Map<string, number> } => {
   const counts = new Map<string, number>();
   const itemCategoryById = new Map(items.map(item => [item.id, item.categoria]));
 
@@ -94,12 +91,20 @@ export const validateSelection = (
   // Pre-pass: accumulate group counts for all rules regardless of max/min presence,
   // so both max-group and min-group validation loops see correct totals.
   const groupedCounts = new Map<string, number>();
+  return { counts, groupedCounts };
+};
+
+const accumulateGroupCounts = (rules: SelectionRule[], counts: Map<string, number>): Map<string, number> => {
+  const groupedCounts = new Map<string, number>();
   for (const rule of rules) {
     if (!rule.sharedLimitGroupId) continue;
     const categoryCount = counts.get(rule.category) ?? 0;
     groupedCounts.set(rule.sharedLimitGroupId, (groupedCounts.get(rule.sharedLimitGroupId) ?? 0) + categoryCount);
   }
+  return groupedCounts;
+};
 
+const validateMaxLimits = (rules: SelectionRule[], counts: Map<string, number>, groupedCounts: Map<string, number>): void => {
   for (const rule of rules) {
     if (typeof rule.maxSelections !== 'number') continue;
     const categoryCount = counts.get(rule.category) ?? 0;
@@ -114,7 +119,9 @@ export const validateSelection = (
       throw new Error(`O grupo compartilhado ${rule.sharedLimitGroupId} excedeu o limite permitido.`);
     }
   }
+};
 
+const validateMinLimits = (rules: SelectionRule[], counts: Map<string, number>, groupedCounts: Map<string, number>): void => {
   const checkedMinGroups = new Set<string>();
   for (const rule of rules) {
     const minSelections = typeof rule.minSelections === 'number' ? rule.minSelections : null;
@@ -131,6 +138,20 @@ export const validateSelection = (
       }
     }
   }
+};
+
+export const validateSelection = (
+  items: Array<{ id: string; categoria: string; nome?: string; priceCents?: number | null }>,
+  selectedItems: SelectedPublicItem[] | string[],
+  rules: SelectionRule[],
+) => {
+  const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
+    ? normalizeSelectionEntries(undefined, selectedItems as string[])
+    : selectedItems as SelectedPublicItem[];
+  const { counts } = buildSelectionCounts(items, normalizedSelection);
+  const groupedCounts = accumulateGroupCounts(rules, counts);
+  validateMaxLimits(rules, counts, groupedCounts);
+  validateMinLimits(rules, counts, groupedCounts);
 };
 
 export const buildReturnUrl = (

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Item, CategoryEntry, CategorySelectionRule } from '../types';
 import * as storage from '../lib/storage';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from './useToast';
 import {
   removeCategorySelectionRule,
   upsertCategorySelectionRule,
