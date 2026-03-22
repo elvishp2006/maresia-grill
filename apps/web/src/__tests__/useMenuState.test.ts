@@ -44,14 +44,17 @@ const wrapper = ({ children }: { children: React.ReactNode }) =>
 beforeEach(() => {
   vi.clearAllMocks();
 
-  subscribeCategories.mockImplementation((onValue: (value: string[]) => void) => {
-    queueMicrotask(() => onValue(['Saladas', 'Carnes']));
+  subscribeCategories.mockImplementation((onValue: (value: unknown[]) => void) => {
+    queueMicrotask(() => onValue([
+      { id: 'cat-saladas', name: 'Saladas' },
+      { id: 'cat-carnes', name: 'Carnes' },
+    ]));
     return vi.fn();
   });
   subscribeComplements.mockImplementation((onValue: (value: unknown[]) => void) => {
     queueMicrotask(() => onValue([
-      { id: '1', nome: 'Alface', categoria: 'Saladas' },
-      { id: '2', nome: 'Frango', categoria: 'Carnes' },
+      { id: '1', nome: 'Alface', categoria: 'cat-saladas' },
+      { id: '2', nome: 'Frango', categoria: 'cat-carnes' },
     ]));
     return vi.fn();
   });
@@ -81,7 +84,10 @@ describe('useMenuState', () => {
     const { result } = renderHook(() => useMenuState(), { wrapper });
     expect(result.current.loading).toBe(true);
     await waitForReady(result);
-    expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
+    expect(result.current.categories).toEqual([
+      { id: 'cat-saladas', name: 'Saladas' },
+      { id: 'cat-carnes', name: 'Carnes' },
+    ]);
     expect(result.current.complements).toHaveLength(2);
     expect(result.current.categorySelectionRules).toEqual([]);
     expect(result.current.daySelection).toEqual(['1']);
@@ -177,17 +183,23 @@ describe('useMenuState', () => {
     await waitForReady(result);
 
     await act(async () => {
-      result.current.saveCategoryRule('Churrasco', {
+      result.current.saveCategoryRule({ id: 'cat-churrasco', name: 'Churrasco' }, {
         maxSelections: 2,
         linkedCategories: ['Carnes'],
       });
       await Promise.resolve();
     });
 
+    const [[rules]] = saveCategorySelectionRules.mock.calls;
+    const groupId = rules[0].sharedLimitGroupId;
+    expect(groupId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(saveCategorySelectionRules).toHaveBeenCalledWith([
-      expect.objectContaining({ category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' }),
-      expect.objectContaining({ category: 'Carnes', maxSelections: 2, sharedLimitGroupId: 'shared:Carnes__Churrasco' }),
-    ], ['Saladas', 'Carnes']);
+      expect.objectContaining({ category: 'Churrasco', maxSelections: 2, sharedLimitGroupId: groupId }),
+      expect.objectContaining({ category: 'Carnes', maxSelections: 2, sharedLimitGroupId: groupId }),
+    ], [
+      { id: 'cat-saladas', name: 'Saladas' },
+      { id: 'cat-carnes', name: 'Carnes' },
+    ]);
   });
 
   it('shows the storage message when saving category limits fails', async () => {
@@ -196,7 +208,7 @@ describe('useMenuState', () => {
     await waitForReady(result);
 
     await act(async () => {
-      result.current.saveCategoryRule('Carnes', { maxSelections: 2 });
+      result.current.saveCategoryRule({ id: 'cat-carnes', name: 'Carnes' }, { maxSelections: 2 });
       await Promise.resolve();
     });
 
@@ -219,7 +231,10 @@ describe('useMenuState', () => {
 
     act(() => result.current.addCategory('Sobremesas'));
 
-    expect(result.current.categories).toEqual(['Saladas', 'Carnes']);
+    expect(result.current.categories).toEqual([
+      { id: 'cat-saladas', name: 'Saladas' },
+      { id: 'cat-carnes', name: 'Carnes' },
+    ]);
     expect(saveCategories).not.toHaveBeenCalled();
     expect(screen.getByText('Outro dispositivo esta editando o cardapio neste momento.')).toBeInTheDocument();
   });
@@ -234,17 +249,17 @@ describe('useMenuState', () => {
     await waitForReady(result);
 
     await act(async () => {
-      result.current.removeCategory('Saladas');
+      result.current.removeCategory('cat-saladas');
       await Promise.resolve();
     });
 
-    expect(result.current.categories).toEqual(['Carnes']);
-    expect(result.current.complements).toEqual([{ id: '2', nome: 'Frango', categoria: 'Carnes' }]);
+    expect(result.current.categories).toEqual([{ id: 'cat-carnes', name: 'Carnes' }]);
+    expect(result.current.complements).toEqual([{ id: '2', nome: 'Frango', categoria: 'cat-carnes' }]);
     expect(result.current.daySelection).toEqual([]);
-    expect(saveCategories).toHaveBeenCalledWith(['Carnes']);
-    expect(saveComplements).toHaveBeenCalledWith([{ id: '2', nome: 'Frango', categoria: 'Carnes' }]);
+    expect(saveCategories).toHaveBeenCalledWith([{ id: 'cat-carnes', name: 'Carnes' }]);
+    expect(saveComplements).toHaveBeenCalledWith([{ id: '2', nome: 'Frango', categoria: 'cat-carnes' }]);
     expect(saveDaySelection).toHaveBeenCalledWith(expect.any(String), []);
-    expect(saveCategorySelectionRules).toHaveBeenCalledWith([], ['Carnes']);
+    expect(saveCategorySelectionRules).toHaveBeenCalledWith([], [{ id: 'cat-carnes', name: 'Carnes' }]);
   });
 
   it('moves categories up and down but ignores invalid moves', async () => {
@@ -252,16 +267,19 @@ describe('useMenuState', () => {
     await waitForReady(result);
 
     await act(async () => {
-      result.current.moveCategory('Carnes', 'up');
+      result.current.moveCategory('cat-carnes', 'up');
       await Promise.resolve();
     });
-    expect(saveCategories).toHaveBeenCalledWith(['Carnes', 'Saladas']);
+    expect(saveCategories).toHaveBeenCalledWith([
+      { id: 'cat-carnes', name: 'Carnes' },
+      { id: 'cat-saladas', name: 'Saladas' },
+    ]);
 
     saveCategories.mockClear();
 
     await act(async () => {
-      result.current.moveCategory('Carnes', 'up');
-      result.current.moveCategory('Inexistente', 'down');
+      result.current.moveCategory('cat-carnes', 'up');
+      result.current.moveCategory('inexistente', 'down');
       await Promise.resolve();
     });
     expect(saveCategories).not.toHaveBeenCalled();
@@ -309,8 +327,8 @@ describe('useMenuState', () => {
     expect(screen.getByText('Falha ao salvar')).toBeInTheDocument();
   });
 
-  it('falls back to default categories and surfaces recent selection load errors', async () => {
-    subscribeCategories.mockImplementation((onValue: (value: string[]) => void) => {
+  it('surfaces recent selection load errors', async () => {
+    subscribeCategories.mockImplementation((onValue: (value: unknown[]) => void) => {
       queueMicrotask(() => onValue([]));
       return vi.fn();
     });
@@ -320,7 +338,7 @@ describe('useMenuState', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.categories).toEqual(['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco']);
+    expect(result.current.categories).toEqual([]);
     expect(screen.getByText('Não foi possível carregar os dados do admin.')).toBeInTheDocument();
   });
 
@@ -338,7 +356,7 @@ describe('useMenuState', () => {
     });
 
     expect(result.current.categorySelectionRules.find(r => r.category === 'Saladas')?.excludeFromShare).toBe(true);
-    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('Saladas', true);
+    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('cat-saladas', true);
   });
 
   it('updateCategoryExcludeFromShare creates a new rule when none exists', async () => {
@@ -350,7 +368,57 @@ describe('useMenuState', () => {
     });
 
     expect(result.current.categorySelectionRules.find(r => r.category === 'Saladas')?.excludeFromShare).toBe(true);
-    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('Saladas', true);
+    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('cat-saladas', true);
+  });
+
+  it('renames a category and updates its selection rules', async () => {
+    subscribeCategorySelectionRules.mockImplementation((onValue: (value: unknown[]) => void) => {
+      queueMicrotask(() => onValue([{ category: 'Saladas', maxSelections: 2 }]));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.renameCategory('cat-saladas', 'Saladas Mix');
+    });
+
+    expect(result.current.categories).toEqual([
+      { id: 'cat-saladas', name: 'Saladas Mix' },
+      { id: 'cat-carnes', name: 'Carnes' },
+    ]);
+    expect(saveCategories).toHaveBeenCalledWith([
+      { id: 'cat-saladas', name: 'Saladas Mix' },
+      { id: 'cat-carnes', name: 'Carnes' },
+    ]);
+    expect(saveCategorySelectionRules).toHaveBeenCalledWith(
+      [{ category: 'Saladas Mix', maxSelections: 2 }],
+      [{ id: 'cat-saladas', name: 'Saladas Mix' }, { id: 'cat-carnes', name: 'Carnes' }],
+    );
+  });
+
+  it('ignores renameCategory when new name is blank', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.renameCategory('cat-saladas', '   ');
+    });
+
+    expect(saveCategories).not.toHaveBeenCalled();
+  });
+
+  it('ignores renameCategory when name already taken by another category', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.renameCategory('cat-saladas', 'Carnes');
+    });
+
+    expect(saveCategories).not.toHaveBeenCalled();
+    expect(screen.getByText('Já existe uma categoria com este nome.')).toBeInTheDocument();
   });
 
   it('switches to the new day and clears the selection after midnight', async () => {

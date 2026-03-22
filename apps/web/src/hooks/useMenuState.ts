@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Item, Categoria, CategorySelectionRule } from '../types';
-import { DEFAULT_CATEGORIES } from '../types';
+import type { Item, CategoryEntry, CategorySelectionRule } from '../types';
 import * as storage from '../lib/storage';
 import { useToast } from '../contexts/ToastContext';
 import {
@@ -18,7 +17,7 @@ const READ_ONLY_ACTION_MESSAGE = 'Outro dispositivo esta editando o cardapio nes
 const DAY_CHANGED_MESSAGE = 'Novo dia carregado.';
 
 export const useMenuState = (isOnline = true, canEdit = true) => {
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryEntry[]>([]);
   const [complements, setComplements] = useState<Item[]>([]);
   const [categorySelectionRules, setCategorySelectionRules] = useState<CategorySelectionRule[]>([]);
   const [daySelection, setDaySelection] = useState<string[]>([]);
@@ -100,7 +99,7 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
     const unsubscribeCategories = storage.subscribeCategories((cats) => {
       if (!active) return;
-      setCategories(cats.length > 0 ? cats : DEFAULT_CATEGORIES);
+      setCategories(cats);
       markGlobalReady('categories');
     }, handleError);
 
@@ -195,10 +194,10 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     });
   };
 
-  const addItem = (nome: string, categoria: Categoria, priceCents?: number | null) => {
+  const addItem = (nome: string, categoriaId: string, priceCents?: number | null) => {
     if (!guardWritableAction()) return;
     const revision = markDataRevision();
-    const item: Item = { id: genId(), nome: nome.trim(), categoria, priceCents: normalizePriceCents(priceCents) };
+    const item: Item = { id: genId(), nome: nome.trim(), categoria: categoriaId, priceCents: normalizePriceCents(priceCents) };
     setComplements(prev => {
       const next = [...prev, item];
       trackWrite(revision, storage.saveComplements(next));
@@ -257,46 +256,54 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   const addCategory = (nome: string) => {
     if (!guardWritableAction()) return;
     const revision = markDataRevision();
+    const newEntry: CategoryEntry = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `cat-${Date.now()}`,
+      name: nome.trim(),
+    };
     setCategories(prev => {
-      const next = [...prev, nome.trim()];
+      const next = [...prev, newEntry];
       trackWrite(revision, storage.saveCategories(next));
       return next;
     });
   };
 
-  const removeCategory = (nome: string) => {
+  const removeCategory = (id: string) => {
     if (!guardWritableAction()) return;
+    const category = categories.find(c => c.id === id);
+    if (!category) return;
     const revision = markDataRevision();
-    const removedIds = complements.filter(item => item.categoria === nome).map(item => item.id);
+    const removedItemIds = complements.filter(item => item.categoria === id).map(item => item.id);
     setCategories(prev => {
-      const next = prev.filter(c => c !== nome);
+      const next = prev.filter(c => c.id !== id);
       trackWrite(revision, storage.saveCategories(next));
       return next;
     });
     setCategorySelectionRules(prev => {
-      const next = removeCategorySelectionRule(prev, nome);
-      trackWrite(revision, storage.saveCategorySelectionRules(next, categories.filter(category => category !== nome)));
+      const next = removeCategorySelectionRule(prev, category.name);
+      trackWrite(revision, storage.saveCategorySelectionRules(next, categories.filter(c => c.id !== id)));
       return next;
     });
-    if (removedIds.length > 0) {
+    if (removedItemIds.length > 0) {
       setComplements(prev => {
-        const next = prev.filter(item => item.categoria !== nome);
+        const next = prev.filter(item => item.categoria !== id);
         trackWrite(revision, storage.saveComplements(next));
         return next;
       });
       setDaySelection(prev => {
-        const next = prev.filter(id => !removedIds.includes(id));
+        const next = prev.filter(itemId => !removedItemIds.includes(itemId));
         trackWrite(revision, storage.saveDaySelection(currentDateKey, next));
         return next;
       });
     }
   };
 
-  const moveCategory = (nome: string, direction: 'up' | 'down') => {
+  const moveCategory = (id: string, direction: 'up' | 'down') => {
     if (!guardWritableAction()) return;
     const revision = markDataRevision();
     setCategories(prev => {
-      const idx = prev.indexOf(nome);
+      const idx = prev.findIndex(c => c.id === id);
       if (idx < 0) return prev;
       const next = [...prev];
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
@@ -307,11 +314,11 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     });
   };
 
-  const saveCategoryRule = (category: Categoria, input: CategorySelectionRuleInput) => {
+  const saveCategoryRule = (categoryEntry: CategoryEntry, input: CategorySelectionRuleInput) => {
     if (!guardWritableAction()) return;
     const revision = markDataRevision();
     setCategorySelectionRules(prev => {
-      const next = upsertCategorySelectionRule(prev, category, input);
+      const next = upsertCategorySelectionRule(prev, categoryEntry.name, input);
       trackWrite(revision, storage.saveCategorySelectionRules(next, categories));
       return next;
     });
@@ -319,12 +326,36 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   const updateCategoryExcludeFromShare = (categoryName: string, excludeFromShare: boolean) => {
     if (!guardWritableAction()) return;
+    const category = categories.find(c => c.name === categoryName);
+    if (!category) return;
     setCategorySelectionRules(prev => {
       const exists = prev.some(rule => rule.category === categoryName);
       if (exists) return prev.map(rule => rule.category === categoryName ? { ...rule, excludeFromShare } : rule);
       return [...prev, { category: categoryName, excludeFromShare }];
     });
-    storage.saveCategoryExcludeFromShare(categoryName, excludeFromShare).catch(handleSaveError);
+    storage.saveCategoryExcludeFromShare(category.id, excludeFromShare).catch(handleSaveError);
+  };
+
+  const renameCategory = (id: string, newName: string) => {
+    if (!guardWritableAction()) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const category = categories.find(c => c.id === id);
+    if (!category) return;
+    if (categories.some(c => c.id !== id && c.name === trimmed)) {
+      showAdminInfo(showToast, 'Já existe uma categoria com este nome.');
+      return;
+    }
+    const oldName = category.name;
+    const revision = markDataRevision();
+    const updatedCategories = categories.map(c => c.id === id ? { ...c, name: trimmed } : c);
+    setCategories(updatedCategories);
+    const updatedRules = categorySelectionRules.map(rule =>
+      rule.category === oldName ? { ...rule, category: trimmed } : rule
+    );
+    setCategorySelectionRules(updatedRules);
+    trackWrite(revision, storage.saveCategories(updatedCategories));
+    trackWrite(revision, storage.saveCategorySelectionRules(updatedRules, updatedCategories));
   };
 
   return {
@@ -351,5 +382,6 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     saveCategoryRule,
     updateItemAlwaysActive,
     updateCategoryExcludeFromShare,
+    renameCategory,
   };
 };

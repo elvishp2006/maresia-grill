@@ -124,10 +124,7 @@ export const upsertCategorySelectionRule = (
     if (desiredCategories.length > 1) {
       const existingGroupId = normalizeGroupId(input.sharedLimitGroupId)
         ?? currentRule?.sharedLimitGroupId
-        ?? `shared:${desiredCategories
-          .slice()
-          .sort((left, right) => left.localeCompare(right, 'pt-BR', { sensitivity: 'base' }))
-          .join('__')}`;
+        ?? crypto.randomUUID();
 
       for (const targetCategory of desiredCategories) {
         const previousRule = normalizedRules.find(rule => rule.category === targetCategory);

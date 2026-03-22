@@ -1,9 +1,9 @@
-import type { Item } from '../types';
+import type { Item, CategoryEntry } from '../types';
 
 export const normalize = (str: string): string =>
   str.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-export const formatMenuText = (complements: Item[], daySelection: string[], categories: string[]): string => {
+export const formatMenuText = (complements: Item[], daySelection: string[], categories: CategoryEntry[]): string => {
   const now = new Date();
   const weekdays = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
   const dayName = weekdays[now.getDay()];
@@ -15,12 +15,12 @@ export const formatMenuText = (complements: Item[], daySelection: string[], cate
 
   for (const categoria of categories) {
     const items = selectedItems
-      .filter(item => item.categoria === categoria)
+      .filter(item => item.categoria === categoria.id)
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
 
     if (items.length === 0) continue;
 
-    text += `\n${categoria}\n`;
+    text += `\n${categoria.name}\n`;
     for (const item of items) {
       text += `- ${item.nome}\n`;
     }
@@ -29,24 +29,9 @@ export const formatMenuText = (complements: Item[], daySelection: string[], cate
   return text.trim();
 };
 
-export const formatOrderItems = (items: Item[], selectedItemIds: string[], categories: string[]): string => {
-  const selectedItems = items.filter(item => selectedItemIds.includes(item.id));
-
-  return categories
-    .map((category) => {
-      const names = selectedItems
-        .filter(item => item.categoria === category)
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
-        .map(item => item.nome);
-
-      if (names.length === 0) return null;
-      return `${category}: ${names.join(', ')}`;
-    })
-    .filter((value): value is string => value !== null)
-    .join(' • ');
-};
-
 export const groupOrderItemsByCategory = (items: Item[], configuredCategories: string[]) => {
+  // `categories` is derived from `firstSeenCategories` (categories that appear in `items`),
+  // so every entry in the iteration has at least one item — empty-names groups cannot occur.
   const firstSeenCategories = Array.from(new Set(items.map(item => item.categoria)));
   const configuredCategorySet = new Set(configuredCategories);
   const categories = [
@@ -64,12 +49,9 @@ export const groupOrderItemsByCategory = (items: Item[], configuredCategories: s
           return quantity > 1 ? `${quantity}x ${item.nome}` : item.nome;
         });
 
-      if (names.length === 0) return null;
-
       return {
         category,
         names,
       };
-    })
-    .filter((value): value is { category: string; names: string[] } => value !== null);
+    });
 };

@@ -2,23 +2,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import CategoryCard from '../components/CategoryCard';
 import { ModalProvider } from '../contexts/ModalContext';
-import type { Item } from '../types';
+import type { CategoryEntry, Item } from '../types';
 
 const items: Item[] = [
-  { id: '1', nome: 'Zanahoria', categoria: 'Saladas' },
-  { id: '2', nome: 'Alface', categoria: 'Saladas' },
-  { id: '3', nome: 'Beterraba', categoria: 'Saladas' },
+  { id: '1', nome: 'Zanahoria', categoria: 'cat-saladas' },
+  { id: '2', nome: 'Alface', categoria: 'cat-saladas' },
+  { id: '3', nome: 'Beterraba', categoria: 'cat-saladas' },
 ];
 
 const defaultProps = {
-  categoria: 'Saladas',
+  categoria: { id: 'cat-saladas', name: 'Saladas' } as CategoryEntry,
   items,
-  allCategories: ['Saladas', 'Carnes', 'Churrasco'],
+  allCategories: [
+    { id: 'cat-saladas', name: 'Saladas' },
+    { id: 'cat-carnes', name: 'Carnes' },
+    { id: 'cat-churrasco', name: 'Churrasco' },
+  ] as CategoryEntry[],
   daySelection: [],
   onToggle: vi.fn(),
   onAdd: vi.fn(),
   onRemove: vi.fn(),
   onRename: vi.fn(),
+  onRenameCategory: vi.fn(),
   onRemoveCategory: vi.fn(),
   onSaveCategoryRule: vi.fn(),
   search: '',
@@ -49,7 +54,7 @@ describe('CategoryCard', () => {
     renderWithProviders(
       <CategoryCard
         {...defaultProps}
-        categoria="Categoria com um nome extremamente longo para telas pequenas"
+        categoria={{ id: 'cat-long', name: 'Categoria com um nome extremamente longo para telas pequenas' }}
       />
     );
 
@@ -84,7 +89,7 @@ describe('CategoryCard', () => {
   });
 
   it('filters items without diacritics matching accented names', () => {
-    const accentedItems = [{ id: '4', nome: 'Açaí', categoria: 'Saladas' }, ...items];
+    const accentedItems = [{ id: '4', nome: 'Açaí', categoria: 'cat-saladas' }, ...items];
     renderWithProviders(<CategoryCard {...defaultProps} items={accentedItems} search="acai" />);
     expect(screen.getByText('Açaí')).toBeInTheDocument();
     expect(screen.queryByText('Alface')).not.toBeInTheDocument();
@@ -339,7 +344,7 @@ describe('CategoryCard', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
 
-    expect(onAdd).toHaveBeenCalledWith('Tomate', 'Saladas', 450);
+    expect(onAdd).toHaveBeenCalledWith('Tomate', 'cat-saladas', 450);
     expect(screen.queryByRole('dialog', { name: 'Novo item em Saladas' })).not.toBeInTheDocument();
   });
 
@@ -367,6 +372,63 @@ describe('CategoryCard', () => {
 
     expect(screen.getByText('Escolha até 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Configurar limite' })).not.toBeInTheDocument();
+  });
+
+  it('shows a rename button in manage mode', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    expect(screen.getByLabelText('Renomear Saladas')).toBeInTheDocument();
+  });
+
+  it('activates the rename input when the rename button is clicked', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    expect(screen.getByLabelText('Nome da categoria')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Renomear Saladas')).not.toBeInTheDocument();
+  });
+
+  it('calls onRenameCategory with the new name on Enter', () => {
+    const onRenameCategory = vi.fn();
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" onRenameCategory={onRenameCategory} />,
+    );
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    const input = screen.getByLabelText('Nome da categoria');
+    fireEvent.change(input, { target: { value: 'Saladas Mix' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onRenameCategory).toHaveBeenCalledWith('cat-saladas', 'Saladas Mix');
+    expect(screen.queryByLabelText('Nome da categoria')).not.toBeInTheDocument();
+  });
+
+  it('cancels rename on Escape without calling onRenameCategory', () => {
+    const onRenameCategory = vi.fn();
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" onRenameCategory={onRenameCategory} />,
+    );
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    const input = screen.getByLabelText('Nome da categoria');
+    fireEvent.change(input, { target: { value: 'Outro nome' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onRenameCategory).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Nome da categoria')).not.toBeInTheDocument();
+  });
+
+  it('calls onRenameCategory on blur', () => {
+    const onRenameCategory = vi.fn();
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" onRenameCategory={onRenameCategory} />,
+    );
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    const input = screen.getByLabelText('Nome da categoria');
+    fireEvent.change(input, { target: { value: 'Saladas Premium' } });
+    fireEvent.blur(input);
+    expect(onRenameCategory).toHaveBeenCalledWith('cat-saladas', 'Saladas Premium');
+  });
+
+  it('disables the rename button when offline', () => {
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" isOnline={false} />,
+    );
+    expect(screen.getByLabelText('Renomear Saladas')).toBeDisabled();
   });
 
   it('disables management actions when offline', () => {

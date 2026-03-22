@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { formatMenuText, groupOrderItemsByCategory } from '../lib/utils';
-import type { Item } from '../types';
+import type { CategoryEntry, Item } from '../types';
 
-const items: Item[] = [
-  { id: '1', nome: 'Arroz', categoria: 'Acompanhamentos' },
-  { id: '2', nome: 'Feijão', categoria: 'Acompanhamentos' },
-  { id: '3', nome: 'Frango', categoria: 'Carnes' },
-  { id: '4', nome: 'Alface', categoria: 'Saladas' },
+const categories: CategoryEntry[] = [
+  { id: 'cat-saladas', name: 'Saladas' },
+  { id: 'cat-acomp', name: 'Acompanhamentos' },
+  { id: 'cat-carnes', name: 'Carnes' },
 ];
 
-const categories = ['Saladas', 'Acompanhamentos', 'Carnes'];
+const items: Item[] = [
+  { id: '1', nome: 'Arroz', categoria: 'cat-acomp' },
+  { id: '2', nome: 'Feijão', categoria: 'cat-acomp' },
+  { id: '3', nome: 'Frango', categoria: 'cat-carnes' },
+  { id: '4', nome: 'Alface', categoria: 'cat-saladas' },
+];
 
 describe('formatMenuText', () => {
   it('includes only selected items', () => {
@@ -48,7 +52,11 @@ describe('formatMenuText', () => {
   });
 
   it('respects custom category order', () => {
-    const customOrder = ['Carnes', 'Saladas', 'Acompanhamentos'];
+    const customOrder: CategoryEntry[] = [
+      { id: 'cat-carnes', name: 'Carnes' },
+      { id: 'cat-saladas', name: 'Saladas' },
+      { id: 'cat-acomp', name: 'Acompanhamentos' },
+    ];
     const text = formatMenuText(items, ['1', '3', '4'], customOrder);
     const carnesIdx = text.indexOf('Carnes');
     const saladIdx = text.indexOf('Saladas');
@@ -93,6 +101,26 @@ describe('groupOrderItemsByCategory', () => {
       { category: 'Saladas', names: ['Alface'] },
       { category: 'Carnes', names: ['Frango'] },
       { category: 'Molhos', names: ['Molho da casa'] },
+    ]);
+  });
+
+  it('omits configured categories that have no items', () => {
+    const grouped = groupOrderItemsByCategory([
+      { id: '1', nome: 'Arroz', categoria: 'Acompanhamentos' },
+    ], ['Carnes', 'Acompanhamentos']);
+
+    expect(grouped).toEqual([
+      { category: 'Acompanhamentos', names: ['Arroz'] },
+    ]);
+  });
+
+  it('prefixes item name with quantity when quantity > 1', () => {
+    const grouped = groupOrderItemsByCategory([
+      { id: '1', nome: 'Arroz', categoria: 'Acompanhamentos', quantity: 3 },
+    ], ['Acompanhamentos']);
+
+    expect(grouped).toEqual([
+      { category: 'Acompanhamentos', names: ['3x Arroz'] },
     ]);
   });
 });

@@ -15,6 +15,7 @@ import {
   buildPublishedMenuVersion,
   createCategoryId,
   createVersionId,
+  DEFAULT_CATEGORY_NAMES,
   expandSelectionEntriesToIds,
   normalizePriceCents,
   parseDateKeyFromVersionId,
@@ -32,7 +33,8 @@ import type {
   PublicOrderCheckoutSession,
   SelectedPublicItem,
 } from '../types';
-import { DEFAULT_CATEGORIES, categoryRulesFromCategories, itemViewFromCatalog } from '../types';
+import { categoryRulesFromCategories, itemViewFromCatalog } from '../types';
+import type { CategoryEntry } from '../types';
 
 export const LOCK_TIMEOUT_MS = 60_000;
 
@@ -75,7 +77,7 @@ export interface AcquireEditorLockOptions {
 
 export interface CreateDailyShareLinkInput {
   dateKey: string;
-  categories: string[];
+  categories: CategoryEntry[];
   complements: Item[];
   daySelection: string[];
   categorySelectionRules: CategorySelectionRule[];
@@ -360,7 +362,9 @@ const ensureDefaultCategories = async () => {
   if (!snap.empty) return;
 
   const batch = writeBatch(getDb());
-  DEFAULT_CATEGORIES.forEach((name, index) => {
+  DEFAULT_CATEGORY_NAMES.forEach((name, index) => {
+    // Use deterministic slug-based IDs for system defaults so concurrent
+    // or repeated seed calls are idempotent (last write wins, same doc).
     const id = createCategoryId(name);
     batch.set(doc(categoriesCollectionRef(), id), {
       name,
@@ -376,30 +380,20 @@ const ensureDefaultCategories = async () => {
   await batch.commit();
 };
 
-const saveCategoriesInternal = async (items: string[]): Promise<void> => {
-  await ensureDefaultCategories();
+const saveCategoriesInternal = async (entries: CategoryEntry[]): Promise<void> => {
   const existing = await getDocs(categoriesCollectionRef());
   const existingEntries = existing.docs
     .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  const byName = new Map(existingEntries.map(entry => [entry.name, entry]));
+  const existingById = new Map(existingEntries.map(entry => [entry.id, entry]));
   const batch = writeBatch(getDb());
   const nextIds = new Set<string>();
-  const nextNamesById = new Map<string, string>();
 
-  items.forEach((name, index) => {
-    const normalizedName = name.trim();
+  entries.forEach((entry, index) => {
+    const normalizedName = entry.name.trim();
     if (!normalizedName) return;
-    const existingEntry = byName.get(normalizedName);
-    const id = existingEntry?.id ?? createCategoryId(normalizedName);
-    const conflictingName = nextNamesById.get(id);
-    if (conflictingName && conflictingName !== normalizedName) {
-      throw new StorageActionError(
-        `As categorias "${conflictingName}" e "${normalizedName}" geram o mesmo identificador. Ajuste os nomes para salvar.`,
-        'already-exists',
-      );
-    }
-    nextNamesById.set(id, normalizedName);
+    const id = entry.id;
+    const existingEntry = existingById.get(id);
     nextIds.add(id);
     batch.set(doc(categoriesCollectionRef(), id), {
       name: normalizedName,
@@ -422,8 +416,6 @@ const saveCategoriesInternal = async (items: string[]): Promise<void> => {
 };
 
 const saveComplementsInternal = async (items: Item[]): Promise<void> => {
-  const categories = await loadCatalogSnapshot();
-  const categoryByName = new Map(categories.categories.map(category => [category.name, category.id]));
   const existing = await getDocs(itemsCollectionRef());
   const existingAlwaysActive = new Map(
     existing.docs.map(d => [d.id, (d.data() as CatalogItemRecord).alwaysActive === true]),
@@ -432,7 +424,7 @@ const saveComplementsInternal = async (items: Item[]): Promise<void> => {
   const nextIds = new Set<string>();
 
   items.forEach((item, index) => {
-    const categoryId = categoryByName.get(item.categoria) ?? createCategoryId(item.categoria);
+    const categoryId = item.categoria; // UUID stored directly
     nextIds.add(item.id);
     batch.set(doc(itemsCollectionRef(), item.id), {
       categoryId,
@@ -610,29 +602,36 @@ export const isLockExpired = (lock: EditorLock | null, now = Date.now()) =>
 export const isMenuExpired = (menu: PublicMenu | null, now = Date.now()) =>
   !menu || menu.expiresAt <= now;
 
-export const loadCategories = async (): Promise<string[]> => {
+export const loadCategories = async (): Promise<CategoryEntry[]> => {
   const { categories } = await loadCatalogSnapshot();
-  return categories.map(category => category.name);
+  return categories.map(category => ({ id: category.id, name: category.name }));
 };
 
-export const saveCategories = (items: string[]): Promise<void> => {
-  return saveCategoriesInternal(items);
+export const saveCategories = (entries: CategoryEntry[]): Promise<void> => {
+  return saveCategoriesInternal(entries);
 };
 
 export const subscribeCategories = (
-  onValue: (items: string[]) => void,
+  onValue: (items: CategoryEntry[]) => void,
   onError?: (error: Error) => void,
 ) => onSnapshot(query(categoriesCollectionRef(), orderBy('sortOrder', 'asc')), (snap) => {
   const categories = sortCategories(snap.docs
     .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
-  onValue(categories.length > 0 ? categories.map(category => category.name) : DEFAULT_CATEGORIES);
+  if (categories.length === 0) {
+    ensureDefaultCategories().catch(error => onError?.(error instanceof Error ? error : new Error(String(error))));
+  }
+  onValue(categories.map(category => ({ id: category.id, name: category.name })));
 }, error => onError?.(error));
 
 export const loadComplements = async (): Promise<Item[]> => {
-  const { categories, items } = await loadCatalogSnapshot();
-  const categoryById = new Map(categories.map(category => [category.id, category.name]));
-  return items.map(item => itemViewFromCatalog(item, categoryById.get(item.categoryId) ?? 'Sem categoria'));
+  const { items } = await loadCatalogSnapshot();
+  return items.map(item => ({
+    id: item.id,
+    nome: item.name,
+    categoria: item.categoryId,
+    priceCents: item.priceCents,
+  }));
 };
 
 export const saveComplements = (items: Item[]): Promise<void> => {
@@ -665,38 +664,32 @@ const normalizeStorageError = (error: unknown, fallbackMessage: string) => {
 
 export const saveCategorySelectionRules = async (
   rules: CategorySelectionRule[],
-  categoryNames?: string[],
+  categories?: CategoryEntry[],
 ): Promise<void> => {
   const existing = await getDocs(query(categoriesCollectionRef(), orderBy('sortOrder', 'asc')));
   const existingEntries = sortCategories(existing.docs
     .map(docSnap => normalizeCategoryRecord(docSnap.id, docSnap.data()))
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null));
-  const resolvedCategoryNames = Array.from(new Set(
-    (categoryNames ?? existingEntries.map(category => category.name))
-      .map(category => category.trim())
-      .filter(category => category.length > 0)
-  ));
-  if (resolvedCategoryNames.length === 0) {
+
+  const resolvedEntries: CategoryEntry[] = categories
+    ? categories.filter(c => c.name.trim().length > 0)
+    : existingEntries.map(entry => ({ id: entry.id, name: entry.name }));
+
+  if (resolvedEntries.length === 0) {
     throw new StorageActionError('Nenhuma categoria carregada para salvar os limites.', 'not-found');
   }
 
+  const existingById = new Map(existingEntries.map(entry => [entry.id, entry]));
   const existingByName = new Map(existingEntries.map(entry => [entry.name, entry]));
   const rulesByName = new Map(rules.map(rule => [rule.category, rule]));
   const batch = writeBatch(getDb());
-  const nextNamesById = new Map<string, string>();
 
-  resolvedCategoryNames.forEach((categoryName, index) => {
-    const existingCategory = existingByName.get(categoryName);
+  resolvedEntries.forEach((categoryEntry, index) => {
+    const categoryName = categoryEntry.name;
     const rule = rulesByName.get(categoryName);
-    const categoryId = existingCategory?.id ?? createCategoryId(categoryName);
-    const conflictingName = nextNamesById.get(categoryId);
-    if (conflictingName && conflictingName !== categoryName) {
-      throw new StorageActionError(
-        `As categorias "${conflictingName}" e "${categoryName}" geram o mesmo identificador. Ajuste os nomes para salvar os limites.`,
-        'already-exists',
-      );
-    }
-    nextNamesById.set(categoryId, categoryName);
+    const categoryId = categoryEntry.id;
+    // Fallback to name lookup for data migrated from slug-based IDs (pre-UUID).
+    const existingCategory = existingById.get(categoryId) ?? existingByName.get(categoryName);
     batch.set(doc(categoriesCollectionRef(), categoryId), {
       name: categoryName,
       sortOrder: normalizeSortOrder(existingCategory?.sortOrder, index),
@@ -719,7 +712,7 @@ export const saveCategorySelectionRules = async (
     console.error('saveCategorySelectionRules failed', {
       code,
       rules,
-      categoryNames: resolvedCategoryNames,
+      resolvedEntries,
       error,
     });
     if (code === 'permission-denied') {
@@ -747,13 +740,16 @@ export const subscribeCategorySelectionRules = (
 export const subscribeComplements = (
   onValue: (items: Item[]) => void,
   onError?: (error: Error) => void,
-) => onSnapshot(query(itemsCollectionRef(), orderBy('sortOrder', 'asc')), async (snap) => {
-  const categorySnapshot = await loadCatalogSnapshot();
-  const categoryById = new Map(categorySnapshot.categories.map(category => [category.id, category.name]));
+) => onSnapshot(query(itemsCollectionRef(), orderBy('sortOrder', 'asc')), (snap) => {
   const items = sortItems(snap.docs
     .map(docSnap => normalizeItemRecord(docSnap.id, docSnap.data()))
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null))
-    .map(item => itemViewFromCatalog(item, categoryById.get(item.categoryId) ?? 'Sem categoria'));
+    .map(item => ({
+      id: item.id,
+      nome: item.name,
+      categoria: item.categoryId,
+      priceCents: item.priceCents,
+    }));
   onValue(items);
 }, error => onError?.(error));
 
@@ -769,8 +765,8 @@ export const saveDaySelection = (dateKey: string, ids: string[]): Promise<void> 
 export const saveItemAlwaysActive = (itemId: string, alwaysActive: boolean): Promise<void> =>
   updateDoc(doc(itemsCollectionRef(), itemId), { alwaysActive });
 
-export const saveCategoryExcludeFromShare = (categoryName: string, excludeFromShare: boolean): Promise<void> =>
-  updateDoc(doc(categoriesCollectionRef(), createCategoryId(categoryName)), { excludeFromShare });
+export const saveCategoryExcludeFromShare = (categoryId: string, excludeFromShare: boolean): Promise<void> =>
+  updateDoc(doc(categoriesCollectionRef(), categoryId), { excludeFromShare });
 
 export const initDaySelectionIfEmpty = async (dateKey: string, defaultIds: string[]): Promise<void> => {
   const snap = await getDoc(dailyMenuRef(dateKey));
