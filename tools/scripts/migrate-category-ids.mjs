@@ -5,24 +5,29 @@
  * (ex: "a1b2c3d4-..."). Atualiza o campo categoryId de todos os itens
  * do catálogo que referenciam o slug antigo.
  *
- * Uso:
+ * Uso (emulador local):
+ *   node tools/scripts/migrate-category-ids.mjs --project maresia-grill-local --emulator [--dry-run]
+ *   node tools/scripts/migrate-category-ids.mjs --project maresia-grill-local --emulator --execute
+ *
+ * Uso (produção):
  *   node tools/scripts/migrate-category-ids.mjs --project <projectId> [--dry-run]
  *   node tools/scripts/migrate-category-ids.mjs --project <projectId> --execute
  *
  * Flags:
  *   --project  <id>   ID do projeto Firebase (obrigatório)
+ *   --emulator        Aponta para o emulador local (127.0.0.1:8180), bypassa rules
  *   --execute         Aplica as alterações no Firestore (padrão: dry-run)
  *   --dry-run         Apenas simula e imprime o plano (padrão quando --execute ausente)
  *
- * Pré-requisitos:
- *   gcloud auth login  (ou GOOGLE_OAUTH_ACCESS_TOKEN no ambiente)
+ * Pré-requisitos (produção):
+ *   gcloud auth application-default login  (ou GOOGLE_APPLICATION_CREDENTIALS definido)
  */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import admin from 'firebase-admin';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -44,6 +49,8 @@ const parseArgs = (argv) => {
 const args = parseArgs(process.argv.slice(2));
 const projectId = String(args.get('--project') || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || '').trim();
 const dryRun = args.has('--dry-run') || !args.has('--execute');
+const useEmulator = args.has('--emulator');
+const emulatorHost = String(args.get('--emulator-host') || '127.0.0.1:8180').trim();
 
 if (!projectId) {
   console.error('Erro: informe --project <projectId>.');
@@ -51,110 +58,18 @@ if (!projectId) {
 }
 
 // ---------------------------------------------------------------------------
-// Firestore REST helpers (sem dependência do SDK)
+// Firebase Admin SDK setup
 // ---------------------------------------------------------------------------
 
-const apiBase = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+if (useEmulator) {
+  process.env.FIRESTORE_EMULATOR_HOST = emulatorHost;
+}
 
-const getAccessToken = () => {
-  if (typeof process.env.GOOGLE_OAUTH_ACCESS_TOKEN === 'string' && process.env.GOOGLE_OAUTH_ACCESS_TOKEN.trim()) {
-    return process.env.GOOGLE_OAUTH_ACCESS_TOKEN.trim();
-  }
-  return execFileSync('gcloud', ['auth', 'print-access-token'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-};
+if (!admin.apps.length) {
+  admin.initializeApp({ projectId });
+}
 
-const accessToken = getAccessToken();
-
-const firestoreRequest = async (pathname, init = {}) => {
-  const res = await fetch(`${apiBase}/${pathname}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Firestore request failed (${res.status}) for ${pathname}: ${body}`);
-  }
-  if (res.status === 204) return null;
-  return res.json();
-};
-
-// ---------------------------------------------------------------------------
-// Encode / decode Firestore wire format
-// ---------------------------------------------------------------------------
-
-const decodeValue = (v) => {
-  if ('stringValue' in v) return v.stringValue;
-  if ('integerValue' in v) return Number(v.integerValue);
-  if ('doubleValue' in v) return Number(v.doubleValue);
-  if ('booleanValue' in v) return Boolean(v.booleanValue);
-  if ('nullValue' in v) return null;
-  if ('mapValue' in v) return decodeFields(v.mapValue.fields ?? {});
-  if ('arrayValue' in v) return (v.arrayValue.values ?? []).map(decodeValue);
-  if ('timestampValue' in v) return v.timestampValue;
-  return null;
-};
-
-const decodeFields = (fields) =>
-  Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, decodeValue(v)]));
-
-const encodeValue = (v) => {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === 'string') return { stringValue: v };
-  if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (Array.isArray(v)) return { arrayValue: { values: v.map(encodeValue) } };
-  if (typeof v === 'object') return { mapValue: { fields: encodeFields(v) } };
-  throw new Error(`Tipo não suportado na serialização: ${typeof v}`);
-};
-
-const encodeFields = (record) =>
-  Object.fromEntries(Object.entries(record).map(([k, v]) => [k, encodeValue(v)]));
-
-// ---------------------------------------------------------------------------
-// CRUD helpers
-// ---------------------------------------------------------------------------
-
-const listCollection = async (collectionPath) => {
-  const docs = [];
-  let pageToken = null;
-  do {
-    const suffix = pageToken
-      ? `${collectionPath}?pageSize=500&pageToken=${encodeURIComponent(pageToken)}`
-      : `${collectionPath}?pageSize=500`;
-    const payload = await firestoreRequest(suffix);
-    const entries = Array.isArray(payload?.documents) ? payload.documents : [];
-    docs.push(...entries.map((e) => ({
-      path: e.name.split('/documents/')[1],
-      id: e.name.split('/').at(-1) ?? '',
-      data: decodeFields(e.fields ?? {}),
-    })));
-    pageToken = payload?.nextPageToken ?? null;
-  } while (pageToken);
-  return docs;
-};
-
-const createDocument = async (collectionPath, documentId, data) => {
-  await firestoreRequest(`${collectionPath}?documentId=${encodeURIComponent(documentId)}`, {
-    method: 'POST',
-    body: JSON.stringify({ fields: encodeFields(data) }),
-  });
-};
-
-const patchDocument = async (docPath, data) => {
-  await firestoreRequest(docPath, {
-    method: 'PATCH',
-    body: JSON.stringify({ fields: encodeFields(data) }),
-  });
-};
-
-const deleteDocument = async (docPath) => {
-  await firestoreRequest(docPath, { method: 'DELETE' });
-};
+const db = admin.firestore();
 
 // ---------------------------------------------------------------------------
 // UUID detection
@@ -164,11 +79,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUUID = (str) => UUID_RE.test(str);
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const listCollection = async (collectionPath) => {
+  const snap = await db.collection(collectionPath).get();
+  return snap.docs.map((doc) => ({ id: doc.id, ref: doc.ref, data: doc.data() }));
+};
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 const run = async () => {
-  console.log(JSON.stringify({ projectId, dryRun }, null, 2));
+  console.log(JSON.stringify({ projectId, dryRun, useEmulator }, null, 2));
 
   const [categoryDocs, itemDocs] = await Promise.all([
     listCollection('catalog/root/categories'),
@@ -199,7 +123,6 @@ const run = async () => {
     newId: slugToUUID.get(doc.id),
     data: {
       name: doc.data.name ?? doc.id,
-      // Preservar sortOrder original; se colide com UUID existente, colocar no final
       sortOrder: typeof doc.data.sortOrder === 'number'
         ? doc.data.sortOrder
         : maxExistingSortOrder + 1 + index,
@@ -218,10 +141,9 @@ const run = async () => {
     .filter((doc) => slugToUUID.has(doc.data.categoryId))
     .map((doc) => ({
       id: doc.id,
-      path: doc.path,
+      ref: doc.ref,
       oldCategoryId: doc.data.categoryId,
       newCategoryId: slugToUUID.get(doc.data.categoryId),
-      data: { ...doc.data, categoryId: slugToUUID.get(doc.data.categoryId) },
     }));
 
   const itemsAlreadyOk = itemDocs.filter((doc) => !slugToUUID.has(doc.data.categoryId));
@@ -234,7 +156,7 @@ const run = async () => {
     plan: {
       categoriesToCreate,
       slugCategoriesToDelete: slugCategories.map((doc) => `catalog/root/categories/${doc.id}`),
-      itemsToUpdate,
+      itemsToUpdate: itemsToUpdate.map(({ id, oldCategoryId, newCategoryId }) => ({ id, oldCategoryId, newCategoryId })),
     },
     original: {
       categories: categoryDocs.map((d) => ({ id: d.id, data: d.data })),
@@ -259,35 +181,45 @@ const run = async () => {
   }
 
   // -------------------------------------------------------------------------
-  // Execução
+  // Execução — usa batches de 500 (limite do Firestore)
   // -------------------------------------------------------------------------
 
   // 1. Criar novos docs de categoria com UUID
   console.log(`\nCriando ${categoriesToCreate.length} categoria(s) com UUID...`);
   for (const category of categoriesToCreate) {
-    await createDocument('catalog/root/categories', category.newId, category.data);
+    await db.collection('catalog/root/categories').doc(category.newId).set(category.data);
     console.log(`  ✓ ${category.data.name}: ${category.oldId} → ${category.newId}`);
   }
 
-  // 2. Atualizar categoryId nos itens
+  // 2. Atualizar categoryId nos itens (em batches)
   console.log(`\nAtualizando categoryId em ${itemsToUpdate.length} item(s)...`);
-  for (const item of itemsToUpdate) {
-    await patchDocument(item.path, item.data);
-    console.log(`  ✓ item ${item.id}: ${item.oldCategoryId} → ${item.newCategoryId}`);
+  const BATCH_SIZE = 490;
+  for (let i = 0; i < itemsToUpdate.length; i += BATCH_SIZE) {
+    const chunk = itemsToUpdate.slice(i, i + BATCH_SIZE);
+    const batch = db.batch();
+    for (const item of chunk) {
+      batch.update(item.ref, { categoryId: item.newCategoryId });
+      console.log(`  ✓ item ${item.id}: ${item.oldCategoryId} → ${item.newCategoryId}`);
+    }
+    await batch.commit();
   }
 
   // 3. Deletar docs antigos com slug ID
   console.log(`\nRemovendo ${slugCategories.length} categoria(s) com slug ID...`);
+  const deleteBatch = db.batch();
   for (const doc of slugCategories) {
-    await deleteDocument(`catalog/root/categories/${doc.id}`);
+    deleteBatch.delete(doc.ref);
     console.log(`  ✓ removido: catalog/root/categories/${doc.id}`);
   }
+  await deleteBatch.commit();
 
   console.log('\nMigração concluída com sucesso.');
   console.log(`Backup salvo em: ${backupPath}`);
 };
 
-run().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+run()
+  .catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  })
+  .finally(() => admin.app().delete());
