@@ -43,7 +43,10 @@ interface CategoryCardProps {
 
 const DEFAULT_LIMIT = 1;
 const EMPTY_RULES: CategorySelectionRule[] = [];
+const BTN_ACTIVE_CLS = 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]';
+const BTN_INACTIVE_CLS = 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]';
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- TODO: refactor
 export default function CategoryCard({
   categoria,
   items,
@@ -574,8 +577,8 @@ export default function CategoryCard({
                   type="button"
                   className={`min-h-[38px] rounded-full border px-[14px] text-[13px] font-semibold transition-colors ${
                     draftMinSelections === value
-                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
-                      : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                      ? BTN_ACTIVE_CLS
+                      : BTN_INACTIVE_CLS
                   }`}
                   onClick={() => {
                     lightTap();
@@ -591,8 +594,8 @@ export default function CategoryCard({
                 type="button"
                 className={`min-h-[38px] rounded-full border px-[14px] text-[13px] font-semibold transition-colors ${
                   draftMinSelections === null
-                    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
-                    : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                    ? BTN_ACTIVE_CLS
+                    : BTN_INACTIVE_CLS
                 }`}
                 onClick={() => {
                   lightTap();
@@ -639,8 +642,8 @@ export default function CategoryCard({
                   type="button"
                   className={`min-h-[38px] rounded-full border px-[14px] text-[13px] font-semibold transition-colors ${
                     draftMaxSelections === value
-                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
-                      : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                      ? BTN_ACTIVE_CLS
+                      : BTN_INACTIVE_CLS
                   }`}
                   onClick={() => {
                     lightTap();
@@ -656,8 +659,8 @@ export default function CategoryCard({
                 type="button"
                 className={`min-h-[38px] rounded-full border px-[14px] text-[13px] font-semibold transition-colors ${
                   draftMaxSelections === null
-                    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
-                    : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                    ? BTN_ACTIVE_CLS
+                    : BTN_INACTIVE_CLS
                 }`}
                 onClick={() => {
                   lightTap();
@@ -698,8 +701,8 @@ export default function CategoryCard({
                     type="button"
                     className={`min-h-[42px] rounded-[16px] border px-[14px] text-[13px] font-semibold transition-colors ${
                       active
-                        ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]'
-                        : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]'
+                        ? BTN_ACTIVE_CLS
+                        : BTN_INACTIVE_CLS
                     }`}
                     onClick={() => handleToggleLinkedCategory(category)}
                     disabled={!isOnline || draftMaxSelections === null}

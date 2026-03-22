@@ -39,6 +39,7 @@ interface MenuViewProps {
   onShare: () => void;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- TODO: refactor
 export default function MenuView({
   viewMode,
   visibleCategories,

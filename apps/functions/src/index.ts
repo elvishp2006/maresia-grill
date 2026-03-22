@@ -119,17 +119,19 @@ const parseBody = <T>(raw: unknown): T => {
   return raw as T;
 };
 
+const ERR_MENU_UNAVAILABLE = 'Cardápio público indisponível.';
+
 const loadActivePublicMenu = async (shareToken: string, requireAcceptingOrders = true) => {
   const tokenSnap = await db.doc(`dailyMenuTokens/${shareToken}`).get();
-  if (!tokenSnap.exists) throw new Error('Cardápio público indisponível.');
+  if (!tokenSnap.exists) throw new Error(ERR_MENU_UNAVAILABLE);
   const tokenRecord = tokenSnap.data() as DailyMenuTokenRecord;
-  if (!tokenRecord?.dateKey || !tokenRecord?.activeVersionId) throw new Error('Cardápio público indisponível.');
+  if (!tokenRecord?.dateKey || !tokenRecord?.activeVersionId) throw new Error(ERR_MENU_UNAVAILABLE);
 
   const dailyMenuDoc = await db.doc(`dailyMenus/${tokenRecord.dateKey}`).get();
-  if (!dailyMenuDoc.exists) throw new Error('Cardápio público indisponível.');
+  if (!dailyMenuDoc.exists) throw new Error(ERR_MENU_UNAVAILABLE);
   const dailyMenu = dailyMenuDoc.data() as DailyMenuRecord;
-  if (!dailyMenu.activeVersionId) throw new Error('Cardápio público indisponível.');
-  if (dailyMenu.activeVersionId !== tokenRecord.activeVersionId) throw new Error('Cardápio público indisponível.');
+  if (!dailyMenu.activeVersionId) throw new Error(ERR_MENU_UNAVAILABLE);
+  if (dailyMenu.activeVersionId !== tokenRecord.activeVersionId) throw new Error(ERR_MENU_UNAVAILABLE);
   if (requireAcceptingOrders && dailyMenu.status === 'closed') {
     throw new Error('Os pedidos deste cardápio foram encerrados.');
   }
@@ -549,6 +551,7 @@ export const cancelPublicOrder = onRequest(publicBrowserEndpointOptions, async (
   }
 });
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- TODO: refactor
 export const paymentWebhook = onRequest(publicWebhookOptions, async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');

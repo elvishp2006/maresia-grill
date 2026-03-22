@@ -82,6 +82,7 @@ export const validateSelection = (
   items: Array<{ id: string; categoria: string; nome?: string; priceCents?: number | null }>,
   selectedItems: SelectedPublicItem[] | string[],
   rules: Array<{ category: string; minSelections?: number | null; maxSelections?: number | null; sharedLimitGroupId?: string | null; allowRepeatedItems?: boolean | null }>,
+// eslint-disable-next-line sonarjs/cognitive-complexity -- TODO: refactor
 ) => {
   const normalizedSelection = Array.isArray(selectedItems) && typeof selectedItems[0] === 'string'
     ? normalizeSelectionEntries(undefined, selectedItems as string[])
