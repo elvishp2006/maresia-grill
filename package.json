@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
@@ -33,9 +33,10 @@
     "push:staging": "bash tools/scripts/push-staging.sh"
   },
   "devDependencies": {
-    "eslint": "^9.39.4",
+    "@eslint/js": "10",
+    "eslint": "^10.1.0",
     "firebase-admin": "^13.7.0",
-    "firebase-tools": "^14.22.0",
+    "firebase-tools": "^15.11.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "turbo": "^2.0.0"
