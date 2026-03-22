@@ -91,6 +91,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     saveCategoryRule,
     updateItemAlwaysActive,
     updateCategoryExcludeFromShare,
+    renameCategory,
   } = useMenuState(isOnline, canEdit);
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
@@ -123,9 +124,9 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
 
     const normalized = normalize(search.trim());
     return categories.filter(categoria => {
-      if (normalize(categoria).includes(normalized)) return true;
+      if (normalize(categoria.name).includes(normalized)) return true;
       return complements.some(
-        item => item.categoria === categoria && normalize(item.nome).includes(normalized)
+        item => item.categoria === categoria.id && normalize(item.nome).includes(normalized)
       );
     });
   }, [categories, complements, search]);
@@ -133,8 +134,9 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
   const expandedCategory = useMemo(() => {
     if (visibleCategories.length === 0) return null;
     if (manualExpandedCategory === null) return null;
-    if (manualExpandedCategory && visibleCategories.includes(manualExpandedCategory)) {
-      return manualExpandedCategory;
+    if (manualExpandedCategory !== undefined) {
+      const found = visibleCategories.find(c => c.id === manualExpandedCategory);
+      if (found) return found;
     }
     return visibleCategories[0];
   }, [manualExpandedCategory, visibleCategories]);
@@ -144,7 +146,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
 
   const shareMenu = async () => {
     const shareCategories = categories.filter(cat =>
-      !categorySelectionRules.find(r => r.category === cat)?.excludeFromShare
+      !categorySelectionRules.find(r => r.category === cat.name)?.excludeFromShare
     );
     const text = formatMenuText(complements, daySelection, shareCategories);
     if (navigator.share) {
@@ -483,7 +485,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
       {viewMode === 'orders' ? (
         <OrdersPanel
           orders={orders}
-          categories={categories}
+          categories={categories.map(c => c.name)}
           menuVersions={orderMenuVersions}
           acceptingOrders={acceptingOrders}
           intakePending={orderIntakePending}
@@ -504,7 +506,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
           sortMode={sortMode}
           search={search}
           expandedCategory={expandedCategory}
-          onToggleCollapse={(categoria) => setManualExpandedCategory(expandedCategory === categoria ? null : categoria)}
+          onToggleCollapse={(categoria) => setManualExpandedCategory(expandedCategory?.id === categoria.id ? null : categoria.id)}
           isOnline={isOnline}
           canEdit={canEdit}
           insights={insights}
@@ -518,6 +520,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
           onAddCategory={addCategory}
           onSaveCategoryRule={saveCategoryRule}
           onUpdateCategoryExcludeFromShare={updateCategoryExcludeFromShare}
+          onRenameCategory={renameCategory}
           onClearSearch={clearCurrentSearch}
           onShare={() => setShowShareSheet(true)}
         />

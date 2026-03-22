@@ -2,23 +2,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import CategoryCard from '../components/CategoryCard';
 import { ModalProvider } from '../contexts/ModalContext';
-import type { Item } from '../types';
+import type { CategoryEntry, Item } from '../types';
 
 const items: Item[] = [
-  { id: '1', nome: 'Zanahoria', categoria: 'Saladas' },
-  { id: '2', nome: 'Alface', categoria: 'Saladas' },
-  { id: '3', nome: 'Beterraba', categoria: 'Saladas' },
+  { id: '1', nome: 'Zanahoria', categoria: 'cat-saladas' },
+  { id: '2', nome: 'Alface', categoria: 'cat-saladas' },
+  { id: '3', nome: 'Beterraba', categoria: 'cat-saladas' },
 ];
 
 const defaultProps = {
-  categoria: 'Saladas',
+  categoria: { id: 'cat-saladas', name: 'Saladas' } as CategoryEntry,
   items,
-  allCategories: ['Saladas', 'Carnes', 'Churrasco'],
+  allCategories: [
+    { id: 'cat-saladas', name: 'Saladas' },
+    { id: 'cat-carnes', name: 'Carnes' },
+    { id: 'cat-churrasco', name: 'Churrasco' },
+  ] as CategoryEntry[],
   daySelection: [],
   onToggle: vi.fn(),
   onAdd: vi.fn(),
   onRemove: vi.fn(),
   onRename: vi.fn(),
+  onRenameCategory: vi.fn(),
   onRemoveCategory: vi.fn(),
   onSaveCategoryRule: vi.fn(),
   search: '',
@@ -49,7 +54,7 @@ describe('CategoryCard', () => {
     renderWithProviders(
       <CategoryCard
         {...defaultProps}
-        categoria="Categoria com um nome extremamente longo para telas pequenas"
+        categoria={{ id: 'cat-long', name: 'Categoria com um nome extremamente longo para telas pequenas' }}
       />
     );
 
@@ -84,7 +89,7 @@ describe('CategoryCard', () => {
   });
 
   it('filters items without diacritics matching accented names', () => {
-    const accentedItems = [{ id: '4', nome: 'Açaí', categoria: 'Saladas' }, ...items];
+    const accentedItems = [{ id: '4', nome: 'Açaí', categoria: 'cat-saladas' }, ...items];
     renderWithProviders(<CategoryCard {...defaultProps} items={accentedItems} search="acai" />);
     expect(screen.getByText('Açaí')).toBeInTheDocument();
     expect(screen.queryByText('Alface')).not.toBeInTheDocument();
@@ -339,7 +344,7 @@ describe('CategoryCard', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
 
-    expect(onAdd).toHaveBeenCalledWith('Tomate', 'Saladas', 450);
+    expect(onAdd).toHaveBeenCalledWith('Tomate', 'cat-saladas', 450);
     expect(screen.queryByRole('dialog', { name: 'Novo item em Saladas' })).not.toBeInTheDocument();
   });
 

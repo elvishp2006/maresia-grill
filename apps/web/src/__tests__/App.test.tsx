@@ -144,10 +144,13 @@ vi.mock('../lib/storage', () => ({
 }));
 
 const defaultMenuState = {
-  categories: ['Saladas', 'Carnes'] as string[],
+  categories: [
+    { id: 'cat-saladas', name: 'Saladas' },
+    { id: 'cat-carnes', name: 'Carnes' },
+  ],
   complements: [
-    { id: '1', nome: 'Alface', categoria: 'Saladas' },
-    { id: '2', nome: 'Frango', categoria: 'Carnes' },
+    { id: '1', nome: 'Alface', categoria: 'cat-saladas' },
+    { id: '2', nome: 'Frango', categoria: 'cat-carnes' },
   ],
   categorySelectionRules: [] as Array<{ category: string; maxSelections?: number | null; sharedLimitGroupId?: string | null }>,
   daySelection: ['1'] as string[],
@@ -168,6 +171,7 @@ const defaultMenuState = {
   removeCategory: vi.fn(),
   moveCategory: vi.fn(),
   saveCategoryRule: vi.fn(),
+  renameCategory: vi.fn(),
 };
 
 const useMenuStateMock = vi.fn(() => defaultMenuState);
@@ -1041,7 +1045,7 @@ describe('App', () => {
 
     expect(syncPublicMenuSnapshotForDateMock).toHaveBeenCalledWith(expect.objectContaining({
       dateKey: '2026-03-17',
-      categories: ['Saladas', 'Carnes'],
+      categories: [{ id: 'cat-saladas', name: 'Saladas' }, { id: 'cat-carnes', name: 'Carnes' }],
       daySelection: ['1'],
     }));
     expect(screen.queryByText('Sincronizando público')).not.toBeInTheDocument();
@@ -1357,10 +1361,13 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Carnes' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar limite' }));
 
-    expect(saveCategoryRule).toHaveBeenCalledWith('Saladas', expect.objectContaining({
-      maxSelections: 2,
-      linkedCategories: ['Carnes'],
-    }));
+    expect(saveCategoryRule).toHaveBeenCalledWith(
+      { id: 'cat-saladas', name: 'Saladas' },
+      expect.objectContaining({
+        maxSelections: 2,
+        linkedCategories: ['Carnes'],
+      }),
+    );
   });
 
   it('quick-adds a searched item from the empty manage state and clears the search', async () => {
@@ -1390,7 +1397,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
 
-    expect(addItem).toHaveBeenCalledWith('Abacaxi', 'Saladas');
+    expect(addItem).toHaveBeenCalledWith('Abacaxi', 'cat-saladas');
     await waitFor(() => {
       expect(screen.queryByDisplayValue('Abacaxi')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Limpar busca' })).not.toBeInTheDocument();

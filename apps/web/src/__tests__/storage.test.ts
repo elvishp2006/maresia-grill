@@ -370,7 +370,10 @@ describe('storage', () => {
       });
 
       const { loadCategories } = await import('../lib/storage');
-      await expect(loadCategories()).resolves.toEqual(['Saladas', 'Carnes']);
+      await expect(loadCategories()).resolves.toEqual([
+        { id: 'saladas', name: 'Saladas' },
+        { id: 'carnes', name: 'Carnes' },
+      ]);
     });
 
     it('saves categories into catalog/root/categories with batch writes', async () => {
@@ -381,21 +384,16 @@ describe('storage', () => {
       });
 
       const { saveCategories } = await import('../lib/storage');
-      await saveCategories(['Saladas', 'Carnes']);
+      await saveCategories([
+        { id: 'cat-saladas', name: 'Saladas' },
+        { id: 'cat-carnes', name: 'Carnes' },
+      ]);
 
       expect(mockBatchSet).toHaveBeenCalledWith(
-        expect.objectContaining({ path: 'catalog/root/categories/saladas' }),
+        expect.objectContaining({ path: 'catalog/root/categories/cat-saladas' }),
         expect.objectContaining({ name: 'Saladas', sortOrder: 0 }),
       );
       expect(mockBatchDelete).toHaveBeenCalledWith(expect.objectContaining({ path: 'catalog/root/categories/old' }));
-    });
-
-    it('rejects categories that normalize to the same identifier', async () => {
-      const { saveCategories } = await import('../lib/storage');
-
-      await expect(saveCategories(['Cafe', 'Café'])).rejects.toThrow(
-        'As categorias "Cafe" e "Café" geram o mesmo identificador. Ajuste os nomes para salvar.',
-      );
     });
 
     it('loads complements from catalog/root/items', async () => {
@@ -414,7 +412,7 @@ describe('storage', () => {
 
       const { loadComplements } = await import('../lib/storage');
       await expect(loadComplements()).resolves.toEqual([
-        { id: 'item-1', nome: 'Alface', categoria: 'Saladas', priceCents: 0 },
+        { id: 'item-1', nome: 'Alface', categoria: 'saladas', priceCents: 0 },
       ]);
     });
 
@@ -445,13 +443,13 @@ describe('storage', () => {
       );
     });
 
-    it('falls back to default categories when the subscription snapshot is empty', async () => {
+    it('calls onValue with empty array and triggers ensureDefaultCategories when snapshot is empty', async () => {
       const { subscribeCategories } = await import('../lib/storage');
       const onValue = vi.fn();
 
       subscribeCategories(onValue);
 
-      expect(onValue).toHaveBeenCalledWith(['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco']);
+      expect(onValue).toHaveBeenCalledWith([]);
     });
 
     it('saves category rules using the current admin categories when the persisted snapshot is stale', async () => {
@@ -464,7 +462,10 @@ describe('storage', () => {
       const { saveCategorySelectionRules } = await import('../lib/storage');
       await saveCategorySelectionRules([
         { category: 'Sobremesas', maxSelections: 1, sharedLimitGroupId: null },
-      ], ['Saladas', 'Sobremesas']);
+      ], [
+        { id: 'saladas', name: 'Saladas' },
+        { id: 'sobremesas', name: 'Sobremesas' },
+      ]);
 
       expect(mockBatchSet).toHaveBeenCalledWith(
         expect.objectContaining({ path: 'catalog/root/categories/sobremesas' }),
@@ -483,7 +484,7 @@ describe('storage', () => {
       });
 
       const { saveCategorySelectionRules } = await import('../lib/storage');
-      await saveCategorySelectionRules([{ category: 'Saladas', maxSelections: 2, sharedLimitGroupId: null }], ['Saladas']);
+      await saveCategorySelectionRules([{ category: 'Saladas', maxSelections: 2, sharedLimitGroupId: null }], [{ id: 'saladas', name: 'Saladas' }]);
 
       expect(mockBatchSet).toHaveBeenCalledWith(
         expect.objectContaining({ path: 'catalog/root/categories/saladas' }),
@@ -667,8 +668,8 @@ describe('storage', () => {
       const { getOrCreateDailyShareLink } = await import('../lib/storage');
       const result = await getOrCreateDailyShareLink({
         dateKey: '2026-03-17',
-        categories: ['Saladas'],
-        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        categories: [{ id: 'cat-saladas', name: 'Saladas' }],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'cat-saladas' }],
         daySelection: ['1'],
         categorySelectionRules: [{ category: 'Saladas', maxSelections: 1 }],
       });
@@ -692,8 +693,8 @@ describe('storage', () => {
 
       await setOrderIntakeStatus({
         dateKey: '2026-03-17',
-        categories: ['Saladas'],
-        complements: [{ id: '1', nome: 'Alface', categoria: 'Saladas' }],
+        categories: [{ id: 'cat-saladas', name: 'Saladas' }],
+        complements: [{ id: '1', nome: 'Alface', categoria: 'cat-saladas' }],
         daySelection: ['1'],
         categorySelectionRules: [],
         acceptingOrders: false,

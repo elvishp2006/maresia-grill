@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Categoria, CategorySelectionRule, Item } from './types';
+import type { CategoryEntry, CategorySelectionRule, Item } from './types';
 import type { CategorySelectionRuleInput } from './lib/categorySelectionRules';
 import CategoryCard from './components/CategoryCard';
 import AddForm from './components/AddForm';
@@ -11,29 +11,30 @@ import { normalize } from './lib/utils';
 
 interface MenuViewProps {
   viewMode: 'menu' | 'stats' | 'manage' | 'orders';
-  visibleCategories: Categoria[];
-  categories: Categoria[];
+  visibleCategories: CategoryEntry[];
+  categories: CategoryEntry[];
   complements: Item[];
   categorySelectionRules: CategorySelectionRule[];
   daySelection: string[];
   usageCounts: Record<string, number>;
   sortMode: 'alpha' | 'usage';
   search: string;
-  expandedCategory: string | null;
-  onToggleCollapse: (categoria: string) => void;
+  expandedCategory: CategoryEntry | null;
+  onToggleCollapse: (categoria: CategoryEntry) => void;
   isOnline: boolean;
   canEdit: boolean;
   insights: ReturnType<typeof useMenuInsights>;
   onToggle: (id: string) => void;
-  onAddItem: (nome: string, categoria: Categoria, priceCents?: number | null) => void;
+  onAddItem: (nome: string, categoriaId: string, priceCents?: number | null) => void;
   onRemoveItem: (id: string) => void;
   onUpdateItem: (id: string, input: { nome: string; priceCents: number | null }) => void;
   onUpdateItemAlwaysActive: (itemId: string, alwaysActive: boolean) => void;
-  onMoveCategory: (categoria: Categoria, dir: 'up' | 'down') => void;
-  onRemoveCategory: (categoria: Categoria) => void;
+  onMoveCategory: (id: string, dir: 'up' | 'down') => void;
+  onRemoveCategory: (id: string) => void;
   onAddCategory: (nome: string) => void;
-  onSaveCategoryRule: (categoria: Categoria, input: CategorySelectionRuleInput) => void;
-  onUpdateCategoryExcludeFromShare: (categoria: Categoria, excludeFromShare: boolean) => void;
+  onSaveCategoryRule: (categoryEntry: CategoryEntry, input: CategorySelectionRuleInput) => void;
+  onUpdateCategoryExcludeFromShare: (categoryName: string, excludeFromShare: boolean) => void;
+  onRenameCategory?: (id: string, newName: string) => void;
   onClearSearch: () => void;
   onShare: () => void;
 }
@@ -63,13 +64,14 @@ export default function MenuView({
   onAddCategory,
   onSaveCategoryRule,
   onUpdateCategoryExcludeFromShare,
+  onRenameCategory,
   onClearSearch,
   onShare,
 }: MenuViewProps) {
   const { lightTap, success } = useHapticFeedback();
   const [showAddCategorySheet, setShowAddCategorySheet] = useState(false);
   const [showQuickAddSheet, setShowQuickAddSheet] = useState(false);
-  const [quickAddCategory, setQuickAddCategory] = useState<Categoria | null>(null);
+  const [quickAddCategory, setQuickAddCategory] = useState<CategoryEntry | null>(null);
 
   const searchTerm = search.trim();
   const exactMatch = searchTerm
@@ -132,11 +134,11 @@ export default function MenuView({
           <div className="grid grid-cols-1 gap-[16px] md:grid-cols-2">
             {visibleCategories.map(categoria => (
               <CategoryCard
-                key={`${categoria}-${viewMode}-${search ? 'filtered' : 'default'}`}
+                key={`${categoria.id}-${viewMode}-${search ? 'filtered' : 'default'}`}
                 categoria={categoria}
-                items={complements.filter(item => item.categoria === categoria)}
+                items={complements.filter(item => item.categoria === categoria.id)}
                 allCategories={categories}
-                categoryRule={categorySelectionRules.find(rule => rule.category === categoria) ?? null}
+                categoryRule={categorySelectionRules.find(rule => rule.category === categoria.name) ?? null}
                 allCategoryRules={categorySelectionRules}
                 daySelection={daySelection}
                 onToggle={onToggle}
@@ -147,15 +149,16 @@ export default function MenuView({
                 search={search}
                 sortMode={sortMode}
                 usageCounts={usageCounts}
-                onMoveUp={() => onMoveCategory(categoria, 'up')}
-                onMoveDown={() => onMoveCategory(categoria, 'down')}
-                onRemoveCategory={() => onRemoveCategory(categoria)}
+                onMoveUp={() => onMoveCategory(categoria.id, 'up')}
+                onMoveDown={() => onMoveCategory(categoria.id, 'down')}
+                onRemoveCategory={() => onRemoveCategory(categoria.id)}
                 onSaveCategoryRule={(input) => onSaveCategoryRule(categoria, input)}
-                onUpdateExcludeFromShare={(excl) => onUpdateCategoryExcludeFromShare(categoria, excl)}
-                isFirst={categories.indexOf(categoria) === 0}
-                isLast={categories.indexOf(categoria) === categories.length - 1}
+                onUpdateExcludeFromShare={(excl) => onUpdateCategoryExcludeFromShare(categoria.name, excl)}
+                onRenameCategory={onRenameCategory}
+                isFirst={categories.findIndex(c => c.id === categoria.id) === 0}
+                isLast={categories.findIndex(c => c.id === categoria.id) === categories.length - 1}
                 viewMode={viewMode === 'menu' ? 'select' : 'manage'}
-                expanded={expandedCategory === categoria}
+                expanded={expandedCategory?.id === categoria.id}
                 onToggleCollapse={() => onToggleCollapse(categoria)}
                 isOnline={canEdit}
               />
@@ -224,14 +227,14 @@ export default function MenuView({
       <BottomSheet
         open={showQuickAddSheet}
         onClose={() => { setShowQuickAddSheet(false); setQuickAddCategory(null); }}
-        title={quickAddCategory ? `Novo item em ${quickAddCategory}` : 'Em qual categoria?'}
+        title={quickAddCategory ? `Novo item em ${quickAddCategory.name}` : 'Em qual categoria?'}
         description={quickAddCategory ? undefined : 'Escolha onde cadastrar o novo item.'}
       >
         {quickAddCategory ? (
           <AddForm
             initialValue={search}
             onAdd={(nome) => {
-              onAddItem(nome, quickAddCategory);
+              onAddItem(nome, quickAddCategory.id);
               onClearSearch();
               setShowQuickAddSheet(false);
               setQuickAddCategory(null);
@@ -243,7 +246,7 @@ export default function MenuView({
         ) : (
           <ul className="flex flex-col gap-[10px]">
             {categories.map(cat => (
-              <li key={cat}>
+              <li key={cat.id}>
                 <button
                   type="button"
                   className="w-full rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[16px] py-[14px] text-left text-[14px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)]"
@@ -253,7 +256,7 @@ export default function MenuView({
                   }}
                   disabled={!canEdit}
                 >
-                  {cat}
+                  {cat.name}
                 </button>
               </li>
             ))}

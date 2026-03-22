@@ -23,7 +23,7 @@ vi.mock('../components/CategoryCard', () => ({
     isOnline,
     viewMode,
   }: {
-    categoria: string;
+    categoria: { id: string; name: string };
     onMoveUp: () => void;
     onMoveDown: () => void;
     onRemoveCategory: () => void;
@@ -32,15 +32,15 @@ vi.mock('../components/CategoryCard', () => ({
     isOnline: boolean;
     viewMode: string;
   }) => (
-    <div data-testid={`category-card-${categoria}`}>
-      <span>{categoria}</span>
+    <div data-testid={`category-card-${categoria.name}`}>
+      <span>{categoria.name}</span>
       <span>{viewMode}</span>
       <span>{isOnline ? 'online' : 'offline'}</span>
-      <button onClick={onMoveUp}>up-{categoria}</button>
-      <button onClick={onMoveDown}>down-{categoria}</button>
-      <button onClick={onRemoveCategory}>remove-{categoria}</button>
-      <button onClick={() => onSaveCategoryRule({ maxSelections: 2 })}>rule-{categoria}</button>
-      <button onClick={onToggleCollapse}>collapse-{categoria}</button>
+      <button onClick={onMoveUp}>up-{categoria.name}</button>
+      <button onClick={onMoveDown}>down-{categoria.name}</button>
+      <button onClick={onRemoveCategory}>remove-{categoria.name}</button>
+      <button onClick={() => onSaveCategoryRule({ maxSelections: 2 })}>rule-{categoria.name}</button>
+      <button onClick={onToggleCollapse}>collapse-{categoria.name}</button>
     </div>
   ),
 }));
@@ -101,18 +101,24 @@ vi.mock('../components/InsightsPanel', () => ({
 
 const baseProps = {
   viewMode: 'menu' as const,
-  visibleCategories: ['Saladas', 'Carnes'],
-  categories: ['Saladas', 'Carnes'],
+  visibleCategories: [
+    { id: 'cat-saladas', name: 'Saladas' },
+    { id: 'cat-carnes', name: 'Carnes' },
+  ],
+  categories: [
+    { id: 'cat-saladas', name: 'Saladas' },
+    { id: 'cat-carnes', name: 'Carnes' },
+  ],
   complements: [
-    { id: '1', nome: 'Alface', categoria: 'Saladas' },
-    { id: '2', nome: 'Frango', categoria: 'Carnes' },
+    { id: '1', nome: 'Alface', categoria: 'cat-saladas' },
+    { id: '2', nome: 'Frango', categoria: 'cat-carnes' },
   ],
   categorySelectionRules: [],
   daySelection: ['1'],
   usageCounts: {},
   sortMode: 'alpha' as const,
   search: '',
-  expandedCategory: 'Saladas',
+  expandedCategory: { id: 'cat-saladas', name: 'Saladas' },
   onToggleCollapse: vi.fn(),
   isOnline: true,
   canEdit: true,
@@ -193,7 +199,7 @@ describe('MenuView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'confirm-add' }));
 
-    expect(baseProps.onAddItem).toHaveBeenCalledWith('Molho', 'Saladas');
+    expect(baseProps.onAddItem).toHaveBeenCalledWith('Molho', 'cat-saladas');
     expect(baseProps.onClearSearch).toHaveBeenCalledTimes(1);
   });
 
@@ -257,11 +263,11 @@ describe('MenuView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'rule-Carnes' }));
     fireEvent.click(screen.getByRole('button', { name: 'collapse-Carnes' }));
 
-    expect(baseProps.onMoveCategory).toHaveBeenCalledWith('Saladas', 'up');
-    expect(baseProps.onMoveCategory).toHaveBeenCalledWith('Carnes', 'down');
-    expect(baseProps.onRemoveCategory).toHaveBeenCalledWith('Saladas');
-    expect(baseProps.onSaveCategoryRule).toHaveBeenCalledWith('Carnes', { maxSelections: 2 });
-    expect(baseProps.onToggleCollapse).toHaveBeenCalledWith('Carnes');
+    expect(baseProps.onMoveCategory).toHaveBeenCalledWith('cat-saladas', 'up');
+    expect(baseProps.onMoveCategory).toHaveBeenCalledWith('cat-carnes', 'down');
+    expect(baseProps.onRemoveCategory).toHaveBeenCalledWith('cat-saladas');
+    expect(baseProps.onSaveCategoryRule).toHaveBeenCalledWith({ id: 'cat-carnes', name: 'Carnes' }, { maxSelections: 2 });
+    expect(baseProps.onToggleCollapse).toHaveBeenCalledWith({ id: 'cat-carnes', name: 'Carnes' });
   });
 
   it('shares the menu only when there are selected items in menu mode', () => {

@@ -32,6 +32,8 @@ export type {
 
 export type Categoria = string;
 
+export type CategoryEntry = { id: string; name: string };
+
 export interface Item {
   id: string;
   nome: string;
