@@ -31,6 +31,7 @@ interface CategoryCardProps {
   onMoveDown?: () => void;
   onRemoveCategory: () => void;
   onSaveCategoryRule?: (input: CategorySelectionRuleInput) => void;
+  onUpdateExcludeFromShare?: (excludeFromShare: boolean) => void;
   isFirst: boolean;
   isLast: boolean;
   viewMode: 'select' | 'manage';
@@ -62,6 +63,7 @@ export default function CategoryCard({
   onMoveDown,
   onRemoveCategory,
   onSaveCategoryRule,
+  onUpdateExcludeFromShare,
   isFirst,
   isLast,
   viewMode,
@@ -262,6 +264,38 @@ export default function CategoryCard({
                 </div>
               </div>
             </button>
+            {onUpdateExcludeFromShare ? (
+              <button
+                type="button"
+                className={`mt-[4px] flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  categoryRule?.excludeFromShare
+                    ? 'border-[var(--accent)] bg-[rgba(215,176,92,0.16)] text-[var(--accent)]'
+                    : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-dim)]'
+                } disabled:cursor-not-allowed disabled:opacity-40`}
+                onClick={() => {
+                  lightTap();
+                  onUpdateExcludeFromShare(!categoryRule?.excludeFromShare);
+                }}
+                aria-pressed={categoryRule?.excludeFromShare === true}
+                aria-label={categoryRule?.excludeFromShare
+                  ? `Incluir ${categoria} no texto compartilhado`
+                  : `Excluir ${categoria} do texto compartilhado`}
+                disabled={!isOnline}
+              >
+                {categoryRule?.excludeFromShare ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
+            ) : null}
           </div>
         ) : (
           <button

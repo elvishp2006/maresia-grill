@@ -317,6 +317,14 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     });
   };
 
+  const updateCategoryExcludeFromShare = (categoryName: string, excludeFromShare: boolean) => {
+    if (!guardWritableAction()) return;
+    setCategorySelectionRules(prev =>
+      prev.map(rule => rule.category === categoryName ? { ...rule, excludeFromShare } : rule)
+    );
+    storage.saveCategoryExcludeFromShare(categoryName, excludeFromShare).catch(handleSaveError);
+  };
+
   return {
     categories,
     complements,
@@ -340,5 +348,6 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     moveCategory,
     saveCategoryRule,
     updateItemAlwaysActive,
+    updateCategoryExcludeFromShare,
   };
 };

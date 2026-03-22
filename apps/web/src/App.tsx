@@ -90,6 +90,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     moveCategory,
     saveCategoryRule,
     updateItemAlwaysActive,
+    updateCategoryExcludeFromShare,
   } = useMenuState(isOnline, canEdit);
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
@@ -142,7 +143,10 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
   const dateShort = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
   const shareMenu = async () => {
-    const text = formatMenuText(complements, daySelection, categories);
+    const shareCategories = categories.filter(cat =>
+      !categorySelectionRules.find(r => r.category === cat)?.excludeFromShare
+    );
+    const text = formatMenuText(complements, daySelection, shareCategories);
     if (navigator.share) {
       await navigator.share({ title: 'Menu do Maresia Grill', text });
       showAdminSuccess(showToast, 'Menu compartilhado!');
@@ -513,6 +517,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
           onRemoveCategory={removeCategory}
           onAddCategory={addCategory}
           onSaveCategoryRule={saveCategoryRule}
+          onUpdateCategoryExcludeFromShare={updateCategoryExcludeFromShare}
           onClearSearch={clearCurrentSearch}
           onShare={() => setShowShareSheet(true)}
         />

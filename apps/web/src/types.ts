@@ -47,6 +47,7 @@ export interface CategorySelectionRule {
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
   allowRepeatedItems?: boolean | null;
+  excludeFromShare?: boolean;
 }
 
 export interface FinalizedPublicOrder {
@@ -139,12 +140,13 @@ export const categoryRuleFromCategory = (category: CatalogCategory): CategorySel
   maxSelections: category.selectionPolicy.maxSelections ?? null,
   sharedLimitGroupId: category.selectionPolicy.sharedLimitGroupId ?? null,
   allowRepeatedItems: category.selectionPolicy.allowRepeatedItems ? true : undefined,
+  ...(category.excludeFromShare ? { excludeFromShare: true } : {}),
 });
 
 export const categoryRulesFromCategories = (categories: CatalogCategory[]): CategorySelectionRule[] => (
   categories
     .map(categoryRuleFromCategory)
-    .filter((rule) => rule.minSelections || rule.maxSelections || rule.sharedLimitGroupId || rule.allowRepeatedItems)
+    .filter((rule) => rule.minSelections || rule.maxSelections || rule.sharedLimitGroupId || rule.allowRepeatedItems || rule.excludeFromShare)
 );
 
 export const itemViewFromCatalog = (

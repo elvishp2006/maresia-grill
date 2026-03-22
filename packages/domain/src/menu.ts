@@ -27,6 +27,7 @@ export interface CatalogCategory {
   name: string;
   sortOrder: number;
   selectionPolicy: SelectionPolicy;
+  excludeFromShare?: boolean;
 }
 
 export interface CatalogItem {
