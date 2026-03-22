@@ -16,20 +16,12 @@ service cloud.firestore {
         ];
     }
 
-    function hasOnlyKeys(keys) {
-      return request.resource.data.keys().hasOnly(keys);
-    }
-
     function isNullableString(value) {
       return value == null || value is string;
     }
 
     function isNullableInt(value) {
       return value == null || value is int;
-    }
-
-    function isNullableBool(value) {
-      return value == null || value is bool;
     }
 
     function isValidSelectionPolicy(policy) {
@@ -133,88 +125,6 @@ service cloud.firestore {
         && request.resource.data.activeVersionId is string
         && request.resource.data.createdAt is int
         && request.resource.data.updatedAt is int;
-    }
-
-    function isValidPaymentSummary(summary) {
-      return summary is map
-        && summary.keys().hasOnly([
-          'freeTotalCents',
-          'paidTotalCents',
-          'currency',
-          'paymentStatus',
-          'provider',
-          'paymentMethod',
-          'providerPaymentId',
-          'refundedAt'
-        ])
-        && summary.freeTotalCents is int
-        && summary.paidTotalCents is int
-        && summary.currency == 'BRL'
-        && summary.paymentStatus is string
-        && isNullableString(summary.provider)
-        && isNullableString(summary.paymentMethod)
-        && isNullableString(summary.providerPaymentId)
-        && isNullableInt(summary.refundedAt);
-    }
-
-    function isValidOrder(dateKey, orderId) {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'dateKey',
-          'shareToken',
-          'menuVersionId',
-          'customerName',
-          'observation',
-          'lines',
-          'paymentSummary',
-          'submittedAt',
-          'sourceDraftId'
-        ])
-        && request.resource.data.id == orderId
-        && request.resource.data.dateKey == dateKey
-        && request.resource.data.shareToken is string
-        && request.resource.data.menuVersionId is string
-        && request.resource.data.customerName is string
-        && request.resource.data.customerName.size() > 0
-        && (!('observation' in request.resource.data) || isNullableString(request.resource.data.observation))
-        && request.resource.data.lines is list
-        && request.resource.data.lines.size() > 0
-        && isValidPaymentSummary(request.resource.data.paymentSummary)
-        && request.resource.data.submittedAt is int
-        && isNullableString(request.resource.data.sourceDraftId);
-    }
-
-    function isValidPublicOrderDraft(draftId) {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'dateKey',
-          'shareToken',
-          'orderId',
-          'customerName',
-          'menuVersionId',
-          'selectedItems',
-          'paymentSummary',
-          'checkoutSession',
-          'failureReason',
-          'supersededByDraftId',
-          'supersededAt',
-          'createdAt',
-          'updatedAt'
-        ])
-        && request.resource.data.id == draftId
-        && request.resource.data.dateKey is string
-        && request.resource.data.shareToken is string
-        && request.resource.data.orderId is string
-        && request.resource.data.customerName is string
-        && request.resource.data.menuVersionId is string
-        && request.resource.data.selectedItems is list
-        && isValidPaymentSummary(request.resource.data.paymentSummary)
-        && (request.resource.data.checkoutSession == null || request.resource.data.checkoutSession is map)
-        && isNullableString(request.resource.data.failureReason)
-        && isNullableString(request.resource.data.supersededByDraftId)
-        && isNullableInt(request.resource.data.supersededAt)
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp;
     }
 
     function isValidEditorLock() {
