@@ -33,6 +33,7 @@ interface MenuViewProps {
   onRemoveCategory: (categoria: Categoria) => void;
   onAddCategory: (nome: string) => void;
   onSaveCategoryRule: (categoria: Categoria, input: CategorySelectionRuleInput) => void;
+  onUpdateCategoryExcludeFromShare: (categoria: Categoria, excludeFromShare: boolean) => void;
   onClearSearch: () => void;
   onShare: () => void;
 }
@@ -61,6 +62,7 @@ export default function MenuView({
   onRemoveCategory,
   onAddCategory,
   onSaveCategoryRule,
+  onUpdateCategoryExcludeFromShare,
   onClearSearch,
   onShare,
 }: MenuViewProps) {
@@ -149,6 +151,7 @@ export default function MenuView({
                 onMoveDown={() => onMoveCategory(categoria, 'down')}
                 onRemoveCategory={() => onRemoveCategory(categoria)}
                 onSaveCategoryRule={(input) => onSaveCategoryRule(categoria, input)}
+                onUpdateExcludeFromShare={(excl) => onUpdateCategoryExcludeFromShare(categoria, excl)}
                 isFirst={categories.indexOf(categoria) === 0}
                 isLast={categories.indexOf(categoria) === categories.length - 1}
                 viewMode={viewMode === 'menu' ? 'select' : 'manage'}

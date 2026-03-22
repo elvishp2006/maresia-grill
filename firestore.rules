@@ -42,13 +42,15 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
           'name',
           'sortOrder',
-          'selectionPolicy'
+          'selectionPolicy',
+          'excludeFromShare'
         ])
         && categoryId is string
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.sortOrder is int
-        && isValidSelectionPolicy(request.resource.data.selectionPolicy);
+        && isValidSelectionPolicy(request.resource.data.selectionPolicy)
+        && (!('excludeFromShare' in request.resource.data) || request.resource.data.excludeFromShare is bool);
     }
 
     function isValidCatalogItem() {

@@ -12,6 +12,7 @@ const subscribeCategorySelectionRules = vi.fn();
 const subscribeDaySelection = vi.fn();
 const loadRecentSelections = vi.fn().mockResolvedValue({ '1': 3 });
 const saveCategorySelectionRules = vi.fn().mockResolvedValue(undefined);
+const saveCategoryExcludeFromShare = vi.fn().mockResolvedValue(undefined);
 const saveCategories = vi.fn().mockResolvedValue(undefined);
 const saveComplements = vi.fn().mockResolvedValue(undefined);
 const saveDaySelection = vi.fn().mockResolvedValue(undefined);
@@ -31,6 +32,7 @@ vi.mock('../lib/storage', () => ({
   subscribeDaySelection: (...args: unknown[]) => subscribeDaySelection(...args),
   loadRecentSelections: (...args: unknown[]) => loadRecentSelections(...args),
   saveCategorySelectionRules: (...args: unknown[]) => saveCategorySelectionRules(...args),
+  saveCategoryExcludeFromShare: (...args: unknown[]) => saveCategoryExcludeFromShare(...args),
   saveCategories: (...args: unknown[]) => saveCategories(...args),
   saveComplements: (...args: unknown[]) => saveComplements(...args),
   saveDaySelection: (...args: unknown[]) => saveDaySelection(...args),
@@ -320,6 +322,35 @@ describe('useMenuState', () => {
 
     expect(result.current.categories).toEqual(['Saladas', 'Acompanhamentos', 'Carnes', 'Churrasco']);
     expect(screen.getByText('Não foi possível carregar os dados do admin.')).toBeInTheDocument();
+  });
+
+  it('updateCategoryExcludeFromShare sets flag on existing rule', async () => {
+    subscribeCategorySelectionRules.mockImplementation((onValue: (value: unknown[]) => void) => {
+      queueMicrotask(() => onValue([{ category: 'Saladas', maxSelections: 2 }]));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.updateCategoryExcludeFromShare('Saladas', true);
+    });
+
+    expect(result.current.categorySelectionRules.find(r => r.category === 'Saladas')?.excludeFromShare).toBe(true);
+    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('Saladas', true);
+  });
+
+  it('updateCategoryExcludeFromShare creates a new rule when none exists', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.updateCategoryExcludeFromShare('Saladas', true);
+    });
+
+    expect(result.current.categorySelectionRules.find(r => r.category === 'Saladas')?.excludeFromShare).toBe(true);
+    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('Saladas', true);
   });
 
   it('switches to the new day and clears the selection after midnight', async () => {

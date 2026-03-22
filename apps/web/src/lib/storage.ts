@@ -158,6 +158,7 @@ type CatalogCategoryRecord = {
     sharedLimitGroupId?: string | null;
     allowRepeatedItems?: boolean;
   };
+  excludeFromShare?: boolean;
 };
 
 type CatalogItemRecord = {
@@ -231,6 +232,7 @@ const normalizeCategoryRecord = (id: string, value: unknown) => {
         : null,
       allowRepeatedItems: candidate.selectionPolicy?.allowRepeatedItems === true,
     },
+    ...(candidate.excludeFromShare === true ? { excludeFromShare: true } : {}),
   };
 };
 
@@ -408,6 +410,7 @@ const saveCategoriesInternal = async (items: string[]): Promise<void> => {
         sharedLimitGroupId: null,
         allowRepeatedItems: false,
       },
+      ...(existingEntry?.excludeFromShare ? { excludeFromShare: true } : {}),
     });
   });
 
@@ -703,6 +706,7 @@ export const saveCategorySelectionRules = async (
         sharedLimitGroupId: rule?.sharedLimitGroupId ?? null,
         allowRepeatedItems: rule?.allowRepeatedItems === true,
       },
+      ...(existingCategory?.excludeFromShare ? { excludeFromShare: true } : {}),
     });
   });
 
@@ -764,6 +768,9 @@ export const saveDaySelection = (dateKey: string, ids: string[]): Promise<void> 
 
 export const saveItemAlwaysActive = (itemId: string, alwaysActive: boolean): Promise<void> =>
   updateDoc(doc(itemsCollectionRef(), itemId), { alwaysActive });
+
+export const saveCategoryExcludeFromShare = (categoryName: string, excludeFromShare: boolean): Promise<void> =>
+  updateDoc(doc(categoriesCollectionRef(), createCategoryId(categoryName)), { excludeFromShare });
 
 export const initDaySelectionIfEmpty = async (dateKey: string, defaultIds: string[]): Promise<void> => {
   const snap = await getDoc(dailyMenuRef(dateKey));
