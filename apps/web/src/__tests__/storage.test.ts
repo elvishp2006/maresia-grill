@@ -556,6 +556,65 @@ describe('storage', () => {
       ));
     });
 
+    it('subscribeComplements includes alwaysActive flag', async () => {
+      seed('catalog/root/items/item-1', {
+        categoryId: 'saladas',
+        name: 'Alface',
+        priceCents: 0,
+        isActive: true,
+        alwaysActive: true,
+        sortOrder: 0,
+      });
+
+      const { subscribeComplements } = await import('../lib/storage');
+      const onValue = vi.fn();
+      subscribeComplements(onValue);
+
+      expect(onValue).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'item-1', alwaysActive: true }),
+        ]),
+      );
+    });
+
+    it('subscribeComplements defaults alwaysActive to false when field is absent', async () => {
+      seed('catalog/root/items/item-1', {
+        categoryId: 'saladas',
+        name: 'Alface',
+        priceCents: 0,
+        isActive: true,
+        sortOrder: 0,
+      });
+
+      const { subscribeComplements } = await import('../lib/storage');
+      const onValue = vi.fn();
+      subscribeComplements(onValue);
+
+      expect(onValue).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'item-1', alwaysActive: false }),
+        ]),
+      );
+    });
+
+    it('saveItemAlwaysActive updates alwaysActive on the item document', async () => {
+      seed('catalog/root/items/item-1', {
+        categoryId: 'saladas',
+        name: 'Alface',
+        priceCents: 0,
+        isActive: true,
+        sortOrder: 0,
+      });
+
+      const { saveItemAlwaysActive } = await import('../lib/storage');
+      await saveItemAlwaysActive('item-1', true);
+
+      expect(updateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'catalog/root/items/item-1' }),
+        { alwaysActive: true },
+      );
+    });
+
     it('normalizes unexpected saveCategorySelectionRules failures', async () => {
       seed('catalog/root/categories/saladas', {
         name: 'Saladas',
