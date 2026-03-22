@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CategoryEntry, CategorySelectionRule, Item } from '../types';
 import ItemList from './ItemList';
 import ItemEditorForm from './ItemEditorForm';
@@ -197,11 +197,14 @@ export default function CategoryCard({
     setShowRuleSheet(false);
   };
 
+  useEffect(() => {
+    if (isRenaming) renameInputRef.current?.focus();
+  }, [isRenaming]);
+
   const handleStartRename = () => {
     if (!isOnline || !onRenameCategory) return;
     setDraftName(categoria.name);
     setIsRenaming(true);
-    setTimeout(() => renameInputRef.current?.focus(), 0);
   };
 
   const handleConfirmRename = () => {

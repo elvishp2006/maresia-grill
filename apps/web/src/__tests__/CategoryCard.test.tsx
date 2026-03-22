@@ -374,6 +374,63 @@ describe('CategoryCard', () => {
     expect(screen.queryByRole('button', { name: 'Configurar limite' })).not.toBeInTheDocument();
   });
 
+  it('shows a rename button in manage mode', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    expect(screen.getByLabelText('Renomear Saladas')).toBeInTheDocument();
+  });
+
+  it('activates the rename input when the rename button is clicked', () => {
+    renderWithProviders(<CategoryCard {...defaultProps} viewMode="manage" />);
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    expect(screen.getByLabelText('Nome da categoria')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Renomear Saladas')).not.toBeInTheDocument();
+  });
+
+  it('calls onRenameCategory with the new name on Enter', () => {
+    const onRenameCategory = vi.fn();
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" onRenameCategory={onRenameCategory} />,
+    );
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    const input = screen.getByLabelText('Nome da categoria');
+    fireEvent.change(input, { target: { value: 'Saladas Mix' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onRenameCategory).toHaveBeenCalledWith('cat-saladas', 'Saladas Mix');
+    expect(screen.queryByLabelText('Nome da categoria')).not.toBeInTheDocument();
+  });
+
+  it('cancels rename on Escape without calling onRenameCategory', () => {
+    const onRenameCategory = vi.fn();
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" onRenameCategory={onRenameCategory} />,
+    );
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    const input = screen.getByLabelText('Nome da categoria');
+    fireEvent.change(input, { target: { value: 'Outro nome' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onRenameCategory).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Nome da categoria')).not.toBeInTheDocument();
+  });
+
+  it('calls onRenameCategory on blur', () => {
+    const onRenameCategory = vi.fn();
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" onRenameCategory={onRenameCategory} />,
+    );
+    fireEvent.click(screen.getByLabelText('Renomear Saladas'));
+    const input = screen.getByLabelText('Nome da categoria');
+    fireEvent.change(input, { target: { value: 'Saladas Premium' } });
+    fireEvent.blur(input);
+    expect(onRenameCategory).toHaveBeenCalledWith('cat-saladas', 'Saladas Premium');
+  });
+
+  it('disables the rename button when offline', () => {
+    renderWithProviders(
+      <CategoryCard {...defaultProps} viewMode="manage" isOnline={false} />,
+    );
+    expect(screen.getByLabelText('Renomear Saladas')).toBeDisabled();
+  });
+
   it('disables management actions when offline', () => {
     const onMoveUp = vi.fn();
     renderWithProviders(

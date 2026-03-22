@@ -14,8 +14,6 @@ import type {
   SelectionEntry,
   SelectionPolicy,
 } from '@maresia-grill/domain/menu';
-import { DEFAULT_CATEGORY_NAMES } from '@maresia-grill/domain/menu';
-
 export type {
   CatalogCategory,
   CatalogItem,
@@ -30,21 +28,19 @@ export type {
   SelectionPolicy,
 };
 
-export type Categoria = string;
-
 export type CategoryEntry = { id: string; name: string };
 
 export interface Item {
   id: string;
   nome: string;
-  categoria: Categoria;
+  categoria: string;
   priceCents?: number | null;
   quantity?: number | null;
   alwaysActive?: boolean;
 }
 
 export interface CategorySelectionRule {
-  category: Categoria;
+  category: string;
   minSelections?: number | null;
   maxSelections?: number | null;
   sharedLimitGroupId?: string | null;
@@ -100,7 +96,7 @@ export interface PublicMenu {
   expiresAt: number;
   acceptingOrders: boolean;
   currentVersionId: string;
-  categories: Categoria[];
+  categories: string[];
   items: Item[];
   categorySelectionRules: CategorySelectionRule[];
 }
@@ -133,8 +129,6 @@ export interface PublicMenuVersion {
   items: Array<PublishedMenuItem | Item>;
   categorySelectionRules?: CategorySelectionRule[];
 }
-
-export const DEFAULT_CATEGORIES: Categoria[] = [...DEFAULT_CATEGORY_NAMES];
 
 export const categoryRuleFromCategory = (category: CatalogCategory): CategorySelectionRule => ({
   category: category.name,

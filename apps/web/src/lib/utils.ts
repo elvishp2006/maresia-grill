@@ -30,6 +30,8 @@ export const formatMenuText = (complements: Item[], daySelection: string[], cate
 };
 
 export const groupOrderItemsByCategory = (items: Item[], configuredCategories: string[]) => {
+  // `categories` is derived from `firstSeenCategories` (categories that appear in `items`),
+  // so every entry in the iteration has at least one item — empty-names groups cannot occur.
   const firstSeenCategories = Array.from(new Set(items.map(item => item.categoria)));
   const configuredCategorySet = new Set(configuredCategories);
   const categories = [
