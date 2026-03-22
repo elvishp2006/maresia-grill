@@ -7,18 +7,13 @@ import {
 } from '../../../packages/domain/src/menu.js';
 import type {
   OrderPaymentSummary,
-  PaymentMethodType,
-  PaymentProvider,
   PublicOrderPaymentStatus,
   PublishedMenuVersion,
   SelectionEntry,
 } from '../../../packages/domain/src/menu.js';
 
 export type PaymentStatus = PublicOrderPaymentStatus;
-export type PaymentProviderName = Extract<PaymentProvider, 'stripe'>;
-export type PaymentMethod = PaymentMethodType | null;
 export type SelectedPublicItem = SelectionEntry;
-export type PublicMenuVersionDocument = PublishedMenuVersion;
 
 export interface FinalizedOrderReference {
   sourceDraftId?: string | null;

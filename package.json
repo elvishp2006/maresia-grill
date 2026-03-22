@@ -30,7 +30,8 @@
     "ci": "pnpm run lint && pnpm run test && pnpm run build",
     "prepare": "husky",
     "seed": "node tools/scripts/seed.js",
-    "push:staging": "bash tools/scripts/push-staging.sh"
+    "push:staging": "bash tools/scripts/push-staging.sh",
+    "knip": "knip"
   },
   "devDependencies": {
     "@eslint/js": "10",
@@ -38,6 +39,7 @@
     "firebase-admin": "^13.7.0",
     "firebase-tools": "^15.11.0",
     "husky": "^9.1.7",
+    "knip": "^5.56.0",
     "lint-staged": "^16.4.0",
     "turbo": "^2.0.0"
   }

@@ -3,7 +3,6 @@ import type {
   CatalogItem,
   DailyMenu,
   MenuEditorState,
-  Order,
   OrderLine,
   OrderPaymentSummary,
   PaymentMethodType,
@@ -66,20 +65,6 @@ export interface PublicOrderCheckoutSession {
   availableMethods: PaymentMethodType[];
 }
 
-export interface PublicOrderDraft {
-  id: string;
-  dateKey: string;
-  shareToken: string;
-  orderId: string;
-  customerName: string;
-  menuVersionId: string;
-  selectedItems: SelectionEntry[];
-  paymentSummary: OrderPaymentSummary;
-  checkoutSession?: PublicOrderCheckoutSession | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface EditorLock {
   sessionId: string;
   userEmail: string;
@@ -115,8 +100,6 @@ export interface OrderEntry {
   submittedAt: number;
   observation?: string;
 }
-
-export type PersistedOrder = Order;
 
 export interface PublicMenuVersion {
   id: string;
