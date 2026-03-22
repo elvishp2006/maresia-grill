@@ -319,9 +319,11 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
 
   const updateCategoryExcludeFromShare = (categoryName: string, excludeFromShare: boolean) => {
     if (!guardWritableAction()) return;
-    setCategorySelectionRules(prev =>
-      prev.map(rule => rule.category === categoryName ? { ...rule, excludeFromShare } : rule)
-    );
+    setCategorySelectionRules(prev => {
+      const exists = prev.some(rule => rule.category === categoryName);
+      if (exists) return prev.map(rule => rule.category === categoryName ? { ...rule, excludeFromShare } : rule);
+      return [...prev, { category: categoryName, excludeFromShare }];
+    });
     storage.saveCategoryExcludeFromShare(categoryName, excludeFromShare).catch(handleSaveError);
   };
 
