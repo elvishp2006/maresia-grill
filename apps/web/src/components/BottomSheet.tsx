@@ -111,7 +111,7 @@ export default function BottomSheet({
             ×
           </button>
         </div>
-        <div className="overflow-y-auto">
+        <div className="overflow-y-auto -mx-[20px] px-[20px] -mt-[20px] pt-[20px]">
           {children}
         </div>
       </div>
