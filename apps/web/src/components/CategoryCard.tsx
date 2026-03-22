@@ -22,6 +22,7 @@ interface CategoryCardProps {
   onAdd: (nome: string, categoria: Categoria, priceCents?: number | null) => void;
   onRemove: (id: string) => void;
   onUpdateItem?: (id: string, input: { nome: string; priceCents: number }) => void;
+  onUpdateItemAlwaysActive?: (itemId: string, alwaysActive: boolean) => void;
   onRename?: (id: string, newNome: string) => void;
   search: string;
   sortMode: 'alpha' | 'usage';
@@ -52,6 +53,7 @@ export default function CategoryCard({
   onAdd,
   onRemove,
   onUpdateItem,
+  onUpdateItemAlwaysActive,
   onRename,
   search,
   sortMode,
@@ -368,6 +370,7 @@ export default function CategoryCard({
               onToggle={onToggle}
               onRemove={onRemove}
               onUpdate={onUpdateItem}
+              onUpdateAlwaysActive={onUpdateItemAlwaysActive}
               onRename={onRename}
               isOnline={isOnline}
             />

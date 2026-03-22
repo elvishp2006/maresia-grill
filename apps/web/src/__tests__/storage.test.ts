@@ -112,6 +112,11 @@ const deleteDoc = vi.fn(async (ref: Ref) => {
   store.delete(ref.path);
 });
 
+const updateDoc = vi.fn(async (ref: Ref, data: StoredValue) => {
+  const existing = store.get(ref.path) ?? {};
+  store.set(ref.path, { ...existing, ...data });
+});
+
 const onSnapshot = vi.fn((ref: Ref, onValue: (snap: unknown) => void) => {
   if (ref.kind === 'doc') {
     onValue({
@@ -168,6 +173,7 @@ vi.mock('firebase/firestore', () => ({
   getDocs,
   setDoc,
   deleteDoc,
+  updateDoc,
   doc,
   collection,
   query,
@@ -740,6 +746,41 @@ describe('storage', () => {
         expect.objectContaining({ path: expect.stringMatching(/^dailyMenus\/2026-03-17\/versions\//) }),
         expect.objectContaining({ shareToken: 'token-1' }),
       );
+    });
+  });
+
+  describe('initDaySelectionIfEmpty', () => {
+    it('writes the daily menu doc with the given ids when no document exists for the date', async () => {
+      const { initDaySelectionIfEmpty } = await import('../lib/storage');
+      await initDaySelectionIfEmpty('2099-01-01', ['item-a', 'item-b']);
+
+      expect(setDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'dailyMenus/2099-01-01' }),
+        expect.objectContaining({
+          dateKey: '2099-01-01',
+          status: 'draft',
+          shareToken: null,
+          activeVersionId: null,
+          itemIds: ['item-a', 'item-b'],
+        }),
+      );
+    });
+
+    it('does not overwrite an existing daily menu document', async () => {
+      seed('dailyMenus/2099-01-01', {
+        dateKey: '2099-01-01',
+        status: 'draft',
+        shareToken: null,
+        activeVersionId: null,
+        itemIds: ['existing-item'],
+        updatedAt: 1000,
+      });
+
+      const { initDaySelectionIfEmpty } = await import('../lib/storage');
+      await initDaySelectionIfEmpty('2099-01-01', ['item-a', 'item-b']);
+
+      expect(setDoc).not.toHaveBeenCalled();
+      expect(store.get('dailyMenus/2099-01-01')).toMatchObject({ itemIds: ['existing-item'] });
     });
   });
 

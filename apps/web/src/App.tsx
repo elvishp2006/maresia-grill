@@ -89,6 +89,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
     removeCategory,
     moveCategory,
     saveCategoryRule,
+    updateItemAlwaysActive,
   } = useMenuState(isOnline, canEdit);
 
   const insights = useMenuInsights(complements, daySelection, isOnline);
@@ -507,6 +508,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
           onAddItem={addItem}
           onRemoveItem={removeItem}
           onUpdateItem={updateItem}
+          onUpdateItemAlwaysActive={updateItemAlwaysActive}
           onMoveCategory={moveCategory}
           onRemoveCategory={removeCategory}
           onAddCategory={addCategory}

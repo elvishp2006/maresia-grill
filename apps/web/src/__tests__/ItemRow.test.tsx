@@ -81,6 +81,54 @@ describe('ItemRow', () => {
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a gold dot indicator in select mode when item is alwaysActive', () => {
+    const alwaysActiveItem: Item = { ...item, alwaysActive: true };
+    renderWithProviders(<ItemRow {...defaultProps} item={alwaysActiveItem} />);
+    expect(screen.getByTitle('Sempre ativo')).toBeInTheDocument();
+  });
+
+  it('does not show the gold dot indicator when item is not alwaysActive', () => {
+    renderWithProviders(<ItemRow {...defaultProps} />);
+    expect(screen.queryByTitle('Sempre ativo')).not.toBeInTheDocument();
+  });
+
+  it('renders pin button in manage mode when onUpdateAlwaysActive is provided', () => {
+    renderWithProviders(
+      <ItemRow {...defaultProps} mode="manage" onUpdateAlwaysActive={vi.fn()} />,
+    );
+    expect(screen.getByRole('button', { name: 'Marcar Arroz como sempre ativo' })).toBeInTheDocument();
+  });
+
+  it('calls onUpdateAlwaysActive with true when pin button is clicked on inactive item', () => {
+    const onUpdateAlwaysActive = vi.fn();
+    renderWithProviders(
+      <ItemRow {...defaultProps} mode="manage" onUpdateAlwaysActive={onUpdateAlwaysActive} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar Arroz como sempre ativo' }));
+    expect(onUpdateAlwaysActive).toHaveBeenCalledWith(true);
+  });
+
+  it('calls onUpdateAlwaysActive with false when pin button is clicked on alwaysActive item', () => {
+    const alwaysActiveItem: Item = { ...item, alwaysActive: true };
+    const onUpdateAlwaysActive = vi.fn();
+    renderWithProviders(
+      <ItemRow {...defaultProps} item={alwaysActiveItem} mode="manage" onUpdateAlwaysActive={onUpdateAlwaysActive} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Desmarcar Arroz como sempre ativo' }));
+    expect(onUpdateAlwaysActive).toHaveBeenCalledWith(false);
+  });
+
+  it('disables pin button when offline', () => {
+    const onUpdateAlwaysActive = vi.fn();
+    renderWithProviders(
+      <ItemRow {...defaultProps} mode="manage" onUpdateAlwaysActive={onUpdateAlwaysActive} isOnline={false} />,
+    );
+    const pinButton = screen.getByRole('button', { name: 'Marcar Arroz como sempre ativo' });
+    expect(pinButton).toBeDisabled();
+    fireEvent.click(pinButton);
+    expect(onUpdateAlwaysActive).not.toHaveBeenCalled();
+  });
+
   it('disables selection and management actions when offline', () => {
     const onToggle = vi.fn();
     const onRemove = vi.fn();

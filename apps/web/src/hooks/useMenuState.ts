@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Item, Categoria, CategorySelectionRule } from '../types';
 import { DEFAULT_CATEGORIES } from '../types';
 import * as storage from '../lib/storage';
@@ -30,6 +30,10 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
   const [persistedRevision, setPersistedRevision] = useState(0);
   const [currentDateKey, setCurrentDateKey] = useState(() => storage.getDateKey());
   const lastDateKeyRef = useRef(currentDateKey);
+  const complementsRef = useRef(complements);
+  useLayoutEffect(() => {
+    complementsRef.current = complements;
+  });
   const loadReadyRef = useRef({ categories: false, complements: false, rules: false, selection: false });
   const revisionStatusRef = useRef(new Map<number, { pending: number; failed: boolean }>());
   const { showToast } = useToast();
@@ -173,6 +177,10 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     if (lastDateKeyRef.current === currentDateKey) return;
     lastDateKeyRef.current = currentDateKey;
     showAdminInfo(showToast, DAY_CHANGED_MESSAGE);
+    const alwaysActiveIds = complementsRef.current.filter(item => item.alwaysActive).map(item => item.id);
+    if (alwaysActiveIds.length > 0) {
+      void storage.initDaySelectionIfEmpty(currentDateKey, alwaysActiveIds);
+    }
   }, [currentDateKey, showToast]);
 
   const toggleSortMode = () => setSortMode(m => m === 'alpha' ? 'usage' : 'alpha');
@@ -234,6 +242,12 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
       trackWrite(revision, storage.saveComplements(next));
       return next;
     });
+  };
+
+  const updateItemAlwaysActive = (itemId: string, alwaysActive: boolean) => {
+    if (!guardWritableAction()) return;
+    setComplements(prev => prev.map(item => item.id === itemId ? { ...item, alwaysActive } : item));
+    storage.saveItemAlwaysActive(itemId, alwaysActive).catch(handleSaveError);
   };
 
   const renameItem = (id: string, newNome: string) => {
@@ -325,5 +339,6 @@ export const useMenuState = (isOnline = true, canEdit = true) => {
     removeCategory,
     moveCategory,
     saveCategoryRule,
+    updateItemAlwaysActive,
   };
 };

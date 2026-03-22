@@ -8,6 +8,7 @@ import {
   query,
   runTransaction,
   setDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import {
@@ -165,6 +166,7 @@ type CatalogItemRecord = {
   name: string;
   priceCents?: number | null;
   isActive?: boolean;
+  alwaysActive?: boolean;
   sortOrder: number;
 };
 
@@ -242,6 +244,7 @@ const normalizeItemRecord = (id: string, value: unknown) => {
     name: candidate.name,
     priceCents: normalizePriceCents(candidate.priceCents),
     isActive: candidate.isActive !== false,
+    alwaysActive: candidate.alwaysActive === true,
     sortOrder: normalizeSortOrder(candidate.sortOrder),
   };
 };
@@ -419,6 +422,9 @@ const saveComplementsInternal = async (items: Item[]): Promise<void> => {
   const categories = await loadCatalogSnapshot();
   const categoryByName = new Map(categories.categories.map(category => [category.name, category.id]));
   const existing = await getDocs(itemsCollectionRef());
+  const existingAlwaysActive = new Map(
+    existing.docs.map(d => [d.id, (d.data() as CatalogItemRecord).alwaysActive === true]),
+  );
   const batch = writeBatch(getDb());
   const nextIds = new Set<string>();
 
@@ -430,6 +436,7 @@ const saveComplementsInternal = async (items: Item[]): Promise<void> => {
       name: item.nome.trim(),
       priceCents: normalizePriceCents(item.priceCents),
       isActive: true,
+      alwaysActive: existingAlwaysActive.get(item.id) ?? false,
       sortOrder: index,
     });
   });
@@ -753,6 +760,23 @@ export const loadDaySelection = async (dateKey = getDateKey()): Promise<string[]
 
 export const saveDaySelection = (dateKey: string, ids: string[]): Promise<void> => {
   return saveDailyMenuSelection(dateKey, ids);
+};
+
+export const saveItemAlwaysActive = (itemId: string, alwaysActive: boolean): Promise<void> =>
+  updateDoc(doc(itemsCollectionRef(), itemId), { alwaysActive });
+
+export const initDaySelectionIfEmpty = async (dateKey: string, defaultIds: string[]): Promise<void> => {
+  const snap = await getDoc(dailyMenuRef(dateKey));
+  if (!snap.exists()) {
+    await setDoc(dailyMenuRef(dateKey), {
+      dateKey,
+      status: 'draft',
+      shareToken: null,
+      activeVersionId: null,
+      itemIds: defaultIds,
+      updatedAt: Date.now(),
+    });
+  }
 };
 
 export const subscribeDaySelection = (
