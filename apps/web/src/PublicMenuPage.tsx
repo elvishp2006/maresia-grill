@@ -863,7 +863,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
   }, [menu, pendingSelectedItemIds]);
   const pendingPaymentSummary = pendingOrderSummary?.paymentSummary ?? currentPaymentSummary;
   const selectionViolations = useMemo(() => (
-    menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
+    menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules).filter(v => v.type !== 'min') : []
   ), [menu, selection]);
   const repeatedCategories = useMemo(() => new Set(
     menu?.categorySelectionRules
@@ -1315,7 +1315,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
               placeholder="Digite seu nome"
-              className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[15px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+              className="neon-gold-focus mt-[8px] w-full rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[16px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
             />
           </label>
 
@@ -1327,7 +1327,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               placeholder="Ex: sem cebola, alérgico a amendoim"
               maxLength={500}
               rows={3}
-              className="neon-gold-focus mt-[8px] w-full resize-none rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[15px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
+              className="neon-gold-focus mt-[8px] w-full resize-none rounded-[20px] border border-[var(--border)] bg-[rgba(255,248,232,0.05)] px-[16px] py-[15px] text-[16px] font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-[var(--accent)]"
             />
           </label>
         </section>

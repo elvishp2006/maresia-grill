@@ -15,4 +15,5 @@ if [ "$current_branch" = "HEAD" ]; then
 fi
 
 echo "Sobrescrevendo origin/staging com ${current_branch}"
+git fetch origin staging
 git push --force-with-lease origin HEAD:staging

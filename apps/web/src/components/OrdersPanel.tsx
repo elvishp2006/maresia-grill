@@ -175,6 +175,13 @@ export default function OrdersPanel({
               </span>
             </div>
 
+            {order.observation ? (
+              <div className="mt-[12px] rounded-[18px] border border-[var(--accent)] bg-[var(--accent-soft)] px-[14px] py-[12px]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Observação</p>
+                <p className="mt-[6px] text-[14px] font-medium leading-[1.5] text-[var(--text)]">{order.observation}</p>
+              </div>
+            ) : null}
+
             <div className="mt-[12px] grid grid-cols-2 gap-[10px]">
               <div className="rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
                 <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
@@ -215,12 +222,6 @@ export default function OrdersPanel({
                 Nenhum item selecionado.
               </p>
             )}
-            {order.observation ? (
-              <div className="mt-[10px] rounded-[18px] border border-[var(--border)] bg-[var(--bg-elevated)] px-[14px] py-[12px]">
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">Observação</p>
-                <p className="mt-[6px] text-[13px] leading-[1.5] text-[var(--text)]">{order.observation}</p>
-              </div>
-            ) : null}
           </article>
         );
       }) : null}
