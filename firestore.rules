@@ -65,6 +65,7 @@ service cloud.firestore {
           'name',
           'priceCents',
           'isActive',
+          'alwaysActive',
           'sortOrder'
         ])
         && request.resource.data.categoryId is string
@@ -74,6 +75,7 @@ service cloud.firestore {
         && request.resource.data.priceCents is int
         && request.resource.data.priceCents >= 0
         && request.resource.data.isActive is bool
+        && request.resource.data.alwaysActive is bool
         && request.resource.data.sortOrder is int;
     }
 
