@@ -353,7 +353,7 @@ describe('useMenuState', () => {
     });
 
     expect(result.current.categorySelectionRules.find(r => r.category === 'Saladas')?.excludeFromShare).toBe(true);
-    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('Saladas', true);
+    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('cat-saladas', true);
   });
 
   it('updateCategoryExcludeFromShare creates a new rule when none exists', async () => {
@@ -365,7 +365,7 @@ describe('useMenuState', () => {
     });
 
     expect(result.current.categorySelectionRules.find(r => r.category === 'Saladas')?.excludeFromShare).toBe(true);
-    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('Saladas', true);
+    expect(saveCategoryExcludeFromShare).toHaveBeenCalledWith('cat-saladas', true);
   });
 
   it('renames a category and updates its selection rules', async () => {

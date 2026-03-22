@@ -765,8 +765,8 @@ export const saveDaySelection = (dateKey: string, ids: string[]): Promise<void> 
 export const saveItemAlwaysActive = (itemId: string, alwaysActive: boolean): Promise<void> =>
   updateDoc(doc(itemsCollectionRef(), itemId), { alwaysActive });
 
-export const saveCategoryExcludeFromShare = (categoryName: string, excludeFromShare: boolean): Promise<void> =>
-  updateDoc(doc(categoriesCollectionRef(), createCategoryId(categoryName)), { excludeFromShare });
+export const saveCategoryExcludeFromShare = (categoryId: string, excludeFromShare: boolean): Promise<void> =>
+  updateDoc(doc(categoriesCollectionRef(), categoryId), { excludeFromShare });
 
 export const initDaySelectionIfEmpty = async (dateKey: string, defaultIds: string[]): Promise<void> => {
   const snap = await getDoc(dailyMenuRef(dateKey));
