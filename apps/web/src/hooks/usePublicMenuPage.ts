@@ -711,7 +711,6 @@ export function usePublicMenuPage(token: string) {
       return;
     }
     if (selectionViolations.length > 0) {
-      showToast(selectionViolations[0]?.message ?? 'Ajuste os itens selecionados antes de enviar.', 'info');
       return;
     }
 
