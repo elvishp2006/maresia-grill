@@ -326,6 +326,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     setObservation,
     selection,
     submitting,
+    submitAttempted,
     successState,
     cancelledState,
     checkoutSession,
@@ -499,7 +500,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                   {describeCategorySelectionRule(category, menu.categorySelectionRules)}
                 </p>
               ) : null}
-              {categoryViolation ? (
+              {submitAttempted && categoryViolation ? (
                 <p className="mt-[8px] text-[13px] leading-[1.55] text-[var(--accent-red)]">
                   {categoryViolation.message}
                 </p>
@@ -526,15 +527,8 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
 
       <PublicActionBar>
         <div className="px-[12px] py-[10px] md:px-[16px] md:py-[14px]">
-          <div className="mb-[10px] flex items-end justify-between gap-[12px]">
-            <div className="min-w-0">
-              {selectionViolations[0] ? (
-                <p className="text-[13px] leading-[1.6] text-[var(--accent-red)]">
-                  {selectionViolations[0].message}
-                </p>
-              ) : null}
-            </div>
-            {currentPaymentSummary ? (
+          {currentPaymentSummary ? (
+            <div className="mb-[10px] flex items-end justify-end">
               <div className="min-w-[124px] text-right md:min-w-[190px]">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
                   Total a pagar
@@ -543,16 +537,20 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                   {formatCurrency(currentPaymentSummary.paidTotalCents)}
                 </p>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => {
               mediumTap();
               if (selectionViolations.length > 0) {
                 const firstCategory = selectionViolations[0]?.categories[0];
-                if (firstCategory) {
-                  categoryRefs.current[firstCategory]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const el = firstCategory ? categoryRefs.current[firstCategory] : null;
+                if (el) {
+                  const topbar = document.querySelector('.public-topbar');
+                  const headerOffset = topbar ? topbar.getBoundingClientRect().height + 12 : 0;
+                  const top = el.getBoundingClientRect().top + window.scrollY - headerOffset;
+                  window.scrollTo({ top, behavior: 'smooth' });
                 }
               }
               void handleSubmit();
