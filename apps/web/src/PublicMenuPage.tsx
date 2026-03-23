@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { OrderPaymentSummary } from './types';
 import EmbeddedStripeCheckout from './components/EmbeddedStripeCheckout';
@@ -354,8 +353,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
     openSubmittedPaymentState,
   } = usePublicMenuPage(token);
 
-  const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
-
   if (menu === undefined) return <LoadingSpinner />;
 
   if (cancelledState) {
@@ -476,12 +473,9 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         </section>
 
         <section className="mt-[16px] grid gap-[14px] pb-[calc(128px+env(safe-area-inset-bottom))] lg:grid-cols-2 lg:items-start lg:pb-[calc(146px+env(safe-area-inset-bottom))]">
-          {itemsByCategory.map(({ category, items }) => {
-            const categoryViolation = selectionViolations.find(v => v.categories.includes(category));
-            return (
+          {itemsByCategory.map(({ category, items }) => (
             <section
               key={category}
-              ref={(el) => { categoryRefs.current[category] = el; }}
               className="public-panel px-[18px] py-[18px] md:px-[22px] md:py-[20px]"
             >
               <div className="flex items-center justify-between gap-[12px]">
@@ -497,11 +491,6 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
               {describeCategorySelectionRule(category, menu.categorySelectionRules) ? (
                 <p className="neon-gold-text mt-[10px] text-[13px] leading-[1.55] text-[var(--accent)]">
                   {describeCategorySelectionRule(category, menu.categorySelectionRules)}
-                </p>
-              ) : null}
-              {categoryViolation ? (
-                <p className="mt-[8px] text-[13px] leading-[1.55] text-[var(--accent-red)]">
-                  {categoryViolation.message}
                 </p>
               ) : null}
               <ul className="mt-[14px] flex list-none flex-col gap-[10px]">
@@ -520,7 +509,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
                 ))}
               </ul>
             </section>
-          ); })}
+          ))}
         </section>
       </div>
 
@@ -547,16 +536,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
           </div>
           <button
             type="button"
-            onClick={() => {
-              mediumTap();
-              if (selectionViolations.length > 0) {
-                const firstCategory = selectionViolations[0]?.categories[0];
-                if (firstCategory) {
-                  categoryRefs.current[firstCategory]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-              }
-              void handleSubmit();
-            }}
+            onClick={() => { mediumTap(); void handleSubmit(); }}
             disabled={submitting}
             className="neon-gold-fill min-h-[52px] w-full rounded-[20px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] shadow-[0_8px_18px_rgba(0,0,0,0.12)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
