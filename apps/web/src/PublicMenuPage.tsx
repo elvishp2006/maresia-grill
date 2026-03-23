@@ -551,7 +551,7 @@ export default function PublicMenuPage({ token }: PublicMenuPageProps) {
         onClose={handleCheckoutClose}
       >
         {checkoutSession?.clientSecret ? (
-          <div className="max-h-[min(78vh,720px)] overflow-hidden pt-[2px]">
+          <div className="max-h-[min(78vh,720px)] pt-[2px]">
             <EmbeddedStripeCheckout
               clientSecret={checkoutSession.clientSecret}
               initialEmail={customerEmail}
