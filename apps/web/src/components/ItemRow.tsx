@@ -68,7 +68,7 @@ export default function ItemRow({
           <span className={`flex-1 text-[15px] leading-[1.5] ${active ? 'font-semibold text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
             {item.nome}
             {typeof item.priceCents === 'number' ? (
-              <span className="mt-[4px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+              <span className="neon-gold-text mt-[4px] block text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
                 {formatCurrency(item.priceCents)}
               </span>
             ) : null}
@@ -93,7 +93,7 @@ export default function ItemRow({
             <p className="truncate text-[15px] font-medium leading-[1.4] text-[var(--text)]">
               {item.nome}
             </p>
-            <p className="mt-[4px] text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+            <p className="neon-gold-text mt-[4px] text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
               {formatCurrency(item.priceCents ?? 0)}
             </p>
           </div>
@@ -101,7 +101,7 @@ export default function ItemRow({
             {onUpdateAlwaysActive ? (
               <button
                 type="button"
-                className={`flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${item.alwaysActive ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-dim)] hover:border-[var(--accent)]'}`}
+                className={`flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${item.alwaysActive ? 'neon-gold-border neon-gold-text border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-dim)] hover:border-[var(--accent)]'}`}
                 onClick={() => {
                   if (!isOnline) return;
                   lightTap();

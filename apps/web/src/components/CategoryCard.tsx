@@ -87,7 +87,7 @@ function CategoryExcludeButton({
       type="button"
       className={`flex h-[36px] w-[36px] items-center justify-center rounded-full border transition-colors ${
         excluded
-          ? 'border-[var(--accent)] bg-[rgba(215,176,92,0.16)] text-[var(--accent)]'
+          ? 'neon-gold-border neon-gold-text border-[var(--accent)] bg-[rgba(215,176,92,0.16)] text-[var(--accent)]'
           : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-dim)]'
       } disabled:cursor-not-allowed disabled:opacity-40`}
       onClick={() => { onLightTap(); onUpdateExcludeFromShare(!excluded); }}
@@ -199,7 +199,7 @@ function CategoryManageHeader({
             <p className="mt-[6px] text-[12px] leading-[1.5] text-[var(--text-dim)]">
               {selectedCount}/{itemCount} itens
             </p>
-            <p className={`mt-[6px] text-[11px] leading-[1.5] ${categoryRule && (ruleSummary || categoryRule.allowRepeatedItems) ? 'text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
+            <p className={`mt-[6px] text-[11px] leading-[1.5] ${categoryRule && (ruleSummary || categoryRule.allowRepeatedItems) ? 'neon-gold-text text-[var(--accent)]' : 'text-[var(--text-dim)]'}`}>
               {ruleSummary ?? (categoryRule?.allowRepeatedItems ? 'Sem limite e permite repetir item' : 'Sem limite no pedido público')}
             </p>
           </div>
@@ -391,7 +391,7 @@ export default function CategoryCard({
                   {selectedCount}/{items.length} itens
                 </p>
                 {ruleSummary ? (
-                  <p className="mt-[6px] text-[11px] leading-[1.5] text-[var(--accent)]">
+                  <p className="neon-gold-text mt-[6px] text-[11px] leading-[1.5] text-[var(--accent)]">
                     {ruleSummary}
                   </p>
                 ) : null}

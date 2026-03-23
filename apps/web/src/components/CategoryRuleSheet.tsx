@@ -5,7 +5,7 @@ import { useHapticFeedback } from '../hooks/useHapticFeedback';
 import { getLinkedCategories, type CategorySelectionRuleInput } from '../lib/categorySelectionRules';
 
 const DEFAULT_LIMIT = 1;
-const BTN_ACTIVE_CLS = 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]';
+const BTN_ACTIVE_CLS = 'neon-gold-fill border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]';
 const BTN_INACTIVE_CLS = 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text)]';
 
 interface CategoryRuleSheetProps {
@@ -127,7 +127,7 @@ export default function CategoryRuleSheet({
               aria-label={`Permitir repetir itens em ${categoria.name}`}
               className={`relative inline-flex h-[34px] w-[60px] shrink-0 items-center rounded-full border transition-colors ${
                 draftAllowRepeatedItems
-                  ? 'border-[var(--accent)] bg-[rgba(215,176,92,0.28)]'
+                  ? 'neon-gold-border border-[var(--accent)] bg-[rgba(215,176,92,0.28)]'
                   : 'border-[var(--border)] bg-[var(--bg-elevated)]'
               } disabled:cursor-not-allowed disabled:opacity-45`}
               onClick={() => {
@@ -279,7 +279,7 @@ export default function CategoryRuleSheet({
                 As categorias marcadas usam o mesmo limite total do pedido publico.
               </p>
             </div>
-            <span className="rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-[10px] py-[5px] text-[12px] font-semibold text-[var(--accent)]">
+            <span className="neon-gold-text rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-[10px] py-[5px] text-[12px] font-semibold text-[var(--accent)]">
               {draftLinkedCategories.length}
             </span>
           </div>

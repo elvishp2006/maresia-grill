@@ -58,7 +58,7 @@ export default function OrdersPanel({
             <p className="text-[14px] font-semibold text-[var(--text)]">
               Recebimento de pedidos
             </p>
-            <p className={`mt-[4px] text-[13px] font-medium ${acceptingOrders ? 'text-[var(--accent)]' : 'text-[var(--accent-red)]'}`}>
+            <p className={`mt-[4px] text-[13px] font-medium ${acceptingOrders ? 'neon-gold-text text-[var(--accent)]' : 'text-[var(--accent-red)]'}`}>
               {acceptingOrders ? 'Aberto' : 'Encerrado'}
             </p>
           </div>
@@ -67,7 +67,7 @@ export default function OrdersPanel({
             role="switch"
             aria-label="Recebimento de pedidos"
             aria-checked={acceptingOrders}
-            className={`relative inline-flex h-[34px] w-[60px] shrink-0 items-center rounded-full border transition-colors ${acceptingOrders ? 'border-[var(--accent)] bg-[rgba(215,176,92,0.28)]' : 'border-[rgba(208,109,86,0.44)] bg-[rgba(208,109,86,0.18)]'} disabled:cursor-not-allowed disabled:opacity-50`}
+            className={`relative inline-flex h-[34px] w-[60px] shrink-0 items-center rounded-full border transition-colors ${acceptingOrders ? 'neon-gold-border border-[var(--accent)] bg-[rgba(215,176,92,0.28)]' : 'border-[rgba(208,109,86,0.44)] bg-[rgba(208,109,86,0.18)]'} disabled:cursor-not-allowed disabled:opacity-50`}
             onClick={() => {
               mediumTap();
               onToggleIntake();
@@ -92,7 +92,7 @@ export default function OrdersPanel({
 
       {loading ? (
         <section className="section-card">
-          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+          <p className="neon-gold-text text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
             Pedidos
           </p>
           <h2 className="mt-[10px] font-[var(--font-display)] text-[23px] font-bold text-[var(--text)]">
@@ -117,7 +117,7 @@ export default function OrdersPanel({
 
       {!loading && !error && orders.length === 0 ? (
         <section className="section-card border-dashed">
-          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+          <p className="neon-gold-text text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
             Pedidos
           </p>
           <h2 className="mt-[10px] font-[var(--font-display)] text-[23px] font-bold text-[var(--text)]">
@@ -160,7 +160,7 @@ export default function OrdersPanel({
           >
             <div className="flex items-start justify-between gap-[10px]">
               <div className="min-w-0">
-                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+                <p className="neon-gold-text text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
                   Pedido
                 </p>
                 <h2 className="mt-[8px] truncate font-[var(--font-display)] text-[20px] font-bold text-[var(--text)]">
@@ -176,8 +176,8 @@ export default function OrdersPanel({
             </div>
 
             {order.observation ? (
-              <div className="mt-[12px] rounded-[18px] border border-[var(--accent)] bg-[var(--accent-soft)] px-[14px] py-[12px]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Observação</p>
+              <div className="neon-gold-border mt-[12px] rounded-[18px] border border-[var(--accent)] bg-[var(--accent-soft)] px-[14px] py-[12px]">
+                <p className="neon-gold-text text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Observação</p>
                 <p className="mt-[6px] text-[14px] font-medium leading-[1.5] text-[var(--text)]">{order.observation}</p>
               </div>
             ) : null}
@@ -187,7 +187,7 @@ export default function OrdersPanel({
                 <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
                   Total pago
                 </p>
-                <p className="mt-[6px] text-[14px] font-semibold text-[var(--accent)]">
+                <p className="neon-gold-text mt-[6px] text-[14px] font-semibold text-[var(--accent)]">
                   {formatCurrency(paymentSummary.paidTotalCents)}
                 </p>
               </div>
