@@ -640,7 +640,7 @@ export function usePublicMenuPage(token: string) {
   const pendingPaymentSummary = pendingOrderSummary?.paymentSummary ?? currentPaymentSummary;
 
   const selectionViolations = useMemo(() => (
-    menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules).filter(v => v.type !== 'min') : []
+    menu ? validateSelectionRules(menu.items, selection, menu.categorySelectionRules) : []
   ), [menu, selection]);
 
   const repeatedCategories = useMemo(() => new Set(
@@ -711,7 +711,6 @@ export function usePublicMenuPage(token: string) {
       return;
     }
     if (selectionViolations.length > 0) {
-      showToast(selectionViolations[0]?.message ?? 'Ajuste os itens selecionados antes de enviar.', 'info');
       return;
     }
 
