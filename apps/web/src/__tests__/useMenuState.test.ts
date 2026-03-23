@@ -16,6 +16,7 @@ const saveCategoryExcludeFromShare = vi.fn().mockResolvedValue(undefined);
 const saveCategories = vi.fn().mockResolvedValue(undefined);
 const saveComplements = vi.fn().mockResolvedValue(undefined);
 const saveDaySelection = vi.fn().mockResolvedValue(undefined);
+const saveItemAlwaysActive = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../lib/storage', () => ({
   getDateKey: vi.fn((date?: Date) => {
@@ -36,6 +37,7 @@ vi.mock('../lib/storage', () => ({
   saveCategories: (...args: unknown[]) => saveCategories(...args),
   saveComplements: (...args: unknown[]) => saveComplements(...args),
   saveDaySelection: (...args: unknown[]) => saveDaySelection(...args),
+  saveItemAlwaysActive: (...args: unknown[]) => saveItemAlwaysActive(...args),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -419,6 +421,72 @@ describe('useMenuState', () => {
 
     expect(saveCategories).not.toHaveBeenCalled();
     expect(screen.getByText('Já existe uma categoria com este nome.')).toBeInTheDocument();
+  });
+
+  it('updateItemAlwaysActive marks item as always active and calls storage', async () => {
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.updateItemAlwaysActive('1', true);
+      await Promise.resolve();
+    });
+
+    expect(result.current.complements.find(i => i.id === '1')?.alwaysActive).toBe(true);
+    expect(saveItemAlwaysActive).toHaveBeenCalledWith('1', true);
+  });
+
+  it('updateItemAlwaysActive unmarks item as always active and calls storage', async () => {
+    subscribeComplements.mockImplementation((onValue: (value: unknown[]) => void) => {
+      queueMicrotask(() => onValue([
+        { id: '1', nome: 'Alface', categoria: 'cat-saladas', alwaysActive: true },
+        { id: '2', nome: 'Frango', categoria: 'cat-carnes' },
+      ]));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.updateItemAlwaysActive('1', false);
+      await Promise.resolve();
+    });
+
+    expect(result.current.complements.find(i => i.id === '1')?.alwaysActive).toBe(false);
+    expect(saveItemAlwaysActive).toHaveBeenCalledWith('1', false);
+  });
+
+  it('updateItemAlwaysActive state survives subsequent subscribeComplements snapshot', async () => {
+    let capturedOnValue: ((items: unknown[]) => void) | null = null;
+    subscribeComplements.mockImplementation((onValue: (value: unknown[]) => void) => {
+      capturedOnValue = onValue;
+      queueMicrotask(() => onValue([
+        { id: '1', nome: 'Alface', categoria: 'cat-saladas' },
+        { id: '2', nome: 'Frango', categoria: 'cat-carnes' },
+      ]));
+      return vi.fn();
+    });
+
+    const { result } = renderHook(() => useMenuState(), { wrapper });
+    await waitForReady(result);
+
+    await act(async () => {
+      result.current.updateItemAlwaysActive('1', true);
+      await Promise.resolve();
+    });
+
+    expect(result.current.complements.find(i => i.id === '1')?.alwaysActive).toBe(true);
+
+    await act(async () => {
+      capturedOnValue?.([
+        { id: '1', nome: 'Alface', categoria: 'cat-saladas', alwaysActive: true },
+        { id: '2', nome: 'Frango', categoria: 'cat-carnes' },
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(result.current.complements.find(i => i.id === '1')?.alwaysActive).toBe(true);
   });
 
   it('switches to the new day and clears the selection after midnight', async () => {

@@ -749,6 +749,7 @@ export const subscribeComplements = (
       nome: item.name,
       categoria: item.categoryId,
       priceCents: item.priceCents,
+      alwaysActive: item.alwaysActive,
     }));
   onValue(items);
 }, error => onError?.(error));

@@ -139,7 +139,7 @@ function CheckoutForm({
         <button
           type="submit"
           disabled={submitting || !elementReady || !stripe || !elements || Boolean(loadError)}
-          className="min-h-[54px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="neon-gold-fill min-h-[54px] w-full rounded-[18px] bg-[var(--accent)] px-[18px] text-[15px] font-semibold text-[var(--bg)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? 'Processando pagamento...' : 'Pagar'}
         </button>

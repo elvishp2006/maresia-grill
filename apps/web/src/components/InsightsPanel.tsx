@@ -41,7 +41,7 @@ function RankingList({
             </div>
             <span className="neon-gold-text shrink-0 text-[12px] font-semibold text-[var(--accent)]">{valueLabel(item.count)}</span>
           </div>
-          <div className="mt-[8px] h-[6px] overflow-hidden rounded-full bg-[var(--input-bg)]">
+          <div className="mt-[8px] h-[6px] rounded-full bg-[var(--input-bg)]">
             <div
               className="neon-gold-fill h-full rounded-full bg-[var(--accent)]"
               style={{ width: `${Math.max(14, (item.count / maxCount) * 100)}%` }}

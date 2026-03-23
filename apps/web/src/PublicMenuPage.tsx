@@ -102,7 +102,7 @@ function PublicOrderSummary({
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
           Total pago
         </p>
-        <p className="mt-[4px] text-[14px] font-semibold text-[var(--accent)]">
+        <p className="neon-gold-text mt-[4px] text-[14px] font-semibold text-[var(--accent)]">
           {formatCurrency(paidTotalCents)}
         </p>
       </div>

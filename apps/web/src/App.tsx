@@ -441,7 +441,7 @@ function AuthenticatedApp({ onSignOut, userEmail, updateNotification }: Authenti
 
       {isReadOnly ? (
         <section className="section-card mb-[18px] border border-[var(--accent)] bg-[var(--accent-soft)]">
-          <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+          <p className="neon-gold-text text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
             Leitura somente
           </p>
           <p className="mt-[8px] text-[14px] leading-[1.6] text-[var(--text)]">

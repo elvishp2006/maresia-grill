@@ -94,7 +94,7 @@ function ToggleItemRow({
   const active = quantity > 0;
   const blockingMessage = !active && blockingViolation ? blockingViolation.message : null;
   const iconCls = active
-    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
+    ? 'neon-gold-fill border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)] shadow-[0_6px_16px_rgba(215,176,92,0.22)]'
     : blockingViolation
       ? 'border-[var(--border)] bg-[rgba(255,255,255,0.01)] text-transparent'
       : 'border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] text-transparent';
