@@ -339,6 +339,7 @@ export function usePublicMenuPage(token: string) {
   const [observation, setObservation] = useState('');
   const [selection, setSelection] = useState<SelectedPublicItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [orderId, setOrderId] = useState(() => getStoredOrderId(token));
   const [successState, setSuccessState] = useState<CachedPublicOrder | null>(null);
   const [cancelledState, setCancelledState] = useState<CancelledPublicOrderState | null>(null);
@@ -700,6 +701,8 @@ export function usePublicMenuPage(token: string) {
   const handleSubmit = async () => {
     if (!menu) return;
 
+    setSubmitAttempted(true);
+
     const trimmedName = customerName.trim();
     if (!trimmedName) {
       showToast('Informe seu nome.', 'info');
@@ -900,6 +903,7 @@ export function usePublicMenuPage(token: string) {
     setObservation,
     selection,
     submitting,
+    submitAttempted,
     successState,
     cancelledState,
     checkoutSession,
